@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sement Biznes Boshqaruvi</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="header">
+        <h1 id="app-title">SEMENT BIZNES BOSHQRUVI (Enterprise Edition)</h1>
+        <div class="lang-switch">
+            <button onclick="changeLang('latn')" id="btn-latn" class="active">Lotin</button>
+            <button onclick="changeLang('cyrl')" id="btn-cyrl">Кирилл</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Sidebar Menu -->
+        <div class="sidebar">
+            <div class="menu-header" id="menu-header">Bo'limlar</div>
+            <ul id="menu-list" class="menu-list">
+                <!-- Menu items injected by JS -->
+            </ul>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <div class="content-header">
+                <h2 id="page-title">Xush Kelibsiz</h2>
+            </div>
+            <div class="content-body" id="page-content">
+                <p id="welcome-text">Kerakli bo'limni chap tomondagi menyudan tanlang.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

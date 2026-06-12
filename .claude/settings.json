@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -c user.name=\"dev\" -c user.email=\"dev@local\" commit -q -m \"Boshlang'ich holat: Gemini bilan qurilgan loyiha \\(backup\\)\")"
+    ]
+  }
+}

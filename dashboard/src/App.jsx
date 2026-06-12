@@ -1,0 +1,144 @@
+import { useState } from 'react';
+import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { useData } from './context/DataContext';
+
+// Pages
+import Login         from './pages/Login';
+import Settings      from './pages/Settings';
+
+import GenInfo       from './pages/GenInfo';
+import CashBal       from './pages/CashBal';
+import BankBal       from './pages/BankBal';
+import ClickBal      from './pages/ClickBal';
+import CementBal     from './pages/CementBal';
+import DailyWork     from './pages/DailyWork';
+import Income        from './pages/Income';
+import Expense       from './pages/Expense';
+import SoldTons      from './pages/SoldTons';
+import RecvTons      from './pages/RecvTons';
+import Debts         from './pages/Debts';
+import Advances      from './pages/Advances';
+import Sales         from './pages/Sales';
+import IncomeBank    from './pages/IncomeBank';
+import IncomeClick   from './pages/IncomeClick';
+import WorkerSalary  from './pages/WorkerSalary';
+import TelegramOrder from './pages/TelegramOrder';
+import OverallReport from './pages/OverallReport';
+import Customers     from './pages/Customers';
+import DayBalance    from './pages/DayBalance';
+
+// ─── Menyu ro'yxati ──────────────────────────────────────────────────────────
+const FULL_MENU = [
+  { path: '/gen_info',       latn: "Umumiy ma'lumot",      cyrl: "Овши информатисия", roles: ['admin'] },
+  { path: '/cash_bal',       latn: "Naqd pul qoldig'i",    cyrl: "Остатка нах",       roles: ['admin', 'sotuvchi'] },
+  { path: '/bank_bal',       latn: "Bank qoldig'i",         cyrl: "Остатка банк",      roles: ['admin', 'sotuvchi'] },
+  { path: '/click_bal',      latn: "Click qoldig'i",        cyrl: "Остатка кклик",     roles: ['admin', 'sotuvchi'] },
+  { path: '/cement_bal',     latn: "Sement qoldig'i",       cyrl: "Остатка цемент",    roles: ['admin', 'omborchi', 'sotuvchi'] },
+  { path: '/daily_work',     latn: "Kunlik ish",            cyrl: "Кунлик иш",         roles: ['admin'] },
+  { path: '/income',         latn: "Kirim (Naqd)",          cyrl: "Кирим (Нақд)",      roles: ['admin', 'sotuvchi'] },
+  { path: '/expense',        latn: "Chiqim (Naqd)",         cyrl: "Чиким (Нақд)",      roles: ['admin', 'sotuvchi'] },
+  { path: '/sold_tons',      latn: "Sotilgan tonna (Eski)", cyrl: "Сотилган тонна",    roles: ['admin'] },
+  { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",     roles: ['admin', 'omborchi'] },
+  { path: '/debts',          latn: "Qarzlar",               cyrl: "Каризлар",          roles: ['admin', 'sotuvchi'] },
+  { path: '/advances',       latn: "Avanslar",              cyrl: "Аванслар",          roles: ['admin'] },
+  { path: '/sales',          latn: "Sotish",                cyrl: "Сотиш",             roles: ['admin', 'sotuvchi'] },
+  { path: '/income_bank',    latn: "Kirim/Chiqim (Bank)",   cyrl: "Кирим/Чиқим банк",  roles: ['admin', 'sotuvchi'] },
+  { path: '/income_click',   latn: "Kirim/Chiqim (Click)",  cyrl: "Кирим/Чиқим клик",  roles: ['admin', 'sotuvchi'] },
+  { path: '/worker_salary',  latn: "Ishchilar oyligi",      cyrl: "Ишчилар ойлиги",    roles: ['admin'] },
+  { path: '/tg_order',       latn: "Telegram zakaz tonna",  cyrl: "Телеграм закас тн", roles: ['admin', 'sotuvchi'] },
+  { path: '/overall_report', latn: "Hammasidan otchyot",    cyrl: "Хаммасидан очёт",   roles: ['admin'] },
+  { path: '/customers',      latn: "Mijozlar bazasi",       cyrl: "Мижозлар базаси",   roles: ['admin', 'sotuvchi'] },
+  { path: '/day_balance',    latn: "Sana bo'yicha qoldiq",  cyrl: "Сана бўйича қолдиқ",roles: ['admin', 'sotuvchi'] },
+  { path: '/settings',       latn: "Sozlamalar (Admin)",    cyrl: "Созламалар",        roles: ['admin'] },
+];
+
+function Welcome({ text }) { return <p>{text}</p>; }
+
+function App() {
+  const [lang, setLang] = useState('latn');
+  const location = useLocation();
+  const { currentUser, logout, appSettings } = useData();
+
+  if (!currentUser) {
+    return <Login lang={lang} />;
+  }
+
+  // Rollarga qarab menyuni filtrlash
+  const myMenu = FULL_MENU.filter(m => m.roles.includes(currentUser.role));
+
+  const currentItem = myMenu.find(item => item.path === location.pathname);
+  const pageTitle   = currentItem ? currentItem[lang] : "Xush Kelibsiz";
+
+  return (
+    <>
+      <div className="header" style={{ background: appSettings.themeColor || '#003366', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>{appSettings.appName}</h1>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {/* Xodim profili */}
+          <div style={{ color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: 16 }}>
+            <span style={{ fontSize: 16 }}>👤</span>
+            <span style={{ fontWeight: 'bold' }}>{currentUser.name}</span>
+            <span style={{ opacity: 0.8, fontSize: 11, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4 }}>
+              {currentUser.role.toUpperCase()}
+            </span>
+            <button onClick={logout} style={{ background: 'transparent', border: 'none', color: '#ffcdd2', cursor: 'pointer', marginLeft: 8, fontWeight: 'bold' }}>
+              Chiqish
+            </button>
+          </div>
+
+          <div className="lang-switch">
+            <button className={lang === 'latn' ? 'active' : ''} onClick={() => setLang('latn')}>Lotin</button>
+            <button className={lang === 'cyrl' ? 'active' : ''} onClick={() => setLang('cyrl')}>Кирилл</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="container">
+        {/* ── Sidebar ── */}
+        <div className="sidebar">
+          <div className="menu-header">Bo'limlar</div>
+          <ul className="menu-list">
+            {myMenu.map((item, idx) => (
+              <li key={item.path} className={location.pathname === item.path ? 'active' : ''}>
+                <NavLink to={item.path}>{idx + 1}. {item[lang]}</NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* ── Asosiy kontent ── */}
+        <div className="main-content">
+          <div className="content-header"><h2>{pageTitle}</h2></div>
+          <div className="content-body">
+            <Routes>
+              <Route path="/"               element={<Welcome text="Kerakli bo'limni tanlang." />} />
+              <Route path="/gen_info"       element={<GenInfo        lang={lang} />} />
+              <Route path="/cash_bal"       element={<CashBal        lang={lang} />} />
+              <Route path="/bank_bal"       element={<BankBal        lang={lang} />} />
+              <Route path="/click_bal"      element={<ClickBal       lang={lang} />} />
+              <Route path="/cement_bal"     element={<CementBal      lang={lang} />} />
+              <Route path="/daily_work"     element={<DailyWork      lang={lang} />} />
+              <Route path="/income"         element={<Income         lang={lang} />} />
+              <Route path="/expense"        element={<Expense        lang={lang} />} />
+              <Route path="/sold_tons"      element={<SoldTons       lang={lang} />} />
+              <Route path="/recv_tons"      element={<RecvTons       lang={lang} />} />
+              <Route path="/debts"          element={<Debts          lang={lang} />} />
+              <Route path="/advances"       element={<Advances       lang={lang} />} />
+              <Route path="/sales"          element={<Sales          lang={lang} />} />
+              <Route path="/income_bank"    element={<IncomeBank     lang={lang} />} />
+              <Route path="/income_click"   element={<IncomeClick    lang={lang} />} />
+              <Route path="/worker_salary"  element={<WorkerSalary   lang={lang} />} />
+              <Route path="/tg_order"       element={<TelegramOrder  lang={lang} />} />
+              <Route path="/overall_report" element={<OverallReport  lang={lang} />} />
+              <Route path="/customers"      element={<Customers      lang={lang} />} />
+              <Route path="/day_balance"    element={<DayBalance     lang={lang} />} />
+              <Route path="/settings"       element={<Settings       lang={lang} />} />
+            </Routes>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+export default App;

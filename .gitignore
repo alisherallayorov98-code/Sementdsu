@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Bundled Node runtime (keraksiz, tizimda Node o'rnatilgan)
+nodejs/
+node.zip
+
+# Backend ma'lumotlari va sirlar
+backend/.env
+backend/data/
+backend/bot_orders.json
+
+# Build natijalari
+dashboard/dist/
+
+# Log va vaqtinchalik fayllar
+*.log
+.DS_Store
+Thumbs.db
