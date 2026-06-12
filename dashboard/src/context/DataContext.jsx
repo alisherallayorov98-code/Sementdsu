@@ -31,7 +31,8 @@ const guardAutoDelete = (rows, id) => {
 
 export function DataProvider({ children }) {
 
-  // ── Faol xodim (RBAC) — bu QURILMAGA tegishli sessiya, serverga sinxronlanmaydi ──
+  // ── Autentifikatsiya (JWT) — bu QURILMAGA tegishli sessiya ───────────────────
+  const [token, setTokenState]        = useState(() => api.getToken());
   const [currentUser, setCurrentUser] = useState(() => load('current_user', null));
   useEffect(() => save('current_user', currentUser), [currentUser]);
 
@@ -42,23 +43,25 @@ export function DataProvider({ children }) {
     setCurrentWorker(currentUser ? currentUser.name : '');
   }, [currentUser]);
 
-  const login = (name, password) => {
-    // Agar umuman ishchi bo'lmasa, birinchi kirgan odam admin bo'ladi
-    if (workers.length === 0) {
-      const ts = Date.now();
-      const newAdmin = { id: ts, createdAt: ts, name, password, role: 'admin', salary: 0, paid: 0, position: 'Boshqaruvchi', phone: '', note: '' };
-      setWorkers([newAdmin]);
-      setCurrentUser({ id: ts, name, role: 'admin' });
+  // Kirish — server tomonda tekshiriladi, JWT token qaytadi.
+  // Birinchi foydalanuvchi (xodimlar yo'q bo'lsa) avtomatik admin bo'ladi (server bootstrap).
+  const login = async (name, password) => {
+    try {
+      const res = await api.login(name, password);
+      if (!res?.token) return false;
+      api.setToken(res.token);
+      setTokenState(res.token);
+      setCurrentUser(res.user);
       return true;
+    } catch {
+      return false;
     }
-    const w = workers.find(x => x.name.toLowerCase() === name.toLowerCase() && String(x.password) === String(password));
-    if (w) {
-      setCurrentUser({ id: w.id, name: w.name, role: w.role || 'sotuvchi' });
-      return true;
-    }
-    return false;
   };
-  const logout = () => setCurrentUser(null);
+  const logout = () => {
+    api.setToken(null);
+    setTokenState(null);
+    setCurrentUser(null);
+  };
 
   // ── Dastur Sozlamalari ──────────────────────────────────────────────────
   const [appSettings, setAppSettings] = useState(() => load('app_settings', {
@@ -511,8 +514,9 @@ export function DataProvider({ children }) {
     driver_trips:       driverTrips,
   };
 
-  // 1) Ishga tushganda — serverdan butun holatni yuklab olish
+  // 1) Tizimga kirilgach (token bor) — serverdan butun holatni yuklab olish
   useEffect(() => {
+    if (!token) { hydratedRef.current = false; return; }
     let cancelled = false;
     (async () => {
       try {
@@ -533,11 +537,11 @@ export function DataProvider({ children }) {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   // 2) Har bir o'zgarishdan keyin — butun holatni serverga saqlash (debounce 800ms)
   useEffect(() => {
-    if (!hydratedRef.current) return;
+    if (!hydratedRef.current || !token) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       api.saveState(snapshot)
@@ -555,6 +559,7 @@ export function DataProvider({ children }) {
 
   // 3) Telegram botiga tushgan yangi zakazlarni backend navbatidan o'qib olish
   useEffect(() => {
+    if (!token) return;
     const poll = async () => {
       try {
         const orders = await api.getBotOrders();
@@ -577,12 +582,13 @@ export function DataProvider({ children }) {
     poll();
     const interval = setInterval(poll, 5000); // har 5 soniyada
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // ─────────────────────────────────────────────────────────────────────────
   const value = {
     // Auth & Settings
-    currentUser, login, logout, currentWorker, setCurrentWorker,
+    currentUser, token, login, logout, currentWorker, setCurrentWorker,
     appSettings, updateAppSettings,
     backendOnline,
     // 2. Naqd pul

@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Backend bilan aloqa qatlami.
+// Backend bilan aloqa qatlami (JWT auth bilan).
 // Backend manzili:
-//   1) Agar .env'da VITE_API_URL ko'rsatilgan bo'lsa — o'sha.
-//   2) Aks holda — brauzer ochilgan kompyuterning IP/manzili + :5000.
-//      Shu tufayli boshqa kompyuterdan http://192.168.x.x:5173 ochilsa,
-//      server ham avtomatik http://192.168.x.x:5000 deb topiladi (LAN'da ishlaydi).
+//   1) .env'dagi VITE_API_URL bo'lsa — o'sha.
+//   2) Aks holda — brauzer ochilgan kompyuter manzili + :5000 (LAN'da ishlaydi).
+// Har bir himoyalangan so'rovga Authorization: Bearer <token> qo'shiladi.
+// Token muddati tugasa (401) — avtomatik chiqib, login oynasiga qaytadi.
 // ─────────────────────────────────────────────────────────────────────────────
 const defaultApi =
   typeof window !== 'undefined' && window.location?.hostname
@@ -12,33 +12,47 @@ const defaultApi =
     : 'http://localhost:5000';
 
 const API_URL = (import.meta.env.VITE_API_URL || defaultApi).replace(/\/$/, '');
+const TOKEN_KEY = 'auth_token';
 
-async function req(path, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
+const getToken = () => localStorage.getItem(TOKEN_KEY);
+const setToken = (t) => { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); };
+
+async function req(path, options = {}, { auth = true } = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const token = getToken();
+  if (auth && token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+
+  // Token yaroqsiz/muddati tugagan — chiqib, login oynasiga
+  if (res.status === 401 && auth) {
+    setToken(null);
+    if (typeof window !== 'undefined') window.location.reload();
+    throw new Error('Avtorizatsiya muddati tugadi');
+  }
+  if (!res.ok) {
+    let msg = `API xatosi (${res.status})`;
+    try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
   return res.json();
 }
 
 export const api = {
-  // Butun dastur holatini olish
+  // Auth
+  login: (name, password) => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ name, password }) }, { auth: false }),
+  getToken,
+  setToken,
+
+  // Holat
   getState: () => req('/api/state'),
+  saveState: (state) => req('/api/state', { method: 'PUT', body: JSON.stringify(state) }),
 
-  // Butun dastur holatini saqlash
-  saveState: (state) => req('/api/state', {
-    method: 'PUT',
-    body: JSON.stringify(state),
-  }),
-
-  // Telegram botiga tushgan yangi zakazlar
+  // Telegram navbati
   getBotOrders: () => req('/api/new_bot_orders'),
-
-  // Navbatni tozalash (zakazlar qabul qilingach)
   clearBotOrders: () => req('/api/clear_bot_orders', { method: 'POST' }),
 
-  health: () => req('/api/health'),
+  health: () => req('/api/health', {}, { auth: false }),
 };
 
 export { API_URL };

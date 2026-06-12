@@ -63,7 +63,24 @@ Agar backend boshqa kompyuterda bo'lsa, `dashboard/.env` faylida manzilni ko'rsa
 Tizimda hali xodim bo'lmasa, **birinchi kirgan odam avtomatik Admin** bo'ladi.
 Keyin "Sozlamalar" bo'limidan boshqa xodimlarni (Sotuvchi, Omborchi) qo'shasiz.
 
-## Ma'lumotlar xavfsizligi
-- Haqiqiy ma'lumotlar: `backend/data/db.json`
-- Avtomatik backuplar: `backend/data/backups/`
+## Xavfsizlik (Security)
+Backend qatlamli va himoyalangan arxitekturada:
+- **JWT autentifikatsiya** — barcha ma'lumot endpointlari token talab qiladi. Token'siz hech kim ma'lumotni o'qiy/o'zgartira olmaydi. Kirish `/api/auth/login` orqali, server tomonda tekshiriladi.
+- **RBAC** — rollar (admin / sotuvchi / omborchi) middleware orqali (`authorize`).
+- **helmet** — xavfsiz HTTP sarlavhalari (CSP, X-Frame-Options va h.k.).
+- **Rate limiting** — umumiy API daqiqasiga 300 so'rov; login 15 daqiqada 20 urinish (brute-force'dan himoya).
+- **CORS allowlist** — `.env`dagi `CORS_ORIGINS` orqali ruxsat etilgan manzillar.
+- **Markaziy xato boshqaruvi** — server ichki tafsilotlari tashqariga sizmaydi.
+- **Ko'p-akkaunt (SaaS-tayyor)** — har akkaunt izolyatsiyalangan: `data/accounts/<akkaunt>/db.json`.
+
+`.env` sozlamalari uchun `backend/.env.example` ga qarang (`JWT_SECRET`, `JWT_EXPIRES`, `CORS_ORIGINS`).
+
+> Eslatma: xodim parollari hozircha holat ichida ochiq saqlanadi (admin Sozlamalarda
+> ko'radi). To'liq SaaS uchun keyingi qadam — parollarni hash qilish (bcrypt) va internetda
+> faqat HTTPS orqali ishlatish.
+
+## Ma'lumotlar xavfsizligi (backup)
+- Haqiqiy ma'lumotlar: `backend/data/accounts/<akkaunt>/db.json`
+- Avtomatik backuplar (soatlik): `backend/data/accounts/<akkaunt>/backups/`
+- Qo'lda zaxira: Sozlamalar → "Zaxira (Backup)" → JSON yuklab olish.
 - Vaqti-vaqti bilan butun `backend/data/` papkasini boshqa joyga (USB, bulut) nusxalang.

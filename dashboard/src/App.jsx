@@ -58,9 +58,10 @@ const FULL_MENU = [
 function App() {
   const [lang, setLang] = useState('latn');
   const location = useLocation();
-  const { currentUser, logout, appSettings, backendOnline } = useData();
+  const { currentUser, token, logout, appSettings, backendOnline } = useData();
 
-  if (!currentUser) {
+  // Token (yoki foydalanuvchi) bo'lmasa — kirish oynasi
+  if (!currentUser || !token) {
     return <Login lang={lang} />;
   }
 

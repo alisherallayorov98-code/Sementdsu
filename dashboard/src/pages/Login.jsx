@@ -6,16 +6,20 @@ export default function Login({ lang }) {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!name || !password) {
       setError("Ism va parolni kiriting.");
       return;
     }
-    const success = login(name, password);
+    setError('');
+    setLoading(true);
+    const success = await login(name, password);
+    setLoading(false);
     if (!success) {
-      setError("Ism yoki parol noto'g'ri.");
+      setError("Ism yoki parol noto'g'ri (yoki server bilan aloqa yo'q).");
     }
   };
 
@@ -82,11 +86,12 @@ export default function Login({ lang }) {
             )}
           </div>
 
-          <button type="submit" style={{
+          <button type="submit" disabled={loading} style={{
             background: appSettings.themeColor, color: '#fff', border: 'none', padding: '12px',
-            borderRadius: 4, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', marginTop: 8
+            borderRadius: 4, fontSize: 15, fontWeight: 'bold', cursor: loading ? 'wait' : 'pointer',
+            marginTop: 8, opacity: loading ? 0.7 : 1
           }}>
-            Kirish
+            {loading ? 'Kirilmoqda...' : 'Kirish'}
           </button>
         </form>
       </div>
