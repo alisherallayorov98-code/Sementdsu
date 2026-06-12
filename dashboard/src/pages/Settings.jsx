@@ -1,10 +1,46 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
+import ExcelImport from '../components/ExcelImport';
+
+const normName = (s) => String(s ?? '').trim().toLowerCase();
+const parseAmount = (v) => Number(String(v ?? '').replace(/\s/g, '').replace(/,/g, '')) || 0;
 
 export default function Settings({ lang }) {
-  const { workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings } = useData();
+  const {
+    workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
+    customers, importCustomers, importDebts,
+  } = useData();
   const [tab, setTab] = useState('workers');
+
+  // ── Excel import: Mijozlar ────────────────────────────────────────────────
+  const importCustomersHandler = (rows) => {
+    const existing = new Set(customers.map(c => normName(c.name)));
+    const clean = [];
+    let skipped = 0;
+    rows.forEach(r => {
+      const name = String(r.name || '').trim();
+      if (!name || existing.has(normName(name))) { skipped++; return; }
+      existing.add(normName(name));
+      clean.push({ name, phone: r.phone, address: r.address, note: r.note });
+    });
+    importCustomers(clean);
+    return { added: clean.length, skipped };
+  };
+
+  // ── Excel import: Qarzlar ─────────────────────────────────────────────────
+  const importDebtsHandler = (rows) => {
+    const clean = [];
+    let skipped = 0;
+    rows.forEach(r => {
+      const customer = String(r.customer || '').trim();
+      const amount = parseAmount(r.amount);
+      if (!customer || amount <= 0) { skipped++; return; }
+      clean.push({ customer, amount, note: r.note, date: r.date });
+    });
+    importDebts(clean);
+    return { added: clean.length, skipped };
+  };
 
   // ── Zaxira (backup) funksiyalari ──────────────────────────────────────────
   const handleExport = async () => {
@@ -85,12 +121,62 @@ export default function Settings({ lang }) {
           Dastur Sozlamalari
         </button>
         <button
+          onClick={() => setTab('import')}
+          style={{ padding: '10px 20px', background: tab === 'import' ? appSettings.themeColor : 'transparent', color: tab === 'import' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Excel Import
+        </button>
+        <button
           onClick={() => setTab('backup')}
           style={{ padding: '10px 20px', background: tab === 'backup' ? appSettings.themeColor : 'transparent', color: tab === 'backup' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
         >
           Zaxira (Backup)
         </button>
       </div>
+
+      {/* EXCEL IMPORT TABI */}
+      {tab === 'import' && (
+        <div style={{ maxWidth: 760 }}>
+          <div style={{ fontSize: 13, color: '#555', background: '#e3f2fd', border: '1px solid #bbdefb', padding: 12, borderRadius: 6, marginBottom: 16, lineHeight: 1.6 }}>
+            <strong style={{ color: '#1565c0' }}>MoySklad yoki boshqa joydan ma'lumot ko'chirish:</strong>
+            <ol style={{ margin: '6px 0 0 18px', padding: 0 }}>
+              <li>Kerakli bo'lim shablonini yuklab oling.</li>
+              <li>Excel'da ustunlarga ma'lumotni to'ldiring (sarlavha qatorini o'zgartirmang).</li>
+              <li>Faylni qaytadan shu yerga yuklang va "Import qilish"ni bosing.</li>
+            </ol>
+          </div>
+
+          <ExcelImport
+            title="👥 Mijozlar bazasini import qilish"
+            color="#00695c"
+            sheetName="Mijozlar"
+            templateName="mijozlar-shablon.xlsx"
+            hint="Bir xil ismli mijoz allaqachon bo'lsa, qayta qo'shilmaydi (o'tkazib yuboriladi)."
+            columns={[
+              { key: 'name',    header: 'Ism',     aliases: ['nomi', 'mijoz', 'name', 'фио', 'наименование'], required: true },
+              { key: 'phone',   header: 'Telefon', aliases: ['tel', 'phone', 'телефон'] },
+              { key: 'address', header: 'Manzil',  aliases: ['address', 'adres', 'адрес'] },
+              { key: 'note',    header: 'Izoh',    aliases: ['note', 'eslatma', 'комментарий'] },
+            ]}
+            onImport={importCustomersHandler}
+          />
+
+          <ExcelImport
+            title="💳 Qarzlar ro'yxatini import qilish"
+            color="#c62828"
+            sheetName="Qarzlar"
+            templateName="qarzlar-shablon.xlsx"
+            hint="Summa raqam bo'lishi kerak (masalan: 1500000). Bo'sh yoki noto'g'ri summa o'tkazib yuboriladi."
+            columns={[
+              { key: 'customer', header: 'Mijoz',        aliases: ['ism', 'name', 'контрагент'], required: true },
+              { key: 'amount',   header: 'Qarz summasi', aliases: ['summa', 'qarz', 'amount', 'сумма', 'долг'], required: true },
+              { key: 'note',     header: 'Izoh',         aliases: ['note', 'комментарий'] },
+              { key: 'date',     header: 'Sana',         aliases: ['date', 'дата'] },
+            ]}
+            onImport={importDebtsHandler}
+          />
+        </div>
+      )}
 
       {/* ZAXIRA TABI */}
       {tab === 'backup' && (

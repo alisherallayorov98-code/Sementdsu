@@ -194,6 +194,16 @@ export function DataProvider({ children }) {
     }));
   };
   const deleteDebtRow = (id) => setDebtRows(p => p.filter(r => r.id !== id));
+  // Excel'dan ko'plab qarz import qilish (unikal id bilan)
+  const importDebts = (rows) => {
+    const base = Date.now();
+    setDebtRows(p => [...p, ...rows.map((r, i) => ({
+      id: base + i, createdAt: base + i, worker: currentWorker,
+      date: r.date || new Date().toLocaleDateString('ru-RU'),
+      customer: r.customer, amount: Number(r.amount) || 0, paid: 0,
+      note: r.note || '', payments: [],
+    }))]);
+  };
   const totalDebts    = debtRows.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
   const totalDebtsPaid = debtRows.reduce((s, r) => s + Number(r.paid), 0);
   const totalDebtsAll  = debtRows.reduce((s, r) => s + Number(r.amount), 0);
@@ -358,6 +368,15 @@ export function DataProvider({ children }) {
   };
   const updateCustomer = (id, data) => setCustomers(p => p.map(c => c.id === id ? { ...c, ...data } : c));
   const deleteCustomer = (id) => setCustomers(p => p.filter(c => c.id !== id));
+  // Excel'dan ko'plab mijoz import qilish (unikal id bilan)
+  const importCustomers = (rows) => {
+    const base = Date.now();
+    setCustomers(p => [...p, ...rows.map((r, i) => ({
+      id: base + i, createdAt: base + i, worker: currentWorker,
+      name: (r.name || '').trim(), address: (r.address || '').trim(),
+      phone: (r.phone || '').trim(), note: r.note || '',
+    }))]);
+  };
 
   // ── 18. Haydovchilar va Qatnovlar ─────────────────────────────────────────
   const [drivers, setDrivers] = useState(() => load('drivers', []));
@@ -543,7 +562,7 @@ export function DataProvider({ children }) {
     // 10. Olingan tonna
     recvRows, addRecvRow, deleteRecvRow,
     // 11. Qarzlar
-    debtRows, addDebtRow, payDebt, deleteDebtRow, totalDebts, totalDebtsPaid, totalDebtsAll,
+    debtRows, addDebtRow, payDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
     advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
     // 13. Sotish
@@ -564,7 +583,7 @@ export function DataProvider({ children }) {
     // 6. Kunlik ish
     dailyWorkRows, addDailyWorkRow, deleteDailyWorkRow,
     // Mijozlar bazasi
-    customers, addCustomer, updateCustomer, deleteCustomer,
+    customers, addCustomer, updateCustomer, deleteCustomer, importCustomers,
     // Haydovchilar
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
