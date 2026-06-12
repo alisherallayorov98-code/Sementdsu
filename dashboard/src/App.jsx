@@ -7,6 +7,7 @@ import GlobalSearch from './components/GlobalSearch';
 import Login         from './pages/Login';
 import Settings      from './pages/Settings';
 import Dashboard     from './pages/Dashboard';
+import Reports       from './pages/Reports';
 
 import GenInfo       from './pages/GenInfo';
 import CashBal       from './pages/CashBal';
@@ -49,6 +50,7 @@ const FULL_MENU = [
   { path: '/income_click',   latn: "Kirim/Chiqim (Click)",  cyrl: "Кирим/Чиқим клик",  roles: ['admin', 'sotuvchi'] },
   { path: '/worker_salary',  latn: "Ishchilar oyligi",      cyrl: "Ишчилар ойлиги",    roles: ['admin'] },
   { path: '/tg_order',       latn: "Telegram zakaz tonna",  cyrl: "Телеграм закас тн", roles: ['admin', 'sotuvchi'] },
+  { path: '/reports',        latn: "📊 Hisobotlar",          cyrl: "📊 Ҳисоботлар",     roles: ['admin'] },
   { path: '/overall_report', latn: "Hammasidan otchyot",    cyrl: "Хаммасидан очёт",   roles: ['admin'] },
   { path: '/customers',      latn: "Mijozlar bazasi",       cyrl: "Мижозлар базаси",   roles: ['admin', 'sotuvchi'] },
   { path: '/day_balance',    latn: "Sana bo'yicha qoldiq",  cyrl: "Сана бўйича қолдиқ",roles: ['admin', 'sotuvchi'] },
@@ -141,6 +143,7 @@ function App() {
               <Route path="/income_click"   element={<IncomeClick    lang={lang} />} />
               <Route path="/worker_salary"  element={<WorkerSalary   lang={lang} />} />
               <Route path="/tg_order"       element={<TelegramOrder  lang={lang} />} />
+              <Route path="/reports"        element={<Reports />} />
               <Route path="/overall_report" element={<OverallReport  lang={lang} />} />
               <Route path="/customers"      element={<Customers      lang={lang} />} />
               <Route path="/day_balance"    element={<DayBalance     lang={lang} />} />
