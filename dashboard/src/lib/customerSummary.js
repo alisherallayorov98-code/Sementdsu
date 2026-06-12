@@ -23,11 +23,15 @@ export function customerSummary(name, data) {
   const usedAvans    = advs.reduce((s, r) => s + Number(r.used || 0), 0);
   const qolganAvans  = Math.max(0, totalAvans - usedAvans);
 
+  // Oxirgi xarid vaqti (createdAt yoki id timestamp bo'yicha)
+  const lastSaleAt = sales.reduce((mx, r) => Math.max(mx, Number(r.createdAt || r.id || 0)), 0);
+
   return {
     sales, debts, advs, orders,
     totalTon, totalXarid,
     totalQarz, totalTolandi, qolganQarz,
     totalAvans, qolganAvans,
+    lastSaleAt,
     salesCount: sales.length,
   };
 }

@@ -1,22 +1,28 @@
 import { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
+import { customerSummary } from '../lib/customerSummary';
+import CustomerCard from '../components/CustomerCard';
 
-const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+const dateOf = (ts) => (ts && ts > 1e10 ? new Date(ts).toLocaleDateString('ru-RU') : '—');
 
-export default function Customers({ lang }) {
-  const {
-    customers, addCustomer, updateCustomer, deleteCustomer,
-    soldRows, debtRows, advanceRows, incomeRows, expenseRows,
-  } = useData();
+export default function Customers() {
+  const data = useData();
+  const { customers, addCustomer, updateCustomer, deleteCustomer } = data;
 
   const [form, setForm]         = useState({ name: '', phone: '', address: '', note: '' });
   const [editId, setEditId]     = useState(null);
   const [editData, setEditData] = useState({});
   const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [modalCust, setModalCust] = useState(null); // detail modal
-  const [sortBy, setSortBy]     = useState('date'); // 'date' | 'name' | 'debt' | 'xarid'
+  const [modalName, setModalName] = useState(null); // ochilgan mijoz kartochkasi (nom)
+  const [sortBy, setSortBy]     = useState('date'); // date | name | debt | xarid | avans | recent
+  const [onlyDebt, setOnlyDebt] = useState(false);
+
+  // ── Yagona hisoblagich (yangi "Sotish" + eski "Sotilgan tonna" birga) ─────
+  const stat = (name) => customerSummary(name, data);
 
   // ── Qo'shish ─────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -29,26 +35,10 @@ export default function Customers({ lang }) {
     setShowForm(false);
   };
 
-  // ── Tahrirlash ────────────────────────────────────────────────────────────
+  // ── Tahrirlash / o'chirish ────────────────────────────────────────────────
   const startEdit = (c) => { setEditId(c.id); setEditData({ name: c.name, phone: c.phone || '', address: c.address || '', note: c.note || '' }); };
   const saveEdit  = (id) => { if (!editData.name) return; updateCustomer(id, editData); setEditId(null); };
-
-  // ── O'chirish ────────────────────────────────────────────────────────────
   const handleDelete = (id, name) => { if (window.confirm(`"${name}" o'chirilsinmi?`)) deleteCustomer(id); };
-
-  // ── Har bir mijoz uchun moliyaviy ma'lumot ────────────────────────────────
-  const custStats = (name) => {
-    const sales   = soldRows.filter(r => r.customer === name);
-    const debts   = debtRows.filter(r => r.customer === name);
-    const advs    = advanceRows.filter(r => r.customer === name);
-    const totalXarid  = sales.reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-    const totalTon    = sales.reduce((s, r) => s + Number(r.tons || 0), 0);
-    const totalQarz   = debts.reduce((s, r) => s + Number(r.amount || 0), 0);
-    const totalTolandi = debts.reduce((s, r) => s + Number(r.paid || 0), 0);
-    const qolganQarz  = Math.max(0, totalQarz - totalTolandi);
-    const totalAvans  = advs.reduce((s, r) => s + Number(r.amount || 0), 0);
-    return { totalXarid, totalTon, totalQarz, totalTolandi, qolganQarz, totalAvans, salesCount: sales.length };
-  };
 
   // ── Filter + saralash ─────────────────────────────────────────────────────
   let filtered = customers
@@ -58,195 +48,63 @@ export default function Customers({ lang }) {
       (c.phone || '').includes(search) ||
       (c.address || '').toLowerCase().includes(search.toLowerCase())
     )
-    .map(c => ({ ...c, _stats: custStats(c.name) }));
+    .map(c => ({ ...c, _s: stat(c.name) }));
 
-  if (sortBy === 'name')  filtered.sort((a, b) => a.name.localeCompare(b.name));
-  if (sortBy === 'debt')  filtered.sort((a, b) => b._stats.qolganQarz - a._stats.qolganQarz);
-  if (sortBy === 'xarid') filtered.sort((a, b) => b._stats.totalXarid - a._stats.totalXarid);
-  if (sortBy === 'date')  filtered.sort((a, b) => b.id - a.id);
+  if (onlyDebt) filtered = filtered.filter(c => c._s.qolganQarz > 0);
+
+  if (sortBy === 'name')   filtered.sort((a, b) => a.name.localeCompare(b.name));
+  if (sortBy === 'debt')   filtered.sort((a, b) => b._s.qolganQarz - a._s.qolganQarz);
+  if (sortBy === 'xarid')  filtered.sort((a, b) => b._s.totalXarid - a._s.totalXarid);
+  if (sortBy === 'avans')  filtered.sort((a, b) => b._s.qolganAvans - a._s.qolganAvans);
+  if (sortBy === 'recent') filtered.sort((a, b) => b._s.lastSaleAt - a._s.lastSaleAt);
+  if (sortBy === 'date')   filtered.sort((a, b) => b.id - a.id);
 
   // ── Umumiy statistika ─────────────────────────────────────────────────────
-  const allStats = customers.map(c => custStats(c.name));
+  const allStats = customers.map(c => stat(c.name));
   const totalDebtAll  = allStats.reduce((s, x) => s + x.qolganQarz, 0);
+  const totalAvansAll = allStats.reduce((s, x) => s + x.qolganAvans, 0);
   const totalXaridAll = allStats.reduce((s, x) => s + x.totalXarid, 0);
   const totalTonAll   = allStats.reduce((s, x) => s + x.totalTon, 0);
   const withDebt      = allStats.filter(x => x.qolganQarz > 0).length;
 
-  const inp = { padding: '4px 7px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3, fontFamily: 'Tahoma, sans-serif' };
-
-  // ── Mijoz detail modal ───────────────────────────────────────────────────
-  const DetailModal = () => {
-    if (!modalCust) return null;
-    const c     = customers.find(x => x.id === modalCust);
-    if (!c) return null;
-    const st    = custStats(c.name);
-    const sales = soldRows.filter(r => r.customer === c.name).slice().reverse();
-    const debts = debtRows.filter(r => r.customer === c.name);
-    const advs  = advanceRows.filter(r => r.customer === c.name);
-
-    return (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-        background: 'rgba(0,0,0,0.5)', zIndex: 2000,
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        paddingTop: 24, boxSizing: 'border-box', overflowY: 'auto',
-      }} onClick={e => { if (e.target === e.currentTarget) setModalCust(null); }}>
-        <div style={{
-          background: '#fff', width: '94%', maxWidth: 900,
-          maxHeight: '92vh', overflowY: 'auto',
-          borderRadius: 6, boxShadow: '0 6px 32px rgba(0,0,0,0.35)',
-        }}>
-          {/* Header */}
-          <div style={{ background: '#283593', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 'bold', fontSize: 16 }}>👤 {c.name}</div>
-              <div style={{ fontSize: 12, color: '#c5cae9', marginTop: 2 }}>
-                {c.phone && <span style={{ marginRight: 12 }}>📞 {c.phone}</span>}
-                {c.address && <span>📍 {c.address}</span>}
-              </div>
-            </div>
-            <button onClick={() => setModalCust(null)}
-              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 18, padding: '4px 12px', borderRadius: 4 }}>✕</button>
-          </div>
-
-          <div style={{ padding: '16px 20px' }}>
-            {/* Statistika kartalar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, marginBottom: 18 }}>
-              <MiniCard label="Jami xarid"      value={`${fmt(st.totalXarid)} so'm`} color="#1565c0" bg="#e3f2fd" />
-              <MiniCard label="Jami tonna"      value={`${fmtT(st.totalTon)} tn`}    color="#1565c0" bg="#e8f5e9" />
-              <MiniCard label="Nasiya berildi"  value={`${fmt(st.totalQarz)} so'm`}  color="#e65100" bg="#fff3e0" />
-              <MiniCard label="To'langan"       value={`${fmt(st.totalTolandi)} so'm`} color="#2e7d32" bg="#e8f5e9" />
-              <MiniCard label="Qolgan qarz"     value={`${fmt(st.qolganQarz)} so'm`}
-                color={st.qolganQarz > 0 ? '#c62828' : '#2e7d32'}
-                bg={st.qolganQarz > 0 ? '#ffebee' : '#e8f5e9'} bold />
-              {st.totalAvans > 0 && <MiniCard label="Avans" value={`${fmt(st.totalAvans)} so'm`} color="#6a1b9a" bg="#f3e5f5" />}
-            </div>
-
-            {/* Xaridlar tarixi */}
-            {sales.length > 0 && (
-              <>
-                <p style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 6, color: '#283593' }}>🏭 Xaridlar tarixi ({sales.length} ta)</p>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#e8eaf6' }}>
-                      <th style={thS}>#</th><th style={thS}>Sana</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Tonna</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Narx</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Summa</th>
-                      <th style={thS}>To'lov</th><th style={thS}>Izoh</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sales.map((r, i) => {
-                      const sum = Number(r.tons || 0) * Number(r.pricePerTon || 0);
-                      return (
-                        <tr key={r.id} style={{ background: r.paymentChannel === 'nasiya' ? '#fff5ee' : (i % 2 === 0 ? '#fff' : '#f9f9f9') }}>
-                          <td style={tdS}>{i + 1}</td>
-                          <td style={tdS}>{r.date}</td>
-                          <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold' }}>{fmtT(r.tons)} tn</td>
-                          <td style={{ ...tdS, textAlign: 'right' }}>{fmt(r.pricePerTon)}</td>
-                          <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: r.paymentChannel === 'nasiya' ? '#c62828' : '#2e7d32' }}>{fmt(sum)}</td>
-                          <td style={{ ...tdS, color: r.paymentChannel === 'nasiya' ? '#c62828' : '#333', fontWeight: r.paymentChannel === 'nasiya' ? 'bold' : 'normal' }}>{r.paymentChannel}</td>
-                          <td style={tdS}>{r.izoh || '—'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {/* Qarzlar */}
-            {debts.length > 0 && (
-              <>
-                <p style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 6, color: '#c62828' }}>💳 Qarz / Nasiya ({debts.length} ta)</p>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#ffebee' }}>
-                      <th style={thS}>#</th><th style={thS}>Sana</th><th style={thS}>Izoh</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Qarz</th>
-                      <th style={{ ...thS, textAlign: 'right', color: '#2e7d32' }}>To'landi</th>
-                      <th style={{ ...thS, textAlign: 'right', color: '#c62828' }}>Qolgan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {debts.map((d, i) => {
-                      const left = Math.max(0, Number(d.amount) - Number(d.paid || 0));
-                      return (
-                        <tr key={d.id} style={{ background: left <= 0 ? '#e8f5e9' : (i % 2 === 0 ? '#fff' : '#fff9f9') }}>
-                          <td style={tdS}>{i + 1}</td><td style={tdS}>{d.date}</td><td style={tdS}>{d.note || '—'}</td>
-                          <td style={{ ...tdS, textAlign: 'right' }}>{fmt(d.amount)}</td>
-                          <td style={{ ...tdS, textAlign: 'right', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(d.paid || 0)}</td>
-                          <td style={{ ...tdS, textAlign: 'right', color: left > 0 ? '#c62828' : '#2e7d32', fontWeight: 'bold' }}>
-                            {left > 0 ? fmt(left) : '✓ To\'landi'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-                      <td colSpan={3} style={{ ...tdS, textAlign: 'right' }}>JAMI:</td>
-                      <td style={{ ...tdS, textAlign: 'right' }}>{fmt(st.totalQarz)}</td>
-                      <td style={{ ...tdS, textAlign: 'right', color: '#2e7d32' }}>{fmt(st.totalTolandi)}</td>
-                      <td style={{ ...tdS, textAlign: 'right', color: st.qolganQarz > 0 ? '#c62828' : '#2e7d32' }}>{fmt(st.qolganQarz)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {/* Avanslar */}
-            {advs.length > 0 && (
-              <>
-                <p style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 6, color: '#6a1b9a' }}>💰 Avanslar ({advs.length} ta)</p>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#f3e5f5' }}>
-                      <th style={thS}>#</th><th style={thS}>Sana</th><th style={thS}>Izoh</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Miqdor</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Ishlatildi</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Qolgan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {advs.map((a, i) => {
-                      const qoldi = Math.max(0, Number(a.amount) - Number(a.used || 0));
-                      return (
-                        <tr key={a.id} style={{ background: i % 2 === 0 ? '#fff' : '#fdf5ff' }}>
-                          <td style={tdS}>{i + 1}</td><td style={tdS}>{a.date}</td>
-                          <td style={tdS}>{a.note || '—'}</td>
-                          <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold' }}>{fmt(a.amount)}</td>
-                          <td style={{ ...tdS, textAlign: 'right', color: '#e65100' }}>{fmt(a.used || 0)}</td>
-                          <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: qoldi > 0 ? '#6a1b9a' : '#2e7d32' }}>{fmt(qoldi)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {sales.length === 0 && debts.length === 0 && advs.length === 0 && (
-              <p style={{ color: '#aaa', fontStyle: 'italic', textAlign: 'center', marginTop: 20 }}>Bu mijoz uchun hali hech qanday tranzaksiya yo'q.</p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+  // ── Excel eksport (ko'rinayotgan ro'yxat) ─────────────────────────────────
+  const exportExcel = () => {
+    const rows = filtered.map((c, i) => ({
+      '#': i + 1,
+      'Ism': c.name,
+      'Telefon': c.phone || '',
+      'Manzil': c.address || '',
+      'Jami xarid (som)': c._s.totalXarid,
+      'Tonna': c._s.totalTon,
+      'Qolgan qarz (som)': c._s.qolganQarz,
+      'Qoldiq avans (som)': c._s.qolganAvans,
+      'Oxirgi xarid': dateOf(c._s.lastSaleAt),
+      'Izoh': c.note || '',
+    }));
+    if (!rows.length) { alert("Eksport uchun ma'lumot yo'q."); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{ wch: 4 }, { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 8 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mijozlar');
+    XLSX.writeFile(wb, `mijozlar-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
+
+  const inp = { padding: '4px 7px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3, fontFamily: 'Tahoma, sans-serif' };
 
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13 }}>
 
       {/* ── STATISTIKA PANELI ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <StatBox label="Jami mijozlar" value={customers.length} unit="ta"  color="#283593" bg="#e8eaf6" />
-        <StatBox label="Umumiy xarid"  value={fmt(totalXaridAll)} unit="so'm" color="#1b5e20" bg="#e8f5e9" />
-        <StatBox label="Jami tonna"    value={`${fmtT(totalTonAll)}`} unit="tn" color="#0d47a1" bg="#e3f2fd" />
-        <StatBox label="Qarz bor"      value={withDebt} unit="ta mijoz"   color="#c62828" bg="#ffebee" />
-        <StatBox label="Umumiy qarz"   value={fmt(totalDebtAll)} unit="so'm" color="#c62828" bg="#ffebee" bold />
+        <StatBox label="Jami mijozlar" value={customers.length}      unit="ta"       color="#283593" bg="#e8eaf6" />
+        <StatBox label="Umumiy xarid"  value={fmt(totalXaridAll)}    unit="so'm"     color="#1b5e20" bg="#e8f5e9" />
+        <StatBox label="Jami tonna"    value={fmtT(totalTonAll)}     unit="tn"       color="#0d47a1" bg="#e3f2fd" />
+        <StatBox label="Qarzdorlar"    value={withDebt}              unit="ta mijoz" color="#c62828" bg="#ffebee" onClick={() => setOnlyDebt(v => !v)} active={onlyDebt} />
+        <StatBox label="Umumiy qarz"   value={fmt(totalDebtAll)}     unit="so'm"     color="#c62828" bg="#ffebee" bold />
+        {totalAvansAll > 0 && <StatBox label="Qoldiq avans" value={fmt(totalAvansAll)} unit="so'm" color="#6a1b9a" bg="#f3e5f5" />}
       </div>
 
-      {/* ── QIDIRUV + SARALASH + QO'SHISH ────────────────────────────────── */}
+      {/* ── QIDIRUV + SARALASH + AMALLAR ─────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           placeholder="🔍 Ism, telefon, manzil..."
@@ -258,13 +116,27 @@ export default function Customers({ lang }) {
           <option value="name">А-Z Ism bo'yicha</option>
           <option value="debt">↓ Qarz bo'yicha</option>
           <option value="xarid">↓ Xarid bo'yicha</option>
+          <option value="avans">↓ Avans bo'yicha</option>
+          <option value="recent">↓ Oxirgi xarid</option>
         </select>
+        <button onClick={() => setOnlyDebt(v => !v)} style={{
+          padding: '5px 12px', cursor: 'pointer', borderRadius: 4, fontSize: 12, fontWeight: 'bold',
+          background: onlyDebt ? '#c62828' : '#fff', color: onlyDebt ? '#fff' : '#c62828', border: '1px solid #c62828',
+        }}>
+          {onlyDebt ? '✓ Faqat qarzdorlar' : 'Faqat qarzdorlar'}
+        </button>
         <button onClick={() => setShowForm(v => !v)} style={{
           padding: '5px 18px', cursor: 'pointer',
           background: showForm ? '#c62828' : '#283593',
           color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', fontSize: 13,
         }}>
           {showForm ? '✕ Yopish' : '+ Yangi mijoz'}
+        </button>
+        <button onClick={exportExcel} style={{
+          padding: '5px 14px', cursor: 'pointer', background: '#1b5e20', color: '#fff',
+          border: 'none', borderRadius: 4, fontWeight: 'bold', fontSize: 12,
+        }}>
+          ⬇️ Excel
         </button>
         <span style={{ color: '#888', fontSize: 12 }}>{filtered.length} ta ko'rinmoqda</span>
       </div>
@@ -309,32 +181,30 @@ export default function Customers({ lang }) {
           <thead>
             <tr>
               <th style={{ width: 35 }}>#</th>
-              <th style={{ width: 85 }}>Sana</th>
               <th style={{ minWidth: 160 }}>Ism</th>
               <th style={{ width: 135 }}>Telefon</th>
-              <th style={{ width: 140 }}>Manzil</th>
-              <th style={{ textAlign: 'right', width: 130 }}>Jami xarid</th>
-              <th style={{ textAlign: 'right', width: 80 }}>Tonna</th>
-              <th style={{ textAlign: 'right', width: 125 }}>Qolgan qarz</th>
+              <th style={{ width: 130 }}>Manzil</th>
+              <th style={{ textAlign: 'right', width: 120 }}>Jami xarid</th>
+              <th style={{ textAlign: 'right', width: 70 }}>Tonna</th>
+              <th style={{ textAlign: 'right', width: 120 }}>Qolgan qarz</th>
+              <th style={{ textAlign: 'right', width: 110 }}>Qoldiq avans</th>
+              <th style={{ width: 85 }}>Oxirgi xarid</th>
               <th style={{ width: 90 }}>Amal</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((c, i) => {
-              const st = c._stats;
+              const st = c._s;
               return (
                 <tr key={c.id} style={{ background: st.qolganQarz > 0 ? '#fff9f0' : (i % 2 === 0 ? '#fff' : '#f4f5ff') }}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
-                  <td style={{ fontSize: 11, color: '#777' }}>
-                    {c.id > 1e10 ? new Date(c.id).toLocaleDateString('ru-RU') : '—'}
-                  </td>
 
                   {editId === c.id ? (
                     <>
                       <td><input value={editData.name}    onChange={e => setEditData({...editData, name: e.target.value})}    style={{ ...inp, width: '100%', fontSize: 12 }} /></td>
                       <td><input value={editData.phone}   onChange={e => setEditData({...editData, phone: e.target.value})}   style={{ ...inp, width: '100%', fontSize: 12 }} placeholder="+998..." /></td>
                       <td><input value={editData.address} onChange={e => setEditData({...editData, address: e.target.value})} style={{ ...inp, width: '100%', fontSize: 12 }} /></td>
-                      <td colSpan={3}><input value={editData.note} onChange={e => setEditData({...editData, note: e.target.value})} style={{ ...inp, width: '100%', fontSize: 12 }} placeholder="Izoh" /></td>
+                      <td colSpan={5}><input value={editData.note} onChange={e => setEditData({...editData, note: e.target.value})} style={{ ...inp, width: '100%', fontSize: 12 }} placeholder="Izoh" /></td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button onClick={() => saveEdit(c.id)} style={greenBtn}>✓</button>
@@ -345,7 +215,7 @@ export default function Customers({ lang }) {
                   ) : (
                     <>
                       <td>
-                        <button onClick={() => setModalCust(c.id)}
+                        <button onClick={() => setModalName(c.name)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#283593', fontWeight: 'bold', fontSize: 13, padding: 0, textDecoration: 'underline', textAlign: 'left' }}>
                           {c.name}
                         </button>
@@ -357,12 +227,11 @@ export default function Customers({ lang }) {
                           : <span style={{ color: '#bbb' }}>—</span>}
                       </td>
                       <td style={{ fontSize: 11, color: '#444' }}>{c.address || <span style={{ color: '#bbb' }}>—</span>}</td>
-                      {/* Moliyaviy */}
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#1565c0', fontSize: 12 }}>
                         {st.totalXarid > 0 ? fmt(st.totalXarid) : <span style={{ color: '#bbb' }}>—</span>}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#1565c0', fontSize: 12 }}>
-                        {st.totalTon > 0 ? `${fmtT(st.totalTon)} tn` : <span style={{ color: '#bbb' }}>—</span>}
+                        {st.totalTon > 0 ? `${fmtT(st.totalTon)}` : <span style={{ color: '#bbb' }}>—</span>}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         {st.qolganQarz > 0 ? (
@@ -375,9 +244,13 @@ export default function Customers({ lang }) {
                           <span style={{ color: '#bbb', fontSize: 11 }}>—</span>
                         )}
                       </td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#6a1b9a', fontWeight: st.qolganAvans > 0 ? 'bold' : 'normal' }}>
+                        {st.qolganAvans > 0 ? fmt(st.qolganAvans) : <span style={{ color: '#bbb' }}>—</span>}
+                      </td>
+                      <td style={{ fontSize: 11, color: '#777' }}>{dateOf(st.lastSaleAt)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => setModalCust(c.id)} style={infoBtn}>👁</button>
+                          <button onClick={() => setModalName(c.name)} style={infoBtn}>👁</button>
                           <button onClick={() => startEdit(c)} style={editBtn}>✎</button>
                           <button onClick={() => handleDelete(c.id, c.name)} style={redBtn}>✕</button>
                         </div>
@@ -391,16 +264,19 @@ export default function Customers({ lang }) {
         </table>
       )}
 
-      {/* ── DETAIL MODAL ─────────────────────────────────────────────────── */}
-      <DetailModal />
+      {/* ── MIJOZ KARTOCHKASI (yagona) ───────────────────────────────────── */}
+      {modalName && <CustomerCard name={modalName} onClose={() => setModalName(null)} />}
     </div>
   );
 }
 
 // ─── Yordamchi komponentlar ──────────────────────────────────────────────────
-function StatBox({ label, value, unit, color, bg, bold }) {
+function StatBox({ label, value, unit, color, bg, bold, onClick, active }) {
   return (
-    <div style={{ padding: '8px 16px', background: bg, borderLeft: `4px solid ${color}`, borderRadius: 4, minWidth: 140 }}>
+    <div onClick={onClick} style={{
+      padding: '8px 16px', background: bg, borderLeft: `4px solid ${color}`, borderRadius: 4, minWidth: 140,
+      cursor: onClick ? 'pointer' : 'default', boxShadow: active ? `0 0 0 2px ${color}` : 'none',
+    }}>
       <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: bold ? 18 : 16, fontWeight: 'bold', color, fontFamily: 'monospace' }}>
         {value} <span style={{ fontSize: 12 }}>{unit}</span>
@@ -409,18 +285,7 @@ function StatBox({ label, value, unit, color, bg, bold }) {
   );
 }
 
-function MiniCard({ label, value, color, bg, bold }) {
-  return (
-    <div style={{ padding: '8px 12px', background: bg, borderLeft: `3px solid ${color}`, borderRadius: 4 }}>
-      <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: bold ? 15 : 13, fontWeight: 'bold', color, fontFamily: 'monospace' }}>{value}</div>
-    </div>
-  );
-}
-
 // ─── Stil konstantlari ──────────────────────────────────────────────────────
-const thS      = { border: '1px solid #ccc', padding: '4px 8px', fontWeight: 'bold', fontSize: 11, textAlign: 'left', background: 'inherit' };
-const tdS      = { border: '1px solid #e0e0e0', padding: '4px 8px', fontSize: 11 };
 const infoBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#e8eaf6', border: '1px solid #3949ab', borderRadius: 3, color: '#283593', fontSize: 12 };
 const editBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', borderRadius: 3, color: '#1565c0', fontSize: 12 };
 const greenBtn = { padding: '2px 7px', cursor: 'pointer', background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: 3, color: '#2e7d32', fontSize: 12, fontWeight: 'bold' };
