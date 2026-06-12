@@ -15,6 +15,20 @@ const load = (key, fallback) => {
 };
 const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
+// Tonnani chiroyli ko'rsatish (butun bo'lsa kasrsiz)
+const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+
+// Avtomatik (sotuvdan yaratilgan) yozuvni qo'lda o'chirishdan himoya qilish.
+// Bunday yozuvlar faqat tegishli savdo o'chirilganda o'chadi.
+const guardAutoDelete = (rows, id) => {
+  const row = rows.find(r => r.id === id);
+  if (row?.auto) {
+    alert("Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.");
+    return rows;
+  }
+  return rows.filter(r => r.id !== id);
+};
+
 export function DataProvider({ children }) {
 
   // ── Faol xodim (RBAC) — bu QURILMAGA tegishli sessiya, serverga sinxronlanmaydi ──
@@ -75,7 +89,7 @@ export function DataProvider({ children }) {
     const ts = Date.now();
     setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
   };
-  const deleteCashRow    = (id) => setCashRows(p => p.filter(r => r.id !== id));
+  const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
 
   // ── 3. Bank ───────────────────────────────────────────────────────────────
   const [bankOpening, setBankOpening] = useState(() => load('bank_opening', { date: '25.04.2025', amount: 20000000 }));
@@ -91,7 +105,7 @@ export function DataProvider({ children }) {
     const ts = Date.now();
     setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
   };
-  const deleteBankRow    = (id) => setBankRows(p => p.filter(r => r.id !== id));
+  const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
 
   // ── 4. Click ──────────────────────────────────────────────────────────────
   const [clickOpening, setClickOpening] = useState(() => load('click_opening', { date: '25.04.2025', amount: 5000000 }));
@@ -103,7 +117,7 @@ export function DataProvider({ children }) {
     const ts = Date.now();
     setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
   };
-  const deleteClickRow    = (id) => setClickRows(p => p.filter(r => r.id !== id));
+  const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
 
   // ── 5. Sement qoldig'i ────────────────────────────────────────────────────
   const [cementOpening, setCementOpening] = useState(() => load('cement_opening', { date: '25.04.2025', tons: 0 }));
@@ -159,8 +173,9 @@ export function DataProvider({ children }) {
   const deleteRecvRow = (id) => setRecvRows(p => p.filter(r => r.id !== id));
   const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
-  // Sement qoldig'i = ochilish + olingan - sotilgan
-  const totalCementBalance = Number(cementOpening.tons) + totalRecvTons - totalSoldTons;
+  // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
+  // Eslatma: yangi "Sotish" (salesRows) ham hisobga olinadi — pastda salesRows
+  // e'lon qilingach hisoblanadi.
 
   // ── 11. Qarzlar ───────────────────────────────────────────────────────────
   const [debtRows, setDebtRows] = useState(() => load('debt_rows', []));
@@ -193,7 +208,7 @@ export function DataProvider({ children }) {
       };
     }));
   };
-  const deleteDebtRow = (id) => setDebtRows(p => p.filter(r => r.id !== id));
+  const deleteDebtRow = (id) => setDebtRows(p => guardAutoDelete(p, id));
   // Excel'dan ko'plab qarz import qilish (unikal id bilan)
   const importDebts = (rows) => {
     const base = Date.now();
@@ -249,9 +264,34 @@ export function DataProvider({ children }) {
   useEffect(() => save('sales_rows', salesRows), [salesRows]);
   const addSaleRow = (entry) => {
     const ts = Date.now();
-    setSalesRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry }]);
+    const sale = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
+    setSalesRows(p => [...p, sale]);
+
+    // ── INTEGRATSIYA: savdo → tegishli bo'limga avtomatik yozuv ─────────────
+    // Pul/qarz/qoldiq shu orqali yangilanadi. Avtomatik yozuvlar belgilanadi
+    // (auto:true, sourceId) va faqat shu savdo o'chirilganda o'chiriladi.
+    const sum = Number(sale.tons || 0) * Number(sale.pricePerTon || 0);
+    if (sum > 0) {
+      const tag  = `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)`;
+      const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date };
+      const channel = sale.paymentChannel || 'naqd';
+      if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
+      else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
+      else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
+      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer: sale.customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+    }
   };
-  const deleteSaleRow = (id) => setSalesRows(p => p.filter(r => r.id !== id));
+  // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi
+  const deleteSaleRow = (id) => {
+    setSalesRows(p  => p.filter(r => r.id !== id));
+    setCashRows(p   => p.filter(r => r.sourceId !== id));
+    setBankRows(p   => p.filter(r => r.sourceId !== id));
+    setClickRows(p  => p.filter(r => r.sourceId !== id));
+    setDebtRows(p   => p.filter(r => r.sourceId !== id));
+  };
+  const totalSalesTons = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
+  // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
+  const totalCementBalance = Number(cementOpening.tons) + totalRecvTons - totalSoldTons - totalSalesTons;
 
   const [bankIncomeRows, setBankIncomeRows] = useState(() => load('bank_income_rows', []));
   useEffect(() => save('bank_income_rows', bankIncomeRows), [bankIncomeRows]);
