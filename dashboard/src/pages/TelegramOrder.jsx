@@ -16,10 +16,12 @@ const BG     = '#e1f5fe';
 export default function TelegramOrder({ lang }) {
   const {
     tgOrders, addTgOrder, setTgStatus, deleteTgOrder,
-    currentWorker, setCurrentWorker,
+    currentWorker,
   } = useData();
 
   const [form, setForm] = useState({ customer: '', tons: '', note: '' });
+  // Xodim tanlovi (faqat shu formada ko'rsatish uchun). Standart — tizimga kirgan xodim.
+  const [worker, setWorker] = useState(currentWorker);
 
   // Filter state
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'kutilmoqda' | 'bajarildi' | 'bekor'
@@ -95,8 +97,8 @@ export default function TelegramOrder({ lang }) {
           style={{ ...inp, width: 220 }} />
 
         <span style={{ fontSize: 12, fontWeight: 'bold', color: ACCENT, alignSelf: 'center', marginLeft: 8 }}>Xodim:</span>
-        <select value={currentWorker} onChange={e => setCurrentWorker(e.target.value)}
-          style={{ ...inp, color: currentWorker ? ACCENT : '#999', fontWeight: currentWorker ? 'bold' : 'normal' }}>
+        <select value={worker} onChange={e => setWorker(e.target.value)}
+          style={{ ...inp, color: worker ? ACCENT : '#999', fontWeight: worker ? 'bold' : 'normal' }}>
           <option value="">— tanlang —</option>
           {['Botir aka', 'Alisher aka', 'Ganisher aka', 'Sharofidin', 'Saloh', 'Qosim', 'Anvarjon'].map(x => <option key={x} value={x}>{x}</option>)}
         </select>

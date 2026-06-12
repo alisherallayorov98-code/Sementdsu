@@ -1,45 +1,65 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
-const TelegramBot = require('node-telegram-bot-api');
+// ─────────────────────────────────────────────────────────────────────────────
+// Sement Biznes Boshqaruvi — Backend
+//
+// Vazifasi:
+//   1) Dasturning BUTUN holatini serverda saqlaydi (data/db.json) — shu tufayli
+//      ma'lumot bitta brauzerga bog'liq emas, ko'p qurilmada bir xil va backupli.
+//   2) Telegram botini boshqaradi (token faqat shu yerda, .env faylida).
+//      Botga tushgan zakazlar navbatga yoziladi, frontend ularni o'qib oladi.
+// ─────────────────────────────────────────────────────────────────────────────
+const express      = require('express');
+const cors         = require('cors');
+const path         = require('path');
+const TelegramBot  = require('node-telegram-bot-api');
 require('dotenv').config();
 
-const app = express();
+const db = require('./db');
+
+const app  = express();
 const PORT = process.env.PORT || 5000;
-const BOT_ORDERS_FILE = path.join(__dirname, 'bot_orders.json');
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json({ limit: '25mb' })); // holat kattalashishi mumkin
 
-// ── BAZA ────────────────────────────────────────────────────────────────────
-function readBotOrders() {
-  try {
-    if (!fs.existsSync(BOT_ORDERS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(BOT_ORDERS_FILE, 'utf8'));
-  } catch (err) { return []; }
-}
-
-function writeBotOrders(data) {
-  fs.writeFileSync(BOT_ORDERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-// ── API (Frontend uchun) ────────────────────────────────────────────────────
-// Yangi tushgan zakazlarni olish
-app.get('/api/new_bot_orders', (req, res) => {
-  res.json(readBotOrders());
+// ── Holat (state) API ────────────────────────────────────────────────────────
+// Frontend ishga tushganda butun holatni shu yerdan oladi.
+app.get('/api/state', (req, res) => {
+  res.json(db.getState());
 });
 
-// Zakazlar frontendga o'tkazib bo'lingach, tozalash
+// Frontend har bir o'zgarishdan keyin butun holatni shu yerga saqlaydi.
+app.put('/api/state', (req, res) => {
+  try {
+    const updatedAt = db.setState(req.body);
+    res.json({ ok: true, updatedAt });
+  } catch (err) {
+    console.error('[API] state saqlashda xato:', err.message);
+    res.status(500).json({ ok: false, error: 'Saqlab bo\'lmadi' });
+  }
+});
+
+// ── Telegram bot navbati ─────────────────────────────────────────────────────
+// Frontend yangi tushgan zakazlarni shu yerdan o'qiydi.
+app.get('/api/new_bot_orders', (req, res) => {
+  res.json(db.getBotOrders());
+});
+
+// Zakazlar frontendga o'tkazib bo'lingach, navbatni tozalaydi.
 app.post('/api/clear_bot_orders', (req, res) => {
-  writeBotOrders([]);
+  db.clearBotOrders();
   res.json({ success: true });
 });
 
-// ── TELEGRAM BOT ────────────────────────────────────────────────────────────
-const token = process.env.TELEGRAM_BOT_TOKEN;
-if (token && token.trim() !== '' && !token.includes('bu_yerga')) {
+// ── Holat / sog'lik ──────────────────────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, botRunning: BOT_RUNNING, ...db.info() });
+});
+
+// ── TELEGRAM BOT ─────────────────────────────────────────────────────────────
+let BOT_RUNNING = false;
+const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+
+if (token && !token.includes('bu_yerga')) {
   const bot = new TelegramBot(token, { polling: true });
   const userStates = {};
 
@@ -52,7 +72,7 @@ if (token && token.trim() !== '' && !token.includes('bu_yerga')) {
   bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
-    if (text === '/start') return;
+    if (!text || text === '/start') return;
 
     const state = userStates[chatId];
     if (!state) {
@@ -64,9 +84,9 @@ if (token && token.trim() !== '' && !token.includes('bu_yerga')) {
       state.customer = text;
       state.step = 2;
       bot.sendMessage(chatId, "Yaxshi! Endi necha tonna kerakligini raqamda yozing (masalan: 10 yoki 5.5):");
-    } 
+    }
     else if (state.step === 2) {
-      const tons = parseFloat(text.replace(',', '.'));
+      const tons = parseFloat(String(text).replace(',', '.'));
       if (isNaN(tons)) {
         bot.sendMessage(chatId, "Iltimos, tonnani to'g'ri raqamda kiriting!");
         return;
@@ -77,32 +97,37 @@ if (token && token.trim() !== '' && !token.includes('bu_yerga')) {
     }
     else if (state.step === 3) {
       state.note = text;
-      
+
+      const handle = msg.from.username ? '@' + msg.from.username : (msg.from.first_name || 'mijoz');
       const newOrder = {
         id: Date.now(),
         createdAt: Date.now(),
         date: new Date().toLocaleDateString('ru-RU'),
         customer: state.customer,
         tons: state.tons,
-        note: state.note + ` (Tel: @${msg.from.username || msg.from.first_name})`,
+        note: `${state.note} (Tel: ${handle})`,
         status: 'kutilmoqda',
-        worker: 'Telegram Bot'
+        worker: 'Telegram Bot',
       };
-      
-      const currentOrders = readBotOrders();
-      currentOrders.push(newOrder);
-      writeBotOrders(currentOrders);
-      
+
+      db.addBotOrder(newOrder);
+
       bot.sendMessage(chatId, `✅ Buyurtmangiz qabul qilindi!\n\n👤 Mijoz: ${state.customer}\n⚖️ Tonna: ${state.tons} tn\n📍 Izoh: ${state.note}\n\nTez orada dasturga kelib tushadi.`);
       delete userStates[chatId];
     }
   });
-  
-  console.log("Telegram Bot muvaffaqiyatli ishga tushdi!");
+
+  bot.on('polling_error', (err) => {
+    console.error('[Telegram] polling xatosi:', err.code || err.message);
+  });
+
+  BOT_RUNNING = true;
+  console.log('✅ Telegram Bot muvaffaqiyatli ishga tushdi!');
 } else {
-  console.log("Diqqat: .env faylida bot tokeni kiritilmagan. Bot ishga tushmadi.");
+  console.log('ℹ️  Diqqat: .env faylida TELEGRAM_BOT_TOKEN kiritilmagan. Bot ishlamaydi (dasturning qolgan qismi normal ishlaydi).');
 }
 
 app.listen(PORT, () => {
-  console.log(`Backend server ${PORT}-portda ishlamoqda...`);
+  console.log(`🚀 Backend server ${PORT}-portda ishlamoqda...`);
+  console.log(`   Holat fayli: backend/data/db.json`);
 });

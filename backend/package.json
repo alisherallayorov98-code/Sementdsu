@@ -1,14 +1,15 @@
 {
-  "name": "backend",
+  "name": "sement-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Sement Biznes Boshqaruvi - backend (holat saqlash + Telegram bot)",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

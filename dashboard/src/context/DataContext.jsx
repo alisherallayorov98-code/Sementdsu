@@ -1,9 +1,12 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { api } from '../api';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
 
-// LocalStorage yordamchi funksiyalari
+// LocalStorage yordamchi funksiyalari (offline-kesh sifatida ishlatiladi).
+// Asosiy ma'lumotlar manbai — backend (server). LocalStorage faqat backend
+// javob bermaguncha tezkor ko'rsatish va internetsiz vaqtinchalik ishlash uchun.
 const load = (key, fallback) => {
   try {
     const v = localStorage.getItem(key);
@@ -14,12 +17,16 @@ const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
 export function DataProvider({ children }) {
 
-  // ── Faol xodim (RBAC) ───────────────────────────────────────────────────
+  // ── Faol xodim (RBAC) — bu QURILMAGA tegishli sessiya, serverga sinxronlanmaydi ──
   const [currentUser, setCurrentUser] = useState(() => load('current_user', null));
   useEffect(() => save('current_user', currentUser), [currentUser]);
 
-  // Faol xodimning ismi (Eski kodlar buzilmasligi uchun)
-  const currentWorker = currentUser ? currentUser.name : '';
+  // Faol xodimning ismi. Standart — tizimga kirgan xodim, lekin ayrim sahifalarda
+  // yozuvni boshqa xodim nomidan kiritish uchun dropdown orqali o'zgartirilishi mumkin.
+  const [currentWorker, setCurrentWorker] = useState(currentUser ? currentUser.name : '');
+  useEffect(() => {
+    setCurrentWorker(currentUser ? currentUser.name : '');
+  }, [currentUser]);
 
   const login = (name, password) => {
     // Agar umuman ishchi bo'lmasa, birinchi kirgan odam admin bo'ladi
@@ -44,7 +51,6 @@ export function DataProvider({ children }) {
     appName: 'Sement Biznes Boshqaruvi',
     currency: "so'm",
     themeColor: '#003366',
-    tgToken: '',
   }));
   useEffect(() => save('app_settings', appSettings), [appSettings]);
   const updateAppSettings = (data) => setAppSettings(p => ({ ...p, ...data }));
@@ -101,6 +107,7 @@ export function DataProvider({ children }) {
 
   // ── 5. Sement qoldig'i ────────────────────────────────────────────────────
   const [cementOpening, setCementOpening] = useState(() => load('cement_opening', { date: '25.04.2025', tons: 0 }));
+  useEffect(() => save('cement_opening', cementOpening), [cementOpening]);
 
   // ── 7. Kirim (naqd) ───────────────────────────────────────────────────────
   const [incomeRows, setIncomeRows] = useState(() => load('income_rows', []));
@@ -330,64 +337,6 @@ export function DataProvider({ children }) {
   const deleteTgOrder = (id) => setTgOrders(p => p.filter(o => o.id !== id));
   const totalTgTons   = tgOrders.reduce((s, o) => s + Number(o.tons), 0);
 
-  // ── Telegram botdan real vaqtda yangi zakazlarni qabul qilish ──────────
-  useEffect(() => {
-    if (!appSettings.tgToken) return;
-
-    const fetchBotOrders = async () => {
-      try {
-        const lastId = load('tg_last_update_id', 0);
-        const res = await fetch(`https://api.telegram.org/bot${appSettings.tgToken}/getUpdates?offset=${lastId + 1}&timeout=5`);
-        const data = await res.json();
-        
-        if (data.ok && data.result.length > 0) {
-          let maxId = lastId;
-          const newOrders = [];
-
-          for (const update of data.result) {
-            if (update.update_id > maxId) maxId = update.update_id;
-            
-            if (update.message && update.message.text) {
-              const msg = update.message;
-              const text = msg.text;
-              
-              // Tonnani qidirib topish (birinchi uchragan raqam)
-              let tons = 0;
-              const match = text.match(/(\d+(?:\.\d+)?)/);
-              if (match) tons = Number(match[1]);
-
-              const customerName = msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : '');
-              const ts = Date.now() + newOrders.length; // id unikal bo'lishi uchun
-              
-              newOrders.push({
-                id: ts,
-                createdAt: ts,
-                worker: 'Telegram Bot',
-                date: new Date().toLocaleDateString('ru-RU'),
-                customer: customerName,
-                tons: tons,
-                status: 'kutilmoqda',
-                note: text,
-              });
-            }
-          }
-
-          if (newOrders.length > 0) {
-            setTgOrders(prev => [...prev, ...newOrders]);
-            // Ovozli signal chalinishi
-            try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch(e){}
-          }
-          save('tg_last_update_id', maxId);
-        }
-      } catch (err) {
-        console.error("Telegram bot error:", err);
-      }
-    };
-
-    const interval = setInterval(fetchBotOrders, 5000); // Har 5 soniyada
-    return () => clearInterval(interval);
-  }, [appSettings.tgToken]);
-
   // ── 6. Kunlik ish ─────────────────────────────────────────────────────────
   const [dailyWorkRows, setDailyWorkRows] = useState(() => load('daily_work_rows', []));
   useEffect(() => save('daily_work_rows', dailyWorkRows), [dailyWorkRows]);
@@ -436,11 +385,147 @@ export function DataProvider({ children }) {
   };
   const deleteDriverTrip = (id) => setDriverTrips(p => p.filter(t => t.id !== id));
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BACKEND SINXRONIZATSIYASI
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [backendOnline, setBackendOnline] = useState(true);
+  const hydratedRef = useRef(false); // backenddan yuklanmaguncha saqlamaymiz
+  const saveTimer   = useRef(null);
+
+  // Serverga sinxronlanadigan barcha bo'limlar (sessiya — currentUser — bunda yo'q)
+  const STATE_SETTERS = {
+    app_settings:       setAppSettings,
+    cash_opening:       setCashOpening,
+    cash_rows:          setCashRows,
+    bank_opening:       setBankOpening,
+    bank_rows:          setBankRows,
+    click_opening:      setClickOpening,
+    click_rows:         setClickRows,
+    cement_opening:     setCementOpening,
+    income_rows:        setIncomeRows,
+    expense_rows:       setExpenseRows,
+    sold_rows:          setSoldRows,
+    recv_rows:          setRecvRows,
+    debt_rows:          setDebtRows,
+    advance_rows:       setAdvanceRows,
+    sales_rows:         setSalesRows,
+    bank_income_rows:   setBankIncomeRows,
+    bank_expense_rows:  setBankExpenseRows,
+    click_income_rows:  setClickIncomeRows,
+    click_expense_rows: setClickExpenseRows,
+    workers:            setWorkers,
+    salary_payments:    setSalaryPayments,
+    tg_orders:          setTgOrders,
+    daily_work_rows:    setDailyWorkRows,
+    customers:          setCustomers,
+    drivers:            setDrivers,
+    driver_trips:       setDriverTrips,
+  };
+
+  // Holatning joriy "suratini" yig'ish (serverga shu jo'natiladi)
+  const snapshot = {
+    app_settings:       appSettings,
+    cash_opening:       cashOpening,
+    cash_rows:          cashRows,
+    bank_opening:       bankOpening,
+    bank_rows:          bankRows,
+    click_opening:      clickOpening,
+    click_rows:         clickRows,
+    cement_opening:     cementOpening,
+    income_rows:        incomeRows,
+    expense_rows:       expenseRows,
+    sold_rows:          soldRows,
+    recv_rows:          recvRows,
+    debt_rows:          debtRows,
+    advance_rows:       advanceRows,
+    sales_rows:         salesRows,
+    bank_income_rows:   bankIncomeRows,
+    bank_expense_rows:  bankExpenseRows,
+    click_income_rows:  clickIncomeRows,
+    click_expense_rows: clickExpenseRows,
+    workers:            workers,
+    salary_payments:    salaryPayments,
+    tg_orders:          tgOrders,
+    daily_work_rows:    dailyWorkRows,
+    customers:          customers,
+    drivers:            drivers,
+    driver_trips:       driverTrips,
+  };
+
+  // 1) Ishga tushganda — serverdan butun holatni yuklab olish
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await api.getState();
+        if (!cancelled && remote && typeof remote === 'object' && Object.keys(remote).length) {
+          for (const [key, setter] of Object.entries(STATE_SETTERS)) {
+            if (remote[key] !== undefined) setter(remote[key]);
+          }
+        }
+        if (!cancelled) setBackendOnline(true);
+      } catch (err) {
+        console.warn("Backend bilan ulanib bo'lmadi — lokal nusxadan ishlaymiz:", err.message);
+        if (!cancelled) setBackendOnline(false);
+      } finally {
+        // Yuklash tugagach saqlashga ruxsat (joriy render to'lqinidan keyin)
+        setTimeout(() => { hydratedRef.current = true; }, 0);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2) Har bir o'zgarishdan keyin — butun holatni serverga saqlash (debounce 800ms)
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      api.saveState(snapshot)
+        .then(() => setBackendOnline(true))
+        .catch(() => setBackendOnline(false));
+    }, 800);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    appSettings, cashOpening, cashRows, bankOpening, bankRows, clickOpening, clickRows,
+    cementOpening, incomeRows, expenseRows, soldRows, recvRows, debtRows, advanceRows,
+    salesRows, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
+    workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips,
+  ]);
+
+  // 3) Telegram botiga tushgan yangi zakazlarni backend navbatidan o'qib olish
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const orders = await api.getBotOrders();
+        if (orders && orders.length) {
+          let added = false;
+          setTgOrders(prev => {
+            const existing = new Set(prev.map(o => o.id));
+            const fresh = orders.filter(o => !existing.has(o.id));
+            if (!fresh.length) return prev;
+            added = true;
+            return [...prev, ...fresh];
+          });
+          if (added) {
+            try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch { /* ovoz ixtiyoriy */ }
+          }
+          await api.clearBotOrders();
+        }
+      } catch { /* backend o'chiq bo'lishi mumkin — keyingi urinishda */ }
+    };
+    poll();
+    const interval = setInterval(poll, 5000); // har 5 soniyada
+    return () => clearInterval(interval);
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────────────
   const value = {
     // Auth & Settings
-    currentUser, login, logout, currentWorker,
+    currentUser, login, logout, currentWorker, setCurrentWorker,
     appSettings, updateAppSettings,
+    backendOnline,
     // 2. Naqd pul
     cashOpening, setCashOpening, cashRows, totalCashBalance, addCashRow, deleteCashRow,
     // 3. Bank

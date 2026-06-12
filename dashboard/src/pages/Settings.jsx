@@ -141,15 +141,18 @@ export default function Settings({ lang }) {
             </div>
 
             <div>
-              <label style={{ fontSize: 13, fontWeight: 'bold', color: '#444', marginBottom: 6, display: 'block' }}>Telegram Bot Token</label>
-              <input type="text" value={appF.tgToken} onChange={e => setAppF({...appF, tgToken: e.target.value})} placeholder="123456789:AAHx..." style={inp} />
-              <div style={{ fontSize: 12, color: '#666', marginTop: 8, background: '#e3f2fd', padding: 10, borderRadius: 4, border: '1px solid #bbdefb' }}>
-                <strong style={{ color: '#1565c0' }}>Botni qanday ulaymiz?</strong>
+              <label style={{ fontSize: 13, fontWeight: 'bold', color: '#444', marginBottom: 6, display: 'block' }}>Telegram Bot</label>
+              <div style={{ fontSize: 12, color: '#666', background: '#e3f2fd', padding: 10, borderRadius: 4, border: '1px solid #bbdefb' }}>
+                <strong style={{ color: '#1565c0' }}>Bot endi serverda (backend) boshqariladi.</strong>
+                <p style={{ margin: '6px 0' }}>
+                  Xavfsizlik uchun bot tokeni brauzerda emas, balki serverda — <code>backend/.env</code> faylida saqlanadi.
+                  Botni ulash uchun:
+                </p>
                 <ol style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                  <li>Telegramga kirib <strong>@BotFather</strong> ni toping va <code>/newbot</code> ni bosing.</li>
-                  <li>Botga ism va username bering.</li>
-                  <li>U bergan <strong>HTTP API Token</strong> ni nusxalab shu yerga yozing.</li>
-                  <li>Saqlashni bosing. Endi xohlagan odam telegramda botingizga yozsa (ichida raqami bo'lsa), dasturga <strong>Yangi Zakaz</strong> bo'lib tushadi! (Ovozli signal bilan)</li>
+                  <li>Telegramda <strong>@BotFather</strong> ni toping, <code>/newbot</code> ni bosing va token oling.</li>
+                  <li><code>backend/.env</code> faylida <code>TELEGRAM_BOT_TOKEN=...</code> qatoriga tokenni yozing.</li>
+                  <li>Backend serverini qayta ishga tushiring.</li>
+                  <li>Endi botga yozilgan zakazlar avtomatik <strong>Telegram zakaz</strong> bo'limiga tushadi (ovozli signal bilan).</li>
                 </ol>
               </div>
             </div>

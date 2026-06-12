@@ -57,7 +57,7 @@ function Welcome({ text }) { return <p>{text}</p>; }
 function App() {
   const [lang, setLang] = useState('latn');
   const location = useLocation();
-  const { currentUser, logout, appSettings } = useData();
+  const { currentUser, logout, appSettings, backendOnline } = useData();
 
   if (!currentUser) {
     return <Login lang={lang} />;
@@ -75,6 +75,12 @@ function App() {
         <h1>{appSettings.appName}</h1>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {/* Server bilan aloqa holati */}
+          {!backendOnline && (
+            <div title="Server bilan aloqa yo'q. O'zgarishlar vaqtincha faqat shu qurilmada saqlanmoqda." style={{ color: '#fff', fontSize: 12, background: '#c62828', padding: '4px 10px', borderRadius: 12, fontWeight: 'bold' }}>
+              ⚠ Server o'chiq
+            </div>
+          )}
           {/* Xodim profili */}
           <div style={{ color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: 16 }}>
             <span style={{ fontSize: 16 }}>👤</span>
