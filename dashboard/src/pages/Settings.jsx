@@ -1,9 +1,48 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
+import { api } from '../api';
 
 export default function Settings({ lang }) {
   const { workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings } = useData();
   const [tab, setTab] = useState('workers');
+
+  // ── Zaxira (backup) funksiyalari ──────────────────────────────────────────
+  const handleExport = async () => {
+    try {
+      const state = await api.getState();
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `sement-zaxira-${stamp}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Zaxira olishda xato. Server ishlayotganini tekshiring.");
+    }
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!window.confirm("DIQQAT! Tiklash hozirgi BARCHA ma'lumotni zaxiradagi ma'lumotga almashtiradi. Davom etamizmi?")) {
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        await api.saveState(parsed);
+        alert("Ma'lumotlar tiklandi! Dastur yangilanadi.");
+        window.location.reload();
+      } catch {
+        alert("Fayl noto'g'ri yoki buzilgan. Tiklab bo'lmadi.");
+      }
+    };
+    reader.readAsText(file);
+  };
 
   // Xodim qo'shish formasi
   const [newW, setNewW] = useState({ name: '', role: 'sotuvchi', password: '1234', position: '' });
@@ -45,7 +84,43 @@ export default function Settings({ lang }) {
         >
           Dastur Sozlamalari
         </button>
+        <button
+          onClick={() => setTab('backup')}
+          style={{ padding: '10px 20px', background: tab === 'backup' ? appSettings.themeColor : 'transparent', color: tab === 'backup' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Zaxira (Backup)
+        </button>
       </div>
+
+      {/* ZAXIRA TABI */}
+      {tab === 'backup' && (
+        <div style={{ maxWidth: 640 }}>
+          <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #eee' }}>
+            <h3 style={{ marginTop: 0, color: appSettings.themeColor }}>Ma'lumotlar zaxirasi</h3>
+            <p style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>
+              Barcha ma'lumotlar serverda saqlanadi va har soatda avtomatik zaxiralanadi.
+              Qo'shimcha xavfsizlik uchun vaqti-vaqti bilan zaxirani faylga yuklab oling
+              va USB yoki bulutga (Telegram, Google Drive) saqlab qo'ying.
+            </p>
+
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+              <button onClick={handleExport} style={{ ...btn, padding: '12px 20px' }}>
+                ⬇️ Zaxirani yuklab olish (JSON)
+              </button>
+
+              <label style={{ ...btn, padding: '12px 20px', background: '#455a64', display: 'inline-block' }}>
+                ⬆️ Zaxiradan tiklash (fayldan)
+                <input type="file" accept="application/json,.json" onChange={handleImport} style={{ display: 'none' }} />
+              </label>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#b71c1c', background: '#ffebee', border: '1px solid #ef9a9a', padding: 10, borderRadius: 4, marginTop: 16 }}>
+              ⚠️ <strong>Diqqat:</strong> "Tiklash" hozirgi barcha ma'lumotni faylga almashtiradi.
+              Faqat ishonchli zaxira fayli bilan ishlating.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* XODIMLAR TABI */}
       {tab === 'workers' && (

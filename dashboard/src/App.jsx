@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { useData } from './context/DataContext';
+import GlobalSearch from './components/GlobalSearch';
 
 // Pages
 import Login         from './pages/Login';
 import Settings      from './pages/Settings';
+import Dashboard     from './pages/Dashboard';
 
 import GenInfo       from './pages/GenInfo';
 import CashBal       from './pages/CashBal';
@@ -29,6 +31,7 @@ import DayBalance    from './pages/DayBalance';
 
 // ─── Menyu ro'yxati ──────────────────────────────────────────────────────────
 const FULL_MENU = [
+  { path: '/',               latn: "🏠 Bosh sahifa",        cyrl: "🏠 Бош саҳифа",      roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/gen_info',       latn: "Umumiy ma'lumot",      cyrl: "Овши информатисия", roles: ['admin'] },
   { path: '/cash_bal',       latn: "Naqd pul qoldig'i",    cyrl: "Остатка нах",       roles: ['admin', 'sotuvchi'] },
   { path: '/bank_bal',       latn: "Bank qoldig'i",         cyrl: "Остатка банк",      roles: ['admin', 'sotuvchi'] },
@@ -52,8 +55,6 @@ const FULL_MENU = [
   { path: '/settings',       latn: "Sozlamalar (Admin)",    cyrl: "Созламалар",        roles: ['admin'] },
 ];
 
-function Welcome({ text }) { return <p>{text}</p>; }
-
 function App() {
   const [lang, setLang] = useState('latn');
   const location = useLocation();
@@ -71,9 +72,12 @@ function App() {
 
   return (
     <>
-      <div className="header" style={{ background: appSettings.themeColor || '#003366', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>{appSettings.appName}</h1>
-        
+      <div className="header" style={{ background: appSettings.themeColor || '#003366', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+        <h1 style={{ whiteSpace: 'nowrap' }}>{appSettings.appName}</h1>
+
+        {/* Umumiy qidiruv */}
+        <GlobalSearch />
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {/* Server bilan aloqa holati */}
           {!backendOnline && (
@@ -107,7 +111,7 @@ function App() {
           <ul className="menu-list">
             {myMenu.map((item, idx) => (
               <li key={item.path} className={location.pathname === item.path ? 'active' : ''}>
-                <NavLink to={item.path}>{idx + 1}. {item[lang]}</NavLink>
+                <NavLink to={item.path} end={item.path === '/'}>{idx + 1}. {item[lang]}</NavLink>
               </li>
             ))}
           </ul>
@@ -118,7 +122,7 @@ function App() {
           <div className="content-header"><h2>{pageTitle}</h2></div>
           <div className="content-body">
             <Routes>
-              <Route path="/"               element={<Welcome text="Kerakli bo'limni tanlang." />} />
+              <Route path="/"               element={<Dashboard />} />
               <Route path="/gen_info"       element={<GenInfo        lang={lang} />} />
               <Route path="/cash_bal"       element={<CashBal        lang={lang} />} />
               <Route path="/bank_bal"       element={<BankBal        lang={lang} />} />
