@@ -50,6 +50,7 @@ export default function BalancePage({ lang, type, title, color }) {
       else if (r.auto && r.sourceType === 'recv')         cat = 'Sement olish (Naqd)';
       else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Naqd)';
       else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Naqd)';
+      else if (r.auto && r.sourceType === 'driver')       cat = "Haydovchi to'lovi (Naqd)";
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     // Asosiy harakatlar
@@ -66,6 +67,7 @@ export default function BalancePage({ lang, type, title, color }) {
       else if (r.auto && r.sourceType === 'recv')         cat = 'Sement olish (Bank)';
       else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Bank)';
       else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Bank)';
+      else if (r.auto && r.sourceType === 'driver')       cat = "Haydovchi to'lovi (Bank)";
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     allTx.push(...data.bankIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
@@ -81,6 +83,7 @@ export default function BalancePage({ lang, type, title, color }) {
       else if (r.auto && r.sourceType === 'recv')         cat = 'Sement olish (Click)';
       else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Click)';
       else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Click)';
+      else if (r.auto && r.sourceType === 'driver')       cat = "Haydovchi to'lovi (Click)";
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     allTx.push(...data.clickIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));

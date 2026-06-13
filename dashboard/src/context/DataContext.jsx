@@ -47,6 +47,7 @@ const guardAutoDelete = (rows, id) => {
       debt_payment: "Bu yozuv qarz to'lovidan avtomatik yaratilgan.\nUni alohida o'chirib bo'lmaydi.",
       advance:      "Bu yozuv avans qabul qilishdan avtomatik yaratilgan.\nO'chirish uchun \"Avanslar\" bo'limidan tegishli avansni o'chiring.",
       salary:       "Bu yozuv xodim oyligidan avtomatik yaratilgan.\nO'chirish uchun \"Ishchilar oyligi\" bo'limidan to'lovni bekor qiling.",
+      driver:       "Bu yozuv haydovchi to'lovidan avtomatik yaratilgan.\nO'chirish uchun \"Haydovchilar\" bo'limidan to'lovni o'chiring.",
     };
     alert(msgs[src] || "Bu yozuv avtomatik yaratilgan va alohida o'chirib bo'lmaydi.");
     return rows;
@@ -537,19 +538,38 @@ export function DataProvider({ children }) {
   };
   const updateDriver = (id, data) => setDrivers(p => p.map(d => d.id === id ? { ...d, ...data } : d));
   const deleteDriver = (id) => {
+    const tripIds = new Set(driverTrips.filter(t => t.driverId === id).map(t => t.id));
     setDrivers(p => p.filter(d => d.id !== id));
     setDriverTrips(p => p.filter(t => t.driverId !== id)); // haydovchi o'chsa qatnovlari ham o'chadi
+    // Shu haydovchining to'lovlaridan yaratilgan kassa chiqimlarini ham o'chirish
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'driver' && tripIds.has(r.sourceId)));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
   };
 
-  const addDriverTrip = (driverId, destination, price, isPayment = false, note = '') => {
+  const addDriverTrip = (driverId, destination, price, isPayment = false, note = '', channel = 'naqd') => {
     const ts = Date.now();
+    const amt = Number(price);
+    const today = new Date().toLocaleDateString('ru-RU');
     setDriverTrips(p => [...p, {
-      id: ts, createdAt: ts, driverId,
-      date: new Date().toLocaleDateString('ru-RU'),
-      destination, price: Number(price), isPayment, note
+      id: ts, createdAt: ts, driverId, date: today,
+      destination, price: amt, isPayment, note,
+      channel: isPayment ? channel : undefined,
     }]);
+    // ── INTEGRATSIYA: haydovchiga to'lov → tegishli kassadan chiqim ─────────
+    if (isPayment && amt > 0) {
+      const drv = drivers.find(d => d.id === driverId);
+      const tag  = `🔗 Haydovchi to'lovi: ${drv?.name || ''}`;
+      const link = { auto: true, sourceType: 'driver', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+    }
   };
-  const deleteDriverTrip = (id) => setDriverTrips(p => p.filter(t => t.id !== id));
+  const deleteDriverTrip = (id) => {
+    setDriverTrips(p => p.filter(t => t.id !== id));
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'driver' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   // BACKEND SINXRONIZATSIYASI

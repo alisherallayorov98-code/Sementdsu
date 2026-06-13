@@ -249,13 +249,13 @@ function DriversTab() {
   const [editId, setEditId]     = useState(null);
   const [editData, setEditData] = useState({});
   const [modalDriver, setModalDriver] = useState(null);
-  const [tripForm, setTripForm] = useState({ destination: '', price: '', note: '', isPayment: false });
+  const [tripForm, setTripForm] = useState({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' });
   const [search, setSearch]     = useState('');
 
   const handleAdd = (e) => { e.preventDefault(); if (!form.name) return; addDriver(form.name, form.carNumber, form.phone); setForm({ name: '', carNumber: '', phone: '' }); setShowForm(false); };
   const saveEdit = (id) => { if (!editData.name) return; updateDriver(id, editData); setEditId(null); };
 
-  const handleAddTrip = (e) => { e.preventDefault(); if (!tripForm.price) return; addDriverTrip(modalDriver, tripForm.destination, tripForm.price, tripForm.isPayment, tripForm.note); setTripForm({ destination: '', price: '', note: '', isPayment: false }); };
+  const handleAddTrip = (e) => { e.preventDefault(); if (!tripForm.price) return; addDriverTrip(modalDriver, tripForm.destination, tripForm.price, tripForm.isPayment, tripForm.note, tripForm.channel); setTripForm({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' }); };
 
   const getStats = (id) => {
     const trips = driverTrips.filter(t => t.driverId === id);
@@ -377,10 +377,17 @@ function DriversTab() {
                   <button onClick={() => setTripForm({ ...tripForm, isPayment: false })} style={{ flex: 1, padding: 8, cursor: 'pointer', border: tripForm.isPayment ? '1px solid #ccc' : `2px solid ${ACC_D}`, background: tripForm.isPayment ? '#fff' : ACC_D, color: tripForm.isPayment ? '#555' : '#fff', fontWeight: 'bold', borderRadius: 4 }}>🚛 Yangi qatnov (ish)</button>
                   <button onClick={() => setTripForm({ ...tripForm, isPayment: true, destination: 'To\'lov' })} style={{ flex: 1, padding: 8, cursor: 'pointer', border: !tripForm.isPayment ? '1px solid #ccc' : `2px solid #2e7d32`, background: !tripForm.isPayment ? '#fff' : '#2e7d32', color: !tripForm.isPayment ? '#555' : '#fff', fontWeight: 'bold', borderRadius: 4 }}>💸 Pul berish</button>
                 </div>
-                <form onSubmit={handleAddTrip} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                <form onSubmit={handleAddTrip} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
                   {!tripForm.isPayment && <input placeholder="Qayerga" value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} style={{ ...inp, flex: 1, minWidth: 120 }} required />}
                   <input type="number" placeholder={tripForm.isPayment ? "To'lov summasi" : "Kira haqi"} value={tripForm.price} onChange={e => setTripForm({...tripForm, price: e.target.value})} style={{ ...inp, width: 120 }} required autoFocus />
                   <input placeholder="Izoh" value={tripForm.note} onChange={e => setTripForm({...tripForm, note: e.target.value})} style={{ ...inp, flex: 1, minWidth: 100 }} />
+                  {/* Pul berishda — qaysi kassadan chiqsin */}
+                  {tripForm.isPayment && [
+                    { v: 'naqd', l: '💵' }, { v: 'bank', l: '🏦' }, { v: 'click', l: '📱' },
+                  ].map(ch => (
+                    <button key={ch.v} type="button" title={ch.v} onClick={() => setTripForm({ ...tripForm, channel: ch.v })}
+                      style={{ padding: '5px 9px', cursor: 'pointer', borderRadius: 3, border: `2px solid ${tripForm.channel === ch.v ? '#2e7d32' : '#ddd'}`, background: tripForm.channel === ch.v ? '#2e7d32' : '#f9f9f9', color: tripForm.channel === ch.v ? '#fff' : '#333' }}>{ch.l}</button>
+                  ))}
                   <button type="submit" style={{ padding: '0 16px', background: tripForm.isPayment ? '#2e7d32' : ACC_D, color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontWeight: 'bold' }}>✓ Saqlash</button>
                 </form>
                 <p style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 8 }}>Tarix</p>
@@ -391,7 +398,7 @@ function DriversTab() {
                       {trips.map(t => (
                         <tr key={t.id} style={{ borderBottom: '1px solid #eee', background: t.isPayment ? '#e8f5e9' : '#fff' }}>
                           <td style={tdS}>{t.date}</td>
-                          <td style={{ ...tdS, fontWeight: t.isPayment ? 'normal' : 'bold' }}>{t.isPayment ? '💸 To\'lov' : `🚛 ${t.destination}`}</td>
+                          <td style={{ ...tdS, fontWeight: t.isPayment ? 'normal' : 'bold' }}>{t.isPayment ? `💸 To'lov${t.channel ? ' (' + ({naqd:'Naqd',bank:'Bank',click:'Click'}[t.channel] || t.channel) + ')' : ''}` : `🚛 ${t.destination}`}</td>
                           <td style={tdS}>{t.note || '—'}</td>
                           <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: t.isPayment ? '#2e7d32' : '#333' }}>{t.isPayment ? '-' : '+'}{fmt(t.price)}</td>
                           <td style={{ textAlign: 'center' }}><button onClick={() => { if(window.confirm("O'chirasizmi?")) deleteDriverTrip(t.id); }} style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button></td>
