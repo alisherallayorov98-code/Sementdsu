@@ -11,8 +11,9 @@ const todayFull = () => {
 
 const XODIMLAR = ['Botir aka','Alisher aka','Ganisher aka','Sharofidin','Saloh','Qosim','Anvarjon'];
 const TOLOV    = [
-  { v:'naqd', latn:'Naqd', cyrl:'Нақд' },
-  { v:'bank', latn:'Bank', cyrl:'Банк' },
+  { v:'naqd',  latn:'Naqd',  cyrl:'Нақд'  },
+  { v:'bank',  latn:'Bank',  cyrl:'Банк'  },
+  { v:'click', latn:'Click', cyrl:'Клик'  },
 ];
 
 // Excel ustun nomlari (zavod shabloni)

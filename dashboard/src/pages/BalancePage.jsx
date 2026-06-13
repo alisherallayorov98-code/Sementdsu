@@ -45,9 +45,11 @@ export default function BalancePage({ lang, type, title, color }) {
     // Qo'lda kiritilgan qoldiqlar + sotuvdan avtomatik tushgan naqd
     allTx.push(...data.cashRows.map(r => {
       let cat = "Qo'lda (Tahrir)";
-      if (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Naqd)';
+      if      (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Naqd)';
       else if (r.auto && r.sourceType === 'debt_payment') cat = "Qarz to'lovi (Naqd)";
-      else if (r.auto && r.sourceType === 'recv')    cat = 'Sement olish (Naqd)';
+      else if (r.auto && r.sourceType === 'recv')         cat = 'Sement olish (Naqd)';
+      else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Naqd)';
+      else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Naqd)';
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     // Asosiy harakatlar
@@ -59,9 +61,11 @@ export default function BalancePage({ lang, type, title, color }) {
     opening = data.bankOpening;
     allTx.push(...data.bankRows.map(r => {
       let cat = "Qo'lda (Tahrir)";
-      if (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Bank)';
+      if      (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Bank)';
       else if (r.auto && r.sourceType === 'debt_payment') cat = "Qarz to'lovi (Bank)";
-      else if (r.auto && r.sourceType === 'recv')    cat = 'Sement olish (Bank)';
+      else if (r.auto && r.sourceType === 'recv')         cat = 'Sement olish (Bank)';
+      else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Bank)';
+      else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Bank)';
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     allTx.push(...data.bankIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
@@ -72,9 +76,11 @@ export default function BalancePage({ lang, type, title, color }) {
     opening = data.clickOpening;
     allTx.push(...data.clickRows.map(r => {
       let cat = "Qo'lda (Tahrir)";
-      if (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Click)';
+      if      (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Click)';
       else if (r.auto && r.sourceType === 'debt_payment') cat = "Qarz to'lovi (Click)";
-      else if (r.auto && r.sourceType === 'recv')    cat = 'Sement olish (Click)';
+      else if (r.auto && r.sourceType === 'recv')         cat = 'Sement olish (Click)';
+      else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Click)';
+      else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Click)';
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     allTx.push(...data.clickIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));

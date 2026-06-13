@@ -6,6 +6,29 @@ import ExcelImport from '../components/ExcelImport';
 const normName = (s) => String(s ?? '').trim().toLowerCase();
 const parseAmount = (v) => Number(String(v ?? '').replace(/\s/g, '').replace(/,/g, '')) || 0;
 
+// Parol yacheykasi: yangi parolni kiriting, eski hashni ko'rsatmaydi
+function PasswordCell({ workerId, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+  if (!editing) return (
+    <button onClick={() => { setVal(''); setEditing(true); }}
+      style={{ padding:'3px 10px', cursor:'pointer', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:4, fontSize:12 }}>
+      🔑 O'zgartirish
+    </button>
+  );
+  return (
+    <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+      <input type="password" value={val} onChange={e => setVal(e.target.value)}
+        placeholder="Yangi parol" autoFocus
+        style={{ padding:'3px 6px', width:90, borderRadius:3, border:'1px solid #ccc', fontSize:12 }} />
+      <button onClick={() => { if (val.trim()) { onSave(val.trim()); setEditing(false); } }}
+        style={{ padding:'3px 8px', cursor:'pointer', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, fontSize:12 }}>✓</button>
+      <button onClick={() => setEditing(false)}
+        style={{ padding:'3px 8px', cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', borderRadius:3, fontSize:12 }}>✕</button>
+    </div>
+  );
+}
+
 export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
@@ -264,7 +287,7 @@ export default function Settings({ lang }) {
                       </select>
                     </td>
                     <td style={{ padding: 12 }}>
-                      <input type="text" value={w.password || '1234'} onChange={(e) => updateWorker(w.id, { password: e.target.value })} style={{ padding: 4, width: 80, borderRadius: 4, border: '1px solid #ccc' }} />
+                      <PasswordCell workerId={w.id} onSave={(newPwd) => updateWorker(w.id, { password: newPwd })} />
                     </td>
                     <td style={{ padding: 12, fontSize: 13, color: '#555' }}>{w.position || '—'}</td>
                     <td style={{ padding: 12 }}>

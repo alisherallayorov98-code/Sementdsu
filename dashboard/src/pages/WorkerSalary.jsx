@@ -57,7 +57,7 @@ function WorkersTab() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({ name: '', salary: '', position: '', phone: '', note: '' });
-  const [payForm, setPayForm]   = useState({ id: null, amount: '', note: '' });
+  const [payForm, setPayForm]   = useState({ id: null, amount: '', note: '', channel: 'naqd' });
   const [editId, setEditId]     = useState(null);
   const [editData, setEditData] = useState({});
   const [modalWorker, setModalWorker] = useState(null);
@@ -74,10 +74,10 @@ function WorkersTab() {
 
   const handlePay = (id) => {
     if (payForm.id === id && payForm.amount) {
-      payWorker(id, payForm.amount, payForm.note);
-      setPayForm({ id: null, amount: '', note: '' });
+      payWorker(id, payForm.amount, payForm.note, payForm.channel);
+      setPayForm({ id: null, amount: '', note: '', channel: 'naqd' });
     } else {
-      setPayForm({ id, amount: '', note: '' });
+      setPayForm({ id, amount: '', note: '', channel: 'naqd' });
     }
   };
 
@@ -179,11 +179,14 @@ function WorkersTab() {
                       <td style={{ textAlign: 'right' }}>{remaining > 0 ? <span style={{ background: '#c62828', color: '#fff', padding: '2px 8px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>{fmt(remaining)}</span> : <span style={{ color: '#2e7d32', fontSize: 12 }}>✓ To'liq</span>}</td>
                       <td>
                         {payForm.id === w.id ? (
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                             <input type="number" placeholder="Summa" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} style={{ ...inp, width: 80 }} autoFocus />
                             <input placeholder="Izoh" value={payForm.note} onChange={e => setPayForm({ ...payForm, note: e.target.value })} style={{ ...inp, width: 70 }} />
+                            {[{v:'naqd',l:'💵'},{v:'bank',l:'🏦'},{v:'click',l:'📱'}].map(ch => (
+                              <button key={ch.v} type="button" onClick={() => setPayForm({...payForm, channel: ch.v})} title={ch.v} style={{ padding:'3px 7px', cursor:'pointer', border:`2px solid ${payForm.channel===ch.v?'#1565c0':'#ddd'}`, background:payForm.channel===ch.v?'#1565c0':'#f9f9f9', color:payForm.channel===ch.v?'#fff':'#333', borderRadius:3 }}>{ch.l}</button>
+                            ))}
                             <button onClick={() => handlePay(w.id)} style={greenBtn}>✓</button>
-                            <button onClick={() => setPayForm({ id: null, amount: '', note: '' })} style={redBtn}>✕</button>
+                            <button onClick={() => setPayForm({ id: null, amount: '', note: '', channel: 'naqd' })} style={redBtn}>✕</button>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', gap: 4 }}>

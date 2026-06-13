@@ -23,12 +23,14 @@ const guardAutoDelete = (rows, id) => {
   const row = rows.find(r => r.id === id);
   if (row?.auto) {
     const src = row.sourceType;
-    if (src === 'recv')
-      alert("Bu yozuv sement olishdan avtomatik yaratilgan.\nO'chirish uchun \"Olingan tonna\" bo'limidan tegishli qatorni o'chiring.");
-    else if (src === 'debt_payment')
-      alert("Bu yozuv qarz to'lovidan avtomatik yaratilgan.\nUni alohida o'chirib bo'lmaydi.");
-    else
-      alert("Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.");
+    const msgs = {
+      sale:         "Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.",
+      recv:         "Bu yozuv sement olishdan avtomatik yaratilgan.\nO'chirish uchun \"Olingan tonna\" bo'limidan tegishli qatorni o'chiring.",
+      debt_payment: "Bu yozuv qarz to'lovidan avtomatik yaratilgan.\nUni alohida o'chirib bo'lmaydi.",
+      advance:      "Bu yozuv avans qabul qilishdan avtomatik yaratilgan.\nO'chirish uchun \"Avanslar\" bo'limidan tegishli avansni o'chiring.",
+      salary:       "Bu yozuv xodim oyligidan avtomatik yaratilgan.\nO'chirish uchun \"Ishchilar oyligi\" bo'limidan to'lovni bekor qiling.",
+    };
+    alert(msgs[src] || "Bu yozuv avtomatik yaratilgan va alohida o'chirib bo'lmaydi.");
     return rows;
   }
   return rows.filter(r => r.id !== id);
@@ -92,8 +94,8 @@ export function DataProvider({ children }) {
   ]));
   useEffect(() => save('cash_opening', cashOpening), [cashOpening]);
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
-  const totalCashBalance = Number(cashOpening.amount) + cashRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addCashRow       = (amount, desc) => {
+  const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
+  const addCashRow   = (amount, desc) => {
     const ts = Date.now();
     setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
   };
@@ -108,8 +110,8 @@ export function DataProvider({ children }) {
   ]));
   useEffect(() => save('bank_opening', bankOpening), [bankOpening]);
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
-  const totalBankBalance = Number(bankOpening.amount) + bankRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addBankRow       = (amount, desc) => {
+  const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
+  const addBankRow   = (amount, desc) => {
     const ts = Date.now();
     setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
   };
@@ -120,8 +122,8 @@ export function DataProvider({ children }) {
   const [clickRows, setClickRows]       = useState(() => load('click_rows', []));
   useEffect(() => save('click_opening', clickOpening), [clickOpening]);
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
-  const totalClickBalance = Number(clickOpening.amount) + clickRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addClickRow       = (amount, desc) => {
+  const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
+  const addClickRow   = (amount, desc) => {
     const ts = Date.now();
     setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
   };
@@ -148,6 +150,10 @@ export function DataProvider({ children }) {
     setExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteExpenseRow = (id) => setExpenseRows(p => p.filter(r => r.id !== id));
+  // To'liq Naqd balansi = ochilish + cashRows (auto+manual) + incomeRows − expenseRows
+  const totalCashBalance = Number(cashOpening.amount) + _cashRowsSum
+    + incomeRows.reduce((s, r)  => s + Number(r.amount || 0), 0)
+    - expenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
 
   // ── 9. Sotilgan tonna ─────────────────────────────────────────────────────
   const [soldRows, setSoldRows] = useState(() => load('sold_rows', []));
@@ -235,7 +241,14 @@ export function DataProvider({ children }) {
     else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
     else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
   };
-  const deleteDebtRow = (id) => setDebtRows(p => guardAutoDelete(p, id));
+  const deleteDebtRow = (id) => {
+    setDebtRows(p => guardAutoDelete(p, id));
+    // Ushbu qarzning to'lovlaridan yaratilgan auto kirim yozuvlarini ham o'chirish
+    const prefix = `${id}_p`;
+    setCashRows(p  => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
+    setBankRows(p  => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
+    setClickRows(p => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
+  };
   // Excel'dan ko'plab qarz import qilish (unikal id bilan)
   const importDebts = (rows) => {
     const base = Date.now();
@@ -253,14 +266,22 @@ export function DataProvider({ children }) {
   // ── 12. Avanslar ──────────────────────────────────────────────────────────
   const [advanceRows, setAdvanceRows] = useState(() => load('advance_rows', []));
   useEffect(() => save('advance_rows', advanceRows), [advanceRows]);
-  const addAdvanceRow = (customer, amount, note = '') => {
+  const addAdvanceRow = (customer, amount, note = '', channel = 'naqd') => {
     const ts = Date.now();
+    const today = new Date().toLocaleDateString('ru-RU');
     setAdvanceRows(p => [...p, {
-      id: ts, createdAt: ts, worker: currentWorker,
-      date: new Date().toLocaleDateString('ru-RU'),
-      customer, amount: Number(amount), used: 0, note,
-      usages: [],
+      id: ts, createdAt: ts, worker: currentWorker, date: today,
+      customer, amount: Number(amount), used: 0, note, usages: [],
     }]);
+    // ── INTEGRATSIYA: avans → tegishli kassaga kirim ─────────────────────────
+    const sum = Number(amount);
+    if (sum > 0) {
+      const tag  = `🔗 Avans: ${customer}`;
+      const link = { auto: true, sourceType: 'advance', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
+    }
   };
   const useAdvance = (id, useAmount, useNote = '') => {
     const ts = Date.now();
@@ -281,7 +302,12 @@ export function DataProvider({ children }) {
       };
     }));
   };
-  const deleteAdvanceRow = (id) => setAdvanceRows(p => p.filter(r => r.id !== id));
+  const deleteAdvanceRow = (id) => {
+    setAdvanceRows(p => p.filter(r => r.id !== id));
+    setCashRows(p  => p.filter(r => r.sourceId !== id));
+    setBankRows(p  => p.filter(r => r.sourceId !== id));
+    setClickRows(p => p.filter(r => r.sourceId !== id));
+  };
   const totalAdvances     = advanceRows.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
   const totalAdvancesUsed = advanceRows.reduce((s, r) => s + Number(r.used), 0);
   const totalAdvancesAll  = advanceRows.reduce((s, r) => s + Number(r.amount), 0);
@@ -338,8 +364,10 @@ export function DataProvider({ children }) {
   };
   const deleteBankExpenseRow = (id) => setBankExpenseRows(p => p.filter(r => r.id !== id));
   const totalBankExpense = bankExpenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
-  // Bank sof balansi = ochilish + kirim − chiqim
-  const bankNetBalance = Number(bankOpening.amount) + totalBankIncome - totalBankExpense;
+  // Bank sof balansi (faqat Kirim/Chiqim Bank sahifasi uchun)
+  const bankNetBalance   = Number(bankOpening.amount) + totalBankIncome - totalBankExpense;
+  // To'liq Bank balansi = ochilish + bankRows (auto+manual) + bankIncomeRows − bankExpenseRows
+  const totalBankBalance = Number(bankOpening.amount) + _bankRowsSum + totalBankIncome - totalBankExpense;
 
   // ── 15. Kirim click ───────────────────────────────────────────────────────
   const [clickIncomeRows, setClickIncomeRows] = useState(() => load('click_income_rows', []));
@@ -360,8 +388,10 @@ export function DataProvider({ children }) {
   };
   const deleteClickExpenseRow = (id) => setClickExpenseRows(p => p.filter(r => r.id !== id));
   const totalClickExpense = clickExpenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
-  // Click sof balansi = ochilish + kirim − chiqim
-  const clickNetBalance = Number(clickOpening.amount) + totalClickIncome - totalClickExpense;
+  // Click sof balansi (faqat Kirim/Chiqim Click sahifasi uchun)
+  const clickNetBalance   = Number(clickOpening.amount) + totalClickIncome - totalClickExpense;
+  // To'liq Click balansi = ochilish + clickRows (auto+manual) + clickIncomeRows − clickExpenseRows
+  const totalClickBalance = Number(clickOpening.amount) + _clickRowsSum + totalClickIncome - totalClickExpense;
 
   // ── 16. Ishchilar oyligi ──────────────────────────────────────────────────
   const [workers,        setWorkers]        = useState(() => load('workers', []));
@@ -382,18 +412,24 @@ export function DataProvider({ children }) {
     }]);
   };
 
-  const payWorker = (id, amount, note = '') => {
+  const payWorker = (id, amount, note = '', channel = 'naqd') => {
     const ts = Date.now();
     const num = Number(amount);
+    const today = new Date().toLocaleDateString('ru-RU');
+    const workerObj = workers.find(w => w.id === id);
     setWorkers(p => p.map(w => w.id === id ? { ...w, paid: Number(w.paid) + num } : w));
     setSalaryPayments(p => [...p, {
-      id: ts, createdAt: ts,
-      workerId: id,
-      amount: num,
-      date: new Date().toLocaleDateString('ru-RU'),
-      note,
-      paidBy: currentWorker,
+      id: ts, createdAt: ts, workerId: id, amount: num,
+      date: today, note, paidBy: currentWorker, channel,
     }]);
+    // ── INTEGRATSIYA: xodim oyligi → tegishli kassadan chiqim ───────────────
+    if (num > 0) {
+      const tag  = `🔗 Oylik: ${workerObj?.name || ''}`;
+      const link = { auto: true, sourceType: 'salary', sourceId: `${id}_s${ts}`, createdAt: ts, worker: currentWorker, date: today };
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount: -num, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount: -num, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount: -num, desc: tag }]);
+    }
   };
 
   const updateWorker = (id, data) => setWorkers(p => p.map(w => w.id === id ? { ...w, ...data } : w));

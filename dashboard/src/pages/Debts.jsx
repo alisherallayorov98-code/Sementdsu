@@ -276,6 +276,7 @@ export default function Debts({ lang }) {
                           <th style={th}>#</th>
                           <th style={th}>{L.sana[lang]}</th>
                           <th style={{ ...th, textAlign: 'right' }}>{L.tolashSum[lang]}</th>
+                          <th style={th}>Kanal</th>
                           <th style={th}>{L.izoh[lang]}</th>
                           <th style={th}>{L.xodim[lang]}</th>
                         </tr>
@@ -286,6 +287,9 @@ export default function Debts({ lang }) {
                             <td style={td}>{i + 1}</td>
                             <td style={td}>{p.date}</td>
                             <td style={{ ...td, textAlign: 'right', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(p.amount)}</td>
+                            <td style={td}>
+                              {{ naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[p.channel] || '💵 Naqd'}
+                            </td>
                             <td style={td}>{p.note || '—'}</td>
                             <td style={td}>{p.worker || '—'}</td>
                           </tr>

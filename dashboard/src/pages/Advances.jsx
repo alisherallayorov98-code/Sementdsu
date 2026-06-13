@@ -53,7 +53,7 @@ export default function Advances({ lang }) {
     totalAdvances, totalAdvancesUsed, totalAdvancesAll,
   } = useData();
 
-  const [form, setForm]       = useState({ customer: '', amount: '', note: '' });
+  const [form, setForm]       = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
   const [useForm, setUseForm] = useState({ id: null, amount: '', note: '' });
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
@@ -63,8 +63,8 @@ export default function Advances({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (form.customer && form.amount) {
-      addAdvanceRow(form.customer, form.amount, form.note);
-      setForm({ customer: '', amount: '', note: '' });
+      addAdvanceRow(form.customer, form.amount, form.note, form.channel);
+      setForm({ customer: '', amount: '', note: '', channel: 'naqd' });
     }
   };
 
@@ -131,8 +131,20 @@ export default function Advances({ lang }) {
           placeholder={L.izoh[lang]}
           value={form.note}
           onChange={e => setForm({ ...form, note: e.target.value })}
-          style={{ ...inp, width: 180 }}
+          style={{ ...inp, width: 150 }}
         />
+        {[
+          { v: 'naqd', label: '💵 Naqd', color: '#1565c0' },
+          { v: 'bank', label: '🏦 Bank', color: '#2e7d32' },
+          { v: 'click',label: '📱 Click',color: '#6a1b9a' },
+        ].map(ch => (
+          <button key={ch.v} type="button" onClick={() => setForm({ ...form, channel: ch.v })} style={{
+            padding: '3px 10px', fontSize: 12, cursor: 'pointer',
+            border: `2px solid ${form.channel === ch.v ? ch.color : '#ddd'}`,
+            background: form.channel === ch.v ? ch.color : '#f9f9f9',
+            color: form.channel === ch.v ? '#fff' : '#333', borderRadius: 3,
+          }}>{ch.label}</button>
+        ))}
         <button type="submit" style={addBtn}>{L.qoshish[lang]}</button>
       </form>
 
