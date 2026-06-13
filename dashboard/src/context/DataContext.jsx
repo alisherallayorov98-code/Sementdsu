@@ -177,7 +177,9 @@ export function DataProvider({ children }) {
   // ── 10. Olingan tonna ─────────────────────────────────────────────────────
   const [recvRows, setRecvRows] = useState(() => load('recv_rows', []));
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
-  const addRecvRow = (entry) => {
+  // opts.cashLink=false bo'lsa kassadan chiqim YARATILMAYDI (Excel/tarixiy import uchun)
+  const addRecvRow = (entry, opts = {}) => {
+    const { cashLink = true } = opts;
     const ts = Date.now();
     const today = new Date().toLocaleDateString('ru-RU');
     const row = {
@@ -193,7 +195,7 @@ export function DataProvider({ children }) {
 
     // ── INTEGRATSIYA: sement olish → tegishli kassadan chiqim ──────────────
     const sum = Number(row.tons || 0) * Number(row.pricePerTon || 0);
-    if (sum > 0) {
+    if (cashLink && sum > 0) {
       const tag  = `🔗 Sement olish: ${row.source || ''} (${fmtTons(row.tons)} tn)`;
       const link = { auto: true, sourceType: 'recv', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
       const channel = row.paymentChannel || 'naqd';
@@ -209,6 +211,18 @@ export function DataProvider({ children }) {
     setCashRows(p  => p.filter(r => r.sourceId !== id));
     setBankRows(p  => p.filter(r => r.sourceId !== id));
     setClickRows(p => p.filter(r => r.sourceId !== id));
+  };
+  // Excel'dan ko'plab "Olingan tonna" import (unikal id, kassaga tegmaydi — tarixiy)
+  const importRecvRows = (rows) => {
+    const base = Date.now();
+    setRecvRows(p => [...p, ...rows.map((r, i) => ({
+      id: base + i, createdAt: base + i, worker: currentWorker,
+      date: r.date || new Date().toLocaleDateString('ru-RU'),
+      source: r.source || '', brand: r.brand || '', vehicleNo: r.vehicleNo || '',
+      tons: Number(r.tons) || 0, pricePerTon: Number(r.pricePerTon) || 0,
+      paymentChannel: r.paymentChannel || 'naqd',
+      cardName: r.cardName || '', factoryTime: r.factoryTime || '', izoh: r.izoh || '',
+    }))]);
   };
   const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
@@ -678,7 +692,7 @@ export function DataProvider({ children }) {
     // 9. Sotilgan tonna
     soldRows, addSoldRow, deleteSoldRow,
     // 10. Olingan tonna
-    recvRows, addRecvRow, deleteRecvRow,
+    recvRows, addRecvRow, deleteRecvRow, importRecvRows,
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar

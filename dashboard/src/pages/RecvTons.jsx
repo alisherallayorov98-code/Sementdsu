@@ -88,7 +88,7 @@ const downloadTemplate = () => {
 
 export default function RecvTons({ lang }) {
   const {
-    recvRows, addRecvRow, deleteRecvRow,
+    recvRows, addRecvRow, deleteRecvRow, importRecvRows,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -157,10 +157,10 @@ export default function RecvTons({ lang }) {
     reader.readAsBinaryString(file);
   };
 
-  // Excel import tasdiqlash
+  // Excel import tasdiqlash (tarixiy ma'lumot — kassaga ta'sir qilmaydi, unikal id)
   const confirmImport = () => {
     if (!importRows) return;
-    importRows.forEach(r => addRecvRow(r));
+    importRecvRows(importRows);
     setImportRows(null);
   };
 
