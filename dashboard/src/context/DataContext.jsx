@@ -18,6 +18,24 @@ const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 // Tonnani chiroyli ko'rsatish (butun bo'lsa kasrsiz)
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
+// Ichki bildirishnoma ovozi (internetsiz ham ishlaydi — Web Audio "beep")
+function beep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(); osc.stop(ctx.currentTime + 0.42);
+    osc.onended = () => { try { ctx.close(); } catch { /* ignore */ } };
+  } catch { /* ovoz ixtiyoriy */ }
+}
+
 // Avtomatik yaratilgan yozuvni qo'lda o'chirishdan himoya qilish.
 const guardAutoDelete = (rows, id) => {
   const row = rows.find(r => r.id === id);
@@ -658,9 +676,7 @@ export function DataProvider({ children }) {
             added = true;
             return [...prev, ...fresh];
           });
-          if (added) {
-            try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch { /* ovoz ixtiyoriy */ }
-          }
+          if (added) beep();
           await api.clearBotOrders();
         }
       } catch { /* backend o'chiq bo'lishi mumkin — keyingi urinishda */ }
