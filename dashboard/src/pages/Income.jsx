@@ -77,6 +77,7 @@ export default function Income({ lang }) {
 
   // ── Kirim o'chirish ───────────────────────────────────────────────────────
   const handleDelete = (type, id) => {
+    if (!window.confirm("Haqiqatan ham bu kirim yozuvini o'chirmoqchimisiz?\n\nBu amalni qaytarib bo'lmaydi.")) return;
     if (type === 'naqd')           deleteIncomeRow(id);
     else if (type === 'click')     deleteClickIncomeRow(id);
     else if (type === 'perechisleniya') deleteBankIncomeRow(id);

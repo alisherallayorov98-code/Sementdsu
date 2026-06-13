@@ -313,7 +313,7 @@ export default function Expense({ lang }) {
                   <td>
                     {r.canDelete ? (
                       <button
-                        onClick={() => deleteExpenseRow(r.id)}
+                        onClick={() => { if (window.confirm("Haqiqatan ham bu chiqim yozuvini o'chirmoqchimisiz?\n\nBu amalni qaytarib bo'lmaydi.")) deleteExpenseRow(r.id); }}
                         style={{ fontSize: 10, cursor: 'pointer', background: '#ffcccc', border: '1px solid #c00', padding: '2px 5px' }}
                       >✕</button>
                     ) : (

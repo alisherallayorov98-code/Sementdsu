@@ -283,7 +283,7 @@ export default function SoldTons({ lang }) {
                                     {L.tolash[lang]}
                                   </button>
                                 )}
-                                <button onClick={() => deleteDebtRow(d.id)} style={{ cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', fontSize:10, padding:'2px 5px' }}>✕</button>
+                                <button onClick={() => { if (window.confirm("Haqiqatan ham bu qarz yozuvini o'chirmoqchimisiz?")) deleteDebtRow(d.id); }} style={{ cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', fontSize:10, padding:'2px 5px' }}>✕</button>
                               </span>
                             )}
                           </td>
