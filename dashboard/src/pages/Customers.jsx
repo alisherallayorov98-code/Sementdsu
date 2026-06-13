@@ -10,7 +10,7 @@ const dateOf = (ts) => (ts && ts > 1e10 ? new Date(ts).toLocaleDateString('ru-RU
 
 export default function Customers() {
   const data = useData();
-  const { customers, addCustomer, updateCustomer, deleteCustomer } = data;
+  const { customers, addCustomer, updateCustomer, deleteCustomer, setMonitor } = data;
 
   const [form, setForm]         = useState({ name: '', phone: '+998 ', address: '', note: '' });
   const [editId, setEditId]     = useState(null);
@@ -220,6 +220,7 @@ export default function Customers() {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#283593', fontWeight: 'bold', fontSize: 13, padding: 0, textDecoration: 'underline', textAlign: 'left' }}>
                           {c.name}
                         </button>
+                        {c.monitored && <span title="Nazoratda" style={{ marginLeft: 6, fontSize: 11 }}>🔔</span>}
                         {c.note && <span style={{ color: '#999', fontSize: 10, marginLeft: 6 }}>{c.note}</span>}
                       </td>
                       <td>
@@ -252,6 +253,9 @@ export default function Customers() {
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button onClick={() => setModalName(c.name)} style={infoBtn}>👁</button>
+                          <button onClick={() => setMonitor(c.id, !c.monitored)}
+                            title={c.monitored ? 'Nazoratdan olib tashlash' : "Nazoratga qo'shish"}
+                            style={c.monitored ? monBtnOn : monBtnOff}>🔔</button>
                           <button onClick={() => startEdit(c)} style={editBtn}>✎</button>
                           <button onClick={() => handleDelete(c.id, c.name)} style={redBtn}>✕</button>
                         </div>
@@ -291,3 +295,5 @@ const infoBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#e8eaf6',
 const editBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', borderRadius: 3, color: '#1565c0', fontSize: 12 };
 const greenBtn = { padding: '2px 7px', cursor: 'pointer', background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: 3, color: '#2e7d32', fontSize: 12, fontWeight: 'bold' };
 const redBtn   = { padding: '2px 7px', cursor: 'pointer', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828', fontSize: 12 };
+const monBtnOn  = { padding: '2px 7px', cursor: 'pointer', background: '#fff3e0', border: '1px solid #ef6c00', borderRadius: 3, fontSize: 12 };
+const monBtnOff = { padding: '2px 7px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, filter: 'grayscale(1)', opacity: 0.6 };

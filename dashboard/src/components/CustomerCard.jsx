@@ -5,15 +5,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
+import { activityStatus } from '../lib/monitoring';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
 export default function CustomerCard({ name, onClose }) {
   const data = useData();
-  const { customers } = data;
+  const { customers, appSettings, setMonitor } = data;
   const cust = customers.find(c => c.name === name);
   const s = customerSummary(name, data);
+  const act = cust?.monitored ? activityStatus(s, cust, Number(appSettings?.monitorDays) || 14) : null;
 
   const box = (label, value, color, bg) => (
     <div style={{ flex: 1, minWidth: 150, padding: '10px 14px', background: bg, borderLeft: `4px solid ${color}`, borderRadius: 4 }}>
@@ -34,13 +36,33 @@ export default function CustomerCard({ name, onClose }) {
         {/* Sarlavha */}
         <div style={{ background: '#003366', color: '#fff', padding: '12px 18px', borderRadius: '8px 8px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 'bold' }}>👤 {name}</div>
+            <div style={{ fontSize: 18, fontWeight: 'bold' }}>
+              👤 {name}
+              {cust && (
+                <button
+                  onClick={() => setMonitor(cust.id, !cust.monitored)}
+                  title={cust.monitored ? 'Nazoratdan olib tashlash' : "Nazoratga qo'shish"}
+                  style={{ marginLeft: 10, cursor: 'pointer', background: cust.monitored ? '#ef6c00' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12 }}>
+                  🔔 {cust.monitored ? 'Nazoratda' : 'Nazoratga'}
+                </button>
+              )}
+            </div>
             <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
               {cust?.phone ? `📞 ${cust.phone}` : 'Telefon yo\'q'}{cust?.address ? `  •  📍 ${cust.address}` : ''}
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 20, width: 32, height: 32, borderRadius: 16, cursor: 'pointer' }}>✕</button>
         </div>
+
+        {/* Nazorat holati (faqat nazoratdagi mijoz uchun) */}
+        {act && (
+          <div style={{ background: act.status.bg, color: act.status.color, padding: '7px 18px', fontSize: 13, fontWeight: 'bold', borderBottom: `1px solid ${act.status.color}` }}>
+            {act.status.icon} {act.status.label}
+            {act.daysSince !== null
+              ? ` — oxirgi xaridi ${act.daysSince} kun oldin (nazorat muddati: ${act.threshold} kun)`
+              : ' — hali xarid qilmagan'}
+          </div>
+        )}
 
         <div style={{ padding: 18 }}>
           {/* Asosiy raqamlar */}

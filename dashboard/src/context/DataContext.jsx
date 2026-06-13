@@ -75,6 +75,7 @@ export function DataProvider({ children }) {
     appName: 'Sement Biznes Boshqaruvi',
     currency: "so'm",
     themeColor: '#003366',
+    monitorDays: 14, // mijoz nazorati: necha kun xarid bo'lmasa "jim qoldi" deb belgilash
   }));
   useEffect(() => save('app_settings', appSettings), [appSettings]);
   const updateAppSettings = (data) => setAppSettings(p => ({ ...p, ...data }));
@@ -471,6 +472,9 @@ export function DataProvider({ children }) {
   };
   const updateCustomer = (id, data) => setCustomers(p => p.map(c => c.id === id ? { ...c, ...data } : c));
   const deleteCustomer = (id) => setCustomers(p => p.filter(c => c.id !== id));
+  // Mijozni nazoratga olish / olib tashlash (ixtiyoriy alohida muddat bilan)
+  const setMonitor = (id, monitored, monitorDays = null) =>
+    setCustomers(p => p.map(c => c.id === id ? { ...c, monitored, monitorDays: monitorDays || null } : c));
   // Excel'dan ko'plab mijoz import qilish (unikal id bilan)
   const importCustomers = (rows) => {
     const base = Date.now();
@@ -689,7 +693,7 @@ export function DataProvider({ children }) {
     // 6. Kunlik ish
     dailyWorkRows, addDailyWorkRow, deleteDailyWorkRow,
     // Mijozlar bazasi
-    customers, addCustomer, updateCustomer, deleteCustomer, importCustomers,
+    customers, addCustomer, updateCustomer, deleteCustomer, importCustomers, setMonitor,
     // Haydovchilar
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,

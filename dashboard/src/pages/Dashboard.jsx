@@ -7,6 +7,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import CustomerCard from '../components/CustomerCard';
+import { customerSummary } from '../lib/customerSummary';
+import { activityStatus } from '../lib/monitoring';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -16,12 +18,22 @@ const monthKey = today.slice(3);                              // mm.yyyy
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const data = useData();
   const {
     totalCashBalance, totalBankBalance, totalClickBalance, totalCementBalance,
     totalDebts, salesRows, soldRows, incomeRows, expenseRows, tgOrders, debtRows, currentUser,
-  } = useData();
+    customers, appSettings,
+  } = data;
 
   const [card, setCard] = useState(null);
+
+  // ── Mijoz nazorati: "jim qolgan" nazoratdagi mijozlar ────────────────────
+  const globalDays = Number(appSettings?.monitorDays) || 14;
+  const quietCustomers = customers
+    .filter(c => c.monitored)
+    .map(c => ({ c, act: activityStatus(customerSummary(c.name, data), c, globalDays) }))
+    .filter(m => m.act.status.key === 'alert' || m.act.status.key === 'never')
+    .sort((a, b) => (b.act.daysSince || 9999) - (a.act.daysSince || 9999));
 
   const allSales = [...salesRows, ...soldRows];
   const sumOf = (arr) => arr.reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
@@ -59,6 +71,29 @@ export default function Dashboard() {
         <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" color="#c62828" bg="#ffebee" onClick={() => navigate('/debts')} />
         <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} color="#ef6c00" bg="#fff3e0" onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
       </div>
+
+      {/* ⚠️ Mijoz nazorati ogohlantirishi (faqat jim qolganlar bo'lsa) */}
+      {quietCustomers.length > 0 && (
+        <div style={{ marginBottom: 18, border: '2px solid #c62828', borderRadius: 6, overflow: 'hidden' }}>
+          <div onClick={() => navigate('/monitoring')} style={{ background: '#c62828', color: '#fff', padding: '8px 14px', fontWeight: 'bold', fontSize: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>⚠️ E'tibor! {quietCustomers.length} ta nazoratdagi mijoz yangi yuk olmayapti</span>
+            <span style={{ fontSize: 12, opacity: 0.9, textDecoration: 'underline' }}>Batafsil →</span>
+          </div>
+          <table className="data-table" style={{ width: '100%' }}>
+            <tbody>
+              {quietCustomers.slice(0, 6).map(({ c, act }) => (
+                <tr key={c.id} style={{ cursor: 'pointer', background: '#fff5f5' }} onClick={() => setCard(c.name)}>
+                  <td style={{ fontWeight: 'bold' }}>👤 {c.name}</td>
+                  <td style={{ fontSize: 12 }}>{c.phone ? `📞 ${c.phone}` : '—'}</td>
+                  <td style={{ textAlign: 'right', color: '#c62828', fontWeight: 'bold', fontSize: 12 }}>
+                    {act.daysSince !== null ? `${act.daysSince} kun yangi yuk yo'q` : "Hech xarid qilmagan"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Bugun va shu oy */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
