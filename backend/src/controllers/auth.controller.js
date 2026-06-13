@@ -4,7 +4,7 @@ const { sign }         = require('../services/token.service');
 const { DEFAULT_ACCOUNT } = require('../config');
 
 // POST /api/auth/login  { name, password }
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
   const { name, password } = req.body || {};
   if (!name || !password) {
     return res.status(400).json({ ok: false, error: 'Ism va parol kiritilishi shart' });
@@ -14,7 +14,7 @@ exports.login = (req, res) => {
   }
 
   const account = DEFAULT_ACCOUNT; // SaaS'da bu req.body.account dan olinadi
-  const user = authenticate(account, name, password);
+  const user = await authenticate(account, name, password);
   if (!user) return res.status(401).json({ ok: false, error: "Ism yoki parol noto'g'ri" });
 
   const token = sign({ sub: user.id, name: user.name, role: user.role, account });

@@ -18,12 +18,17 @@ const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 // Tonnani chiroyli ko'rsatish (butun bo'lsa kasrsiz)
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
-// Avtomatik (sotuvdan yaratilgan) yozuvni qo'lda o'chirishdan himoya qilish.
-// Bunday yozuvlar faqat tegishli savdo o'chirilganda o'chadi.
+// Avtomatik yaratilgan yozuvni qo'lda o'chirishdan himoya qilish.
 const guardAutoDelete = (rows, id) => {
   const row = rows.find(r => r.id === id);
   if (row?.auto) {
-    alert("Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.");
+    const src = row.sourceType;
+    if (src === 'recv')
+      alert("Bu yozuv sement olishdan avtomatik yaratilgan.\nO'chirish uchun \"Olingan tonna\" bo'limidan tegishli qatorni o'chiring.");
+    else if (src === 'debt_payment')
+      alert("Bu yozuv qarz to'lovidan avtomatik yaratilgan.\nUni alohida o'chirib bo'lmaydi.");
+    else
+      alert("Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.");
     return rows;
   }
   return rows.filter(r => r.id !== id);
@@ -159,21 +164,37 @@ export function DataProvider({ children }) {
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
   const addRecvRow = (entry) => {
     const ts = Date.now();
-    setRecvRows(p => [...p, {
-      id: ts, createdAt: ts, worker: currentWorker,
-      date: new Date().toLocaleDateString('ru-RU'),
-      source: entry.source || '',
-      brand: entry.brand || '',
-      vehicleNo: entry.vehicleNo || '',
-      tons: entry.tons || 0,
+    const today = new Date().toLocaleDateString('ru-RU');
+    const row = {
+      id: ts, createdAt: ts, worker: currentWorker, date: today,
+      source: entry.source || '', brand: entry.brand || '',
+      vehicleNo: entry.vehicleNo || '', tons: entry.tons || 0,
       pricePerTon: entry.pricePerTon || 0,
       paymentChannel: entry.paymentChannel || 'naqd',
-      cardName: entry.cardName || '',
-      factoryTime: entry.factoryTime || '',
+      cardName: entry.cardName || '', factoryTime: entry.factoryTime || '',
       izoh: entry.izoh || '',
-    }]);
+    };
+    setRecvRows(p => [...p, row]);
+
+    // ── INTEGRATSIYA: sement olish → tegishli kassadan chiqim ──────────────
+    const sum = Number(row.tons || 0) * Number(row.pricePerTon || 0);
+    if (sum > 0) {
+      const tag  = `🔗 Sement olish: ${row.source || ''} (${fmtTons(row.tons)} tn)`;
+      const link = { auto: true, sourceType: 'recv', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
+      const channel = row.paymentChannel || 'naqd';
+      // Manfiy summa → kassadan chiqim
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 2, amount: -sum, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 2, amount: -sum, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 2, amount: -sum, desc: tag }]);
+    }
   };
-  const deleteRecvRow = (id) => setRecvRows(p => p.filter(r => r.id !== id));
+  const deleteRecvRow = (id) => {
+    setRecvRows(p => p.filter(r => r.id !== id));
+    // Cascade: shu yetkazmadan yaratilgan chiqim yozuvini ham o'chirish
+    setCashRows(p  => p.filter(r => r.sourceId !== id));
+    setBankRows(p  => p.filter(r => r.sourceId !== id));
+    setClickRows(p => p.filter(r => r.sourceId !== id));
+  };
   const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
   // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
@@ -192,24 +213,27 @@ export function DataProvider({ children }) {
       payments: [],
     }]);
   };
-  const payDebt = (id, payAmount, payNote = '') => {
+  const payDebt = (id, payAmount, payNote = '', channel = 'naqd') => {
     const ts = Date.now();
     const amt = Number(payAmount);
+    const today = new Date().toLocaleDateString('ru-RU');
+    // Mijoz ismini topamiz (description uchun)
+    const debtRow = debtRows.find(r => r.id === id);
+    const customer = debtRow?.customer || '';
     setDebtRows(p => p.map(r => {
       if (r.id !== id) return r;
-      const newPayment = {
-        id: ts,
-        date: new Date().toLocaleDateString('ru-RU'),
-        amount: amt,
-        note: payNote,
-        worker: currentWorker,
-      };
       return {
         ...r,
         paid: Number(r.paid) + amt,
-        payments: [...(r.payments || []), newPayment],
+        payments: [...(r.payments || []), { id: ts, date: today, amount: amt, note: payNote, worker: currentWorker, channel }],
       };
     }));
+    // ── INTEGRATSIYA: qarz to'lovi → tegishli kassaga kirim ─────────────────
+    const tag  = `🔗 Qarz to'lovi: ${customer}`;
+    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${id}_p${ts}`, createdAt: ts, worker: currentWorker, date: today };
+    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
+    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
+    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
   };
   const deleteDebtRow = (id) => setDebtRows(p => guardAutoDelete(p, id));
   // Excel'dan ko'plab qarz import qilish (unikal id bilan)

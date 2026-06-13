@@ -55,7 +55,7 @@ export default function Debts({ lang }) {
   } = useData();
 
   const [form, setForm]       = useState({ customer: '', amount: '', note: '' });
-  const [payForm, setPayForm] = useState({ id: null, amount: '', note: '' });
+  const [payForm, setPayForm] = useState({ id: null, amount: '', note: '', channel: 'naqd' });
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
   const [history, setHistory] = useState(null);  // qaysi qarz tarixi ko'rinmoqda
@@ -71,12 +71,12 @@ export default function Debts({ lang }) {
 
   // ── To'lash ─────────────────────────────────────────────────────────────────
   const handlePayOpen = (id) => {
-    setPayForm({ id, amount: '', note: '' });
+    setPayForm({ id, amount: '', note: '', channel: 'naqd' });
   };
   const handlePayConfirm = () => {
     if (payForm.amount) {
-      payDebt(payForm.id, payForm.amount, payForm.note);
-      setPayForm({ id: null, amount: '', note: '' });
+      payDebt(payForm.id, payForm.amount, payForm.note, payForm.channel);
+      setPayForm({ id: null, amount: '', note: '', channel: 'naqd' });
     }
   };
 
@@ -165,12 +165,12 @@ export default function Debts({ lang }) {
           background: 'rgba(0,0,0,0.35)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
-          onClick={() => setPayForm({ id: null, amount: '', note: '' })}
+          onClick={() => setPayForm({ id: null, amount: '', note: '', channel: 'naqd' })}
         >
           <div
             style={{
               background: '#fff', padding: 24, borderRadius: 6,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.3)', minWidth: 320,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.3)', minWidth: 340,
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -182,7 +182,7 @@ export default function Debts({ lang }) {
                   <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 12, color: '#003366' }}>
                     {L.tolash[lang]}: <span style={{ color: '#c62828' }}>{row?.customer}</span>
                   </div>
-                  <div style={{ marginBottom: 8, fontSize: 12, color: '#555' }}>
+                  <div style={{ marginBottom: 10, fontSize: 12, color: '#555' }}>
                     Qolgan qarz: <b style={{ color: '#c62828' }}>{fmt(rem)} so'm</b>
                   </div>
                   <input
@@ -197,12 +197,40 @@ export default function Debts({ lang }) {
                     placeholder={L.tolashIzoh[lang]}
                     value={payForm.note}
                     onChange={e => setPayForm({ ...payForm, note: e.target.value })}
-                    style={{ ...inp, width: '100%', marginBottom: 14, boxSizing: 'border-box' }}
+                    style={{ ...inp, width: '100%', marginBottom: 8, boxSizing: 'border-box' }}
                   />
+                  {/* ── To'lov kanali ── */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>
+                      Pul qaysi kassaga tushadi?
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[
+                        { v: 'naqd',  label: '💵 Naqd',  color: '#1565c0' },
+                        { v: 'bank',  label: '🏦 Bank',  color: '#2e7d32' },
+                        { v: 'click', label: '📱 Click', color: '#6a1b9a' },
+                      ].map(ch => (
+                        <button
+                          key={ch.v}
+                          type="button"
+                          onClick={() => setPayForm({ ...payForm, channel: ch.v })}
+                          style={{
+                            flex: 1, padding: '6px 4px', fontSize: 12, cursor: 'pointer',
+                            border: `2px solid ${payForm.channel === ch.v ? ch.color : '#ddd'}`,
+                            background: payForm.channel === ch.v ? ch.color : '#f9f9f9',
+                            color: payForm.channel === ch.v ? '#fff' : '#333',
+                            borderRadius: 4, fontWeight: payForm.channel === ch.v ? 'bold' : 'normal',
+                          }}
+                        >
+                          {ch.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={handlePayConfirm} style={{ ...addBtn, flex: 1 }}>✓ {L.tolash[lang]}</button>
                     <button
-                      onClick={() => setPayForm({ id: null, amount: '', note: '' })}
+                      onClick={() => setPayForm({ id: null, amount: '', note: '', channel: 'naqd' })}
                       style={{ flex: 1, padding: '5px 14px', cursor: 'pointer', background: '#ffcccc', border: '1px solid #c00', borderRadius: 3 }}
                     >
                       ✕

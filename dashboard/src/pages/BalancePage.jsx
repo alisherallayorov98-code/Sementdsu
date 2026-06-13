@@ -43,7 +43,13 @@ export default function BalancePage({ lang, type, title, color }) {
   if (type === 'naqd') {
     opening = data.cashOpening;
     // Qo'lda kiritilgan qoldiqlar + sotuvdan avtomatik tushgan naqd
-    allTx.push(...data.cashRows.map(r => ({ ...r, sign: r.amount > 0 ? +1 : -1, cat: r.auto && r.sourceType === 'sale' ? 'Sotish (Naqd)' : 'Qo\'lda (Tahrir)' })));
+    allTx.push(...data.cashRows.map(r => {
+      let cat = "Qo'lda (Tahrir)";
+      if (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Naqd)';
+      else if (r.auto && r.sourceType === 'debt_payment') cat = "Qarz to'lovi (Naqd)";
+      else if (r.auto && r.sourceType === 'recv')    cat = 'Sement olish (Naqd)';
+      return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
+    }));
     // Asosiy harakatlar
     allTx.push(...data.incomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
     allTx.push(...data.expenseRows.map(r => ({ ...r, sign: -1, cat: 'Chiqim' })));
@@ -51,14 +57,26 @@ export default function BalancePage({ lang, type, title, color }) {
   } 
   else if (type === 'bank') {
     opening = data.bankOpening;
-    allTx.push(...data.bankRows.map(r => ({ ...r, sign: r.amount > 0 ? +1 : -1, cat: r.auto && r.sourceType === 'sale' ? 'Sotish (Bank)' : 'Qo\'lda (Tahrir)' })));
+    allTx.push(...data.bankRows.map(r => {
+      let cat = "Qo'lda (Tahrir)";
+      if (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Bank)';
+      else if (r.auto && r.sourceType === 'debt_payment') cat = "Qarz to'lovi (Bank)";
+      else if (r.auto && r.sourceType === 'recv')    cat = 'Sement olish (Bank)';
+      return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
+    }));
     allTx.push(...data.bankIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
     allTx.push(...data.bankExpenseRows.map(r => ({ ...r, sign: -1, cat: 'Chiqim' })));
     allTx.push(...data.soldRows.filter(r => r.paymentChannel === 'bank').map(r => ({ ...r, amount: r.tons * r.pricePerTon, sign: +1, cat: 'Sotish (Bank)', desc: `${r.customer} (${r.tons} tn)` })));
   }
   else if (type === 'click') {
     opening = data.clickOpening;
-    allTx.push(...data.clickRows.map(r => ({ ...r, sign: r.amount > 0 ? +1 : -1, cat: r.auto && r.sourceType === 'sale' ? 'Sotish (Click)' : 'Qo\'lda (Tahrir)' })));
+    allTx.push(...data.clickRows.map(r => {
+      let cat = "Qo'lda (Tahrir)";
+      if (r.auto && r.sourceType === 'sale')         cat = 'Sotish (Click)';
+      else if (r.auto && r.sourceType === 'debt_payment') cat = "Qarz to'lovi (Click)";
+      else if (r.auto && r.sourceType === 'recv')    cat = 'Sement olish (Click)';
+      return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
+    }));
     allTx.push(...data.clickIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
     allTx.push(...data.clickExpenseRows.map(r => ({ ...r, sign: -1, cat: 'Chiqim' })));
     allTx.push(...data.soldRows.filter(r => r.paymentChannel === 'click').map(r => ({ ...r, amount: r.tons * r.pricePerTon, sign: +1, cat: 'Sotish (Click)', desc: `${r.customer} (${r.tons} tn)` })));
