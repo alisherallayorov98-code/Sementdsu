@@ -32,7 +32,6 @@ export default function Monitoring() {
 
   const [card, setCard]       = useState(null);
   const [filter, setFilter]   = useState('all'); // all | alert | warning | ok
-  const [addSearch, setAddSearch] = useState('');
   const [editDaysId, setEditDaysId] = useState(null);
   const [daysVal, setDaysVal] = useState('');
 
@@ -66,12 +65,6 @@ export default function Monitoring() {
     if (filter === 'alert') return m.act.status.key === 'alert' || m.act.status.key === 'never';
     return m.act.status.key === filter;
   });
-
-  // ── Nazoratga qo'shish uchun ro'yxat ──────────────────────────────────────
-  const notMonitored = customers.filter(c =>
-    !c.monitored &&
-    (!addSearch || c.name.toLowerCase().includes(addSearch.toLowerCase()))
-  );
 
   const saveDays = (id) => {
     setMonitor(id, true, Number(daysVal) || null);
@@ -122,8 +115,9 @@ export default function Monitoring() {
 
       {/* ── ASOSIY JADVAL ─────────────────────────────────────────────────── */}
       {monitored.length === 0 ? (
-        <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fafafa', border: '1px dashed #ccc', borderRadius: 6, marginBottom: 16 }}>
-          Hali nazoratga mijoz qo'shilmagan. Pastdan doimiy mijozlaringizni qo'shing.
+        <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fafafa', border: '1px dashed #ccc', borderRadius: 6, marginBottom: 16, lineHeight: 1.7 }}>
+          Hali nazoratga mijoz qo'shilmagan.<br />
+          <b>"Mijozlar bazasi"</b> bo'limiga o'ting va doimiy mijoz yonidagi <b>🔔</b> tugmasini bosing.
         </div>
       ) : (
         <table className="data-table" style={{ width: '100%', marginBottom: 20 }}>
@@ -199,31 +193,6 @@ export default function Monitoring() {
           </tbody>
         </table>
       )}
-
-      {/* ── NAZORATGA QO'SHISH ────────────────────────────────────────────── */}
-      <div style={{ background: '#f9f9f9', border: '1px solid #ddd', borderRadius: 6, padding: '12px 14px', maxWidth: 560 }}>
-        <div style={{ fontWeight: 'bold', color: '#283593', marginBottom: 8 }}>➕ Nazoratga mijoz qo'shish</div>
-        <input
-          placeholder="🔍 Mijoz ismini qidiring..."
-          value={addSearch} onChange={e => setAddSearch(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', border: '1px solid #aaa', borderRadius: 4, fontSize: 13, marginBottom: 8 }}
-        />
-        {addSearch && (
-          <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #eee', borderRadius: 4 }}>
-            {notMonitored.length === 0 ? (
-              <div style={{ padding: 10, color: '#999', fontStyle: 'italic', fontSize: 12 }}>Mos mijoz topilmadi (yoki allaqachon nazoratda).</div>
-            ) : notMonitored.slice(0, 30).map(c => (
-              <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f0f0f0' }}>
-                <span><b style={{ color: '#283593' }}>{c.name}</b>{c.phone && <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>📞 {c.phone}</span>}</span>
-                <button onClick={() => setMonitor(c.id, true)} style={{ cursor: 'pointer', background: '#e8eaf6', border: '1px solid #3949ab', color: '#283593', borderRadius: 4, padding: '3px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                  + Nazoratga
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {!addSearch && <div style={{ fontSize: 12, color: '#888' }}>Doimiy yuk oladigan mijozlarni qo'shing. Bir martalik mijozlarni qo'shmang.</div>}
-      </div>
 
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
     </div>
