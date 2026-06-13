@@ -95,6 +95,8 @@ export function DataProvider({ children }) {
     currency: "so'm",
     themeColor: '#003366',
     monitorDays: 14, // mijoz nazorati: necha kun xarid bo'lmasa "jim qoldi" deb belgilash
+    companyPhone: '',   // chekda chiqadi
+    companyAddress: '', // chekda chiqadi
   }));
   useEffect(() => save('app_settings', appSettings), [appSettings]);
   const updateAppSettings = (data) => setAppSettings(p => ({ ...p, ...data }));
@@ -375,6 +377,7 @@ export function DataProvider({ children }) {
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
       else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer: sale.customer, amount: sum, paid: 0, note: tag, payments: [] }]);
     }
+    return sale; // chek chiqarish uchun
   };
   // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi
   const deleteSaleRow = (id) => {

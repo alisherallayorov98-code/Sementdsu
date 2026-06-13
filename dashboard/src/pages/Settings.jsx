@@ -324,6 +324,21 @@ export default function Settings({ lang }) {
               </div>
             </div>
 
+            {/* Chek (sotuv cheki) uchun ma'lumotlar */}
+            <div style={{ borderTop: '1px solid #eee', paddingTop: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 'bold', color: '#1565c0', marginBottom: 8 }}>🧾 Chekda chiqadigan korxona ma'lumotlari</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#555', marginBottom: 4, display: 'block' }}>Korxona telefoni (chek tepasida)</label>
+                  <input type="text" placeholder="+998 90 000 00 00" value={appF.companyPhone || ''} onChange={e => setAppF({...appF, companyPhone: e.target.value})} style={inp} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#555', marginBottom: 4, display: 'block' }}>Korxona manzili (chek tepasida)</label>
+                  <input type="text" placeholder="Shahar, ko'cha..." value={appF.companyAddress || ''} onChange={e => setAppF({...appF, companyAddress: e.target.value})} style={inp} />
+                </div>
+              </div>
+            </div>
+
             <div>
               <label style={{ fontSize: 13, fontWeight: 'bold', color: '#444', marginBottom: 6, display: 'block' }}>Telegram Bot</label>
               <div style={{ fontSize: 12, color: '#666', background: '#e3f2fd', padding: 10, borderRadius: 4, border: '1px solid #bbdefb' }}>

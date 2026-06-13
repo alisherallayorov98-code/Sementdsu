@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import { printSaleReceipt } from '../lib/receipt';
+import { customerSummary } from '../lib/customerSummary';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -64,16 +66,28 @@ const L = {
 };
 
 export default function SoldTons({ lang }) {
+  const data = useData();
   const {
     soldRows, addSoldRow, deleteSoldRow,
     debtRows, addDebtRow, payDebt, deleteDebtRow,
-    currentWorker, setCurrentWorker,
-  } = useData();
+    currentWorker, setCurrentWorker, appSettings,
+  } = data;
 
   const [form, setForm]               = useState({ mijoz:'', tonna:'', narx:'', tolov:'naqd', izoh:'' });
   const [modalCustomer, setModalCustomer] = useState(null);
   const [payForm, setPayForm]             = useState({ debtId: null, amount: '' });
   const printRef = useRef();
+
+  // ── Chek chiqarish ─────────────────────────────────────────────────────────
+  const printChek = (r) => {
+    const s = customerSummary(r.customer, data);
+    printSaleReceipt(r, {
+      appName: appSettings?.appName || 'SEMENT',
+      phone: appSettings?.companyPhone || '',
+      address: appSettings?.companyAddress || '',
+      qolganQarz: s.qolganQarz,
+    });
+  };
 
   // ── Sotish (qo'shish) ─────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -470,7 +484,11 @@ export default function SoldTons({ lang }) {
                   <td style={{ fontSize:11, color:'#003366', fontWeight:r.worker?'bold':'normal' }}>
                     {r.worker || '—'}
                   </td>
-                  <td>
+                  <td style={{ whiteSpace:'nowrap' }}>
+                    <button
+                      onClick={() => printChek(r)} title="Chek chiqarish"
+                      style={{ fontSize:13, cursor:'pointer', background:'#e3f2fd', border:'1px solid #1976d2', color:'#1565c0', borderRadius:3, padding:'2px 6px', marginRight:4 }}
+                    >🧾</button>
                     <button
                       onClick={() => { if(window.confirm('O\'chirilsinmi?')) deleteSoldRow(r.id); }}
                       style={{ fontSize:10, cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', padding:'2px 5px' }}

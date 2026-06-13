@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import { printSaleReceipt } from '../lib/receipt';
+import { customerSummary } from '../lib/customerSummary';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -14,15 +16,27 @@ const ACCENT = '#01579b'; // Dark blue for Sales
 const BG     = '#e1f5fe';
 
 export default function Sales({ lang }) {
-  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance } = useData();
+  const data = useData();
+  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings } = data;
   const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
   const [search, setSearch] = useState('');
+
+  // ── Chek chiqarish ─────────────────────────────────────────────────────────
+  const printChek = (sale) => {
+    const s = customerSummary(sale.customer, data);
+    printSaleReceipt(sale, {
+      appName: appSettings?.appName || 'SEMENT',
+      phone: appSettings?.companyPhone || '',
+      address: appSettings?.companyAddress || '',
+      qolganQarz: s.qolganQarz,
+    });
+  };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.customer || !form.tons || !form.pricePerTon) return;
-    
+
     // Qoldiqni tekshirish
     if (Number(form.tons) > Number(totalCementBalance)) {
       if (!window.confirm(`Diqqat! Omboringizda faqat ${totalCementBalance} tn sement bor. Baribir sotasizmi?`)) {
@@ -30,8 +44,19 @@ export default function Sales({ lang }) {
       }
     }
 
-    addSaleRow({ ...form, worker: currentWorker });
+    const created = addSaleRow({ ...form, worker: currentWorker });
     setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
+    // Sotuvdan so'ng chekni darrov taklif qilish
+    if (created && window.confirm('Sotuv saqlandi ✓\n\nMijozga chek chiqarib berasizmi?')) {
+      const extraDebt = (created.paymentChannel === 'nasiya') ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
+      const s = customerSummary(created.customer, data);
+      printSaleReceipt(created, {
+        appName: appSettings?.appName || 'SEMENT',
+        phone: appSettings?.companyPhone || '',
+        address: appSettings?.companyAddress || '',
+        qolganQarz: s.qolganQarz + extraDebt,
+      });
+    }
   };
 
   // ── Hisob-kitoblar ────────────────────────────────────────────────────────
@@ -152,7 +177,7 @@ export default function Sales({ lang }) {
               <th style={{ ...thS, textAlign: 'right' }}>Tonna</th>
               <th style={{ ...thS, textAlign: 'right' }}>Narxi (1 tn)</th>
               <th style={{ ...thS, textAlign: 'right' }}>Jami Summa</th>
-              <th style={{ width: 40 }}></th>
+              <th style={{ ...thS, textAlign: 'center', width: 80 }}>Chek</th>
             </tr>
           </thead>
           <tbody>
@@ -183,8 +208,11 @@ export default function Sales({ lang }) {
                   <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 15, color: '#333' }}>
                     {fmt(Number(r.tons) * Number(r.pricePerTon))}
                   </td>
-                  <td style={{ ...tdS, textAlign: 'center' }}>
+                  <td style={{ ...tdS, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => printChek(r)} title="Chek chiqarish"
+                      style={{ cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', color: '#1565c0', borderRadius: 3, padding: '2px 7px', marginRight: 4, fontSize: 13 }}>🧾</button>
                     <button onClick={() => { if(window.confirm("O'chirasizmi? (Sement qoldig'i joyiga qaytadi)")) deleteSaleRow(r.id); }}
+                      title="O'chirish"
                       style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button>
                   </td>
                 </tr>
