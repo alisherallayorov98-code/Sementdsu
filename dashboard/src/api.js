@@ -52,6 +52,9 @@ export const api = {
   getBotOrders: () => req('/api/new_bot_orders'),
   clearBotOrders: () => req('/api/clear_bot_orders', { method: 'POST' }),
 
+  // Audit / Nazorat jurnali (admin)
+  getAudit: (limit = 1000) => req(`/api/audit?limit=${limit}`),
+
   health: () => req('/api/health', {}, { auth: false }),
 };
 
