@@ -59,14 +59,18 @@ export default function CustomerSelect({
   const handleNewCust = (e) => {
     e.preventDefault();
     if (!newCust.name) return;
-    addCustomer(newCust);
+    // Faqat "+998" qolgan bo'lsa (raqam kiritilmagan) — bo'sh deb saqlaymiz
+    const phone = newCust.phone.trim() === '+998' ? '' : newCust.phone.trim();
+    addCustomer({ ...newCust, phone });
     onChange(newCust.name);
-    setNewCust({ name: '', phone: '', address: '', note: '' });
+    setNewCust({ name: '', phone: '+998 ', address: '', note: '' });
     setModal(false);
   };
 
   const openModal = () => {
-    setNewCust({ name: value, phone: '', address: '', note: '' });
+    // Telefon avtomatik +998 bilan boshlanadi (har savdoda vaqt tejaydi).
+    // Boshqa davlat raqami uchun foydalanuvchi +998 ni o'chirib tashlashi mumkin.
+    setNewCust({ name: value, phone: '+998 ', address: '', note: '' });
     setOpen(false);
     setModal(true);
   };
@@ -202,10 +206,10 @@ export default function CustomerSelect({
             <form onSubmit={handleNewCust}>
               {[
                 { key: 'name',    label: 'Ism *',    ph: 'Mijoz ismi yoki korxona nomi', req: true  },
-                { key: 'phone',   label: 'Telefon',  ph: '+998 90 000 00 00',             req: false },
+                { key: 'phone',   label: 'Telefon',  ph: '+998 90 000 00 00',             req: false, mode: 'tel' },
                 { key: 'address', label: 'Manzil',   ph: "Shahar, ko'cha, uy",            req: false },
                 { key: 'note',    label: 'Izoh',     ph: "Qo'shimcha ma'lumot",           req: false },
-              ].map(({ key, label, ph, req }) => (
+              ].map(({ key, label, ph, req, mode }) => (
                 <div key={key} style={{ marginBottom: 10 }}>
                   <label style={{
                     display: 'block', fontSize: 11,
@@ -218,6 +222,7 @@ export default function CustomerSelect({
                     value={newCust[key]}
                     onChange={e => setNewCust({ ...newCust, [key]: e.target.value })}
                     required={req}
+                    inputMode={mode}
                     autoFocus={key === 'name'}
                     style={{
                       width: '100%', padding: '6px 8px', fontSize: 13,

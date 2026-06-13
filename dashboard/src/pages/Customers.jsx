@@ -12,7 +12,7 @@ export default function Customers() {
   const data = useData();
   const { customers, addCustomer, updateCustomer, deleteCustomer } = data;
 
-  const [form, setForm]         = useState({ name: '', phone: '', address: '', note: '' });
+  const [form, setForm]         = useState({ name: '', phone: '+998 ', address: '', note: '' });
   const [editId, setEditId]     = useState(null);
   const [editData, setEditData] = useState({});
   const [search, setSearch]     = useState('');
@@ -30,8 +30,9 @@ export default function Customers() {
     if (!form.name) return;
     const exists = customers.some(c => c.name.toLowerCase() === form.name.trim().toLowerCase());
     if (exists && !window.confirm(`"${form.name}" allaqachon mavjud. Qo'shilsinmi?`)) return;
-    addCustomer(form);
-    setForm({ name: '', phone: '', address: '', note: '' });
+    const phone = form.phone.trim() === '+998' ? '' : form.phone.trim();
+    addCustomer({ ...form, phone });
+    setForm({ name: '', phone: '+998 ', address: '', note: '' });
     setShowForm(false);
   };
 
@@ -150,14 +151,14 @@ export default function Customers() {
         }}>
           {[
             { key: 'name',    label: 'Ism *',   ph: 'Ism yoki korxona', req: true  },
-            { key: 'phone',   label: 'Telefon', ph: '+998 90 000 00 00', req: false },
+            { key: 'phone',   label: 'Telefon', ph: '+998 90 000 00 00', req: false, mode: 'tel' },
             { key: 'address', label: 'Manzil',  ph: "Shahar, ko'cha",   req: false },
             { key: 'note',    label: 'Izoh',    ph: "Qo'shimcha",       req: false },
-          ].map(({ key, label, ph, req }) => (
+          ].map(({ key, label, ph, req, mode }) => (
             <div key={key}>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 3 }}>{label}</label>
               <input placeholder={ph} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })}
-                required={req} autoFocus={key === 'name'}
+                required={req} inputMode={mode} autoFocus={key === 'name'}
                 style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
             </div>
           ))}
