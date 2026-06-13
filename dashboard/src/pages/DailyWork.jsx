@@ -72,8 +72,8 @@ const L = {
 export default function DailyWork({ lang }) {
   const {
     incomeRows, expenseRows,
-    bankIncomeRows, clickIncomeRows,
-    soldRows, recvRows,
+    bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
+    soldRows, salesRows, recvRows,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -118,9 +118,26 @@ export default function DailyWork({ lang }) {
       date: r.date, type: 'chiqim',
       worker: r.worker || '',
       izoh: r.desc, summa: r.amount,
-      tonna: null, tolov: '—',
+      tonna: null, tolov: 'Naqd',
     })),
-    ...soldRows.map(r => ({
+    ...bankExpenseRows.map(r => ({
+      id: 'bexp_' + r.id,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      date: r.date, type: 'chiqim',
+      worker: r.worker || '',
+      izoh: r.desc, summa: r.amount,
+      tonna: null, tolov: 'Bank',
+    })),
+    ...clickExpenseRows.map(r => ({
+      id: 'cexp_' + r.id,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      date: r.date, type: 'chiqim',
+      worker: r.worker || '',
+      izoh: r.desc, summa: r.amount,
+      tonna: null, tolov: 'Click',
+    })),
+    // Yangi "Sotish" + eski "Sotilgan tonna" — ikkalasi ham
+    ...[...salesRows, ...soldRows].map(r => ({
       id: 'sol_' + r.id,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
       date: r.date, type: 'sotilgan',
@@ -339,7 +356,7 @@ export default function DailyWork({ lang }) {
                   </td>
                   <td style={{ fontSize: 12 }}>{r.date || '—'}</td>
                   <td style={{ color: meta.color || '#333', fontWeight: 'bold', fontSize: 12 }}>
-                    {meta['label_' + lang] || r.type}
+                    {meta[lang] || r.type}
                   </td>
                   <td style={{ fontSize: 12, color: '#003366', fontWeight: r.worker ? 'bold' : 'normal' }}>
                     {r.worker || '—'}
