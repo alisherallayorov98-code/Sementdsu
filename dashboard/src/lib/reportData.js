@@ -42,6 +42,17 @@ export function buildReport(data, fromTs, toTs) {
     clickOut:sumMoney((data.clickExpenseRows || []).filter(inRange)),
   };
 
+  // ── Kassa qatorlari oqimi (sotuv/qarz/avans/oylik auto + qo'lda tahrir) ────
+  // cashRows/bankRows/clickRows summasi ishorali (sotuv +, oylik −).
+  const channelFlow = (rows) => sumMoney((rows || []).filter(inRange));
+  const cashRowsFlow  = channelFlow(data.cashRows);
+  const bankRowsFlow  = channelFlow(data.bankRows);
+  const clickRowsFlow = channelFlow(data.clickRows);
+  // Eski "Sotilgan tonna" (soldRows) auto-yozuv yaratmaydi — alohida qo'shamiz
+  const soldFlow = (data.soldRows || [])
+    .filter(r => inRange(r) && ['naqd', 'bank', 'click'].includes(r.paymentChannel || 'naqd'))
+    .reduce((s, r) => s + saleSum(r), 0);
+
   // ── Davr top mijozlari (savdo bo'yicha) ───────────────────────────────────
   const byCust = {};
   salesAll.forEach(r => {
@@ -57,10 +68,11 @@ export function buildReport(data, fromTs, toTs) {
   const debtsInPeriod = (data.debtRows || []).filter(inRange);
 
   // ── Hozirgi holat (snapshot — davrga bog'liq emas) ────────────────────────
+  // To'liq balanslar (auto-yozuvlar bilan) — Dashboard kartalari bilan bir xil.
   const snapshot = {
     cash:    Number(data.totalCashBalance || 0),
-    bank:    Number(data.bankNetBalance || 0),
-    click:   Number(data.clickNetBalance || 0),
+    bank:    Number(data.totalBankBalance ?? data.bankNetBalance ?? 0),
+    click:   Number(data.totalClickBalance ?? data.clickNetBalance ?? 0),
     cement:  Number(data.totalCementBalance || 0),
     debts:   Number(data.totalDebts || 0),
     advances:Number(data.totalAdvances || 0),
@@ -74,8 +86,12 @@ export function buildReport(data, fromTs, toTs) {
     topCustomers,
     debtsInPeriod,
     snapshot,
-    // davr sof pul oqimi (qo'lda kirim/chiqim + naqd/bank/click savdo tushumi)
-    periodNetCash: (finance.naqdIn - finance.naqdOut) + (finance.bankIn - finance.bankOut) + (finance.clickIn - finance.clickOut)
-                   + salesByChannel.naqd + salesByChannel.bank + salesByChannel.click,
+    // davr sof pul oqimi = kassa qatorlari oqimi (sotuv/qarz/avans/oylik auto)
+    //   + qo'lda kirim/chiqim + eski soldRows tushumi
+    periodNetCash: cashRowsFlow + bankRowsFlow + clickRowsFlow
+                   + (finance.naqdIn - finance.naqdOut)
+                   + (finance.bankIn - finance.bankOut)
+                   + (finance.clickIn - finance.clickOut)
+                   + soldFlow,
   };
 }

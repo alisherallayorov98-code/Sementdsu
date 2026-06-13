@@ -4,10 +4,10 @@ const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
 export default function OverallReport() {
   const {
-    // Pullar
-    totalCashBalance, bankNetBalance, clickNetBalance,
+    // Pullar (to'liq balans — auto-yozuvlar bilan)
+    totalCashBalance, totalBankBalance, totalClickBalance,
     // Sement
-    totalCementBalance, totalSoldTons, totalRecvTons,
+    totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
     // Moliya naqd
     incomeRows, expenseRows,
     // Moliya bank
@@ -15,7 +15,7 @@ export default function OverallReport() {
     // Moliya click
     totalClickIncome, totalClickExpense,
     // Sotish
-    salesRows,
+    salesRows, soldRows,
     // Qarz va avans
     totalDebts, totalAdvances,
     // Xodimlar
@@ -29,7 +29,8 @@ export default function OverallReport() {
   // ── Hisob-kitoblar ────────────────────────────────────────────────────────
   const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0);
   const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0);
-  const totalSalesSum = salesRows.reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
+  const totalSalesSum = [...salesRows, ...soldRows].reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
+  const totalSoldAll  = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
   
   // Xodimlar qarzi
   const totalWDebt = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - Number(w.paid)), 0);
@@ -47,7 +48,7 @@ export default function OverallReport() {
   const totalTgTons   = tgOrders.reduce((s, o) => s + Number(o.tons), 0);
 
   // Jami aktivlar (O'zimizdagi barcha pullar + Odamlarning bizdan qarzi)
-  const totalAssets = Number(totalCashBalance) + Number(bankNetBalance) + Number(clickNetBalance) + Number(totalDebts);
+  const totalAssets = Number(totalCashBalance) + Number(totalBankBalance) + Number(totalClickBalance) + Number(totalDebts);
   
   // Jami passivlar (Bizning birovlardan qarzimiz)
   const totalLiabilities = Number(totalAdvances) + Number(totalWDebt) + Number(totalDriverDebt);
@@ -73,10 +74,10 @@ export default function OverallReport() {
         {/* ── PULLAR ──────────────────────────────────────────────────────── */}
         <Section title="💰 Kassa va Hisoblar" color="#1a237e">
           <Row label="Naqd pul qoldig'i" val={totalCashBalance} color="#000" bold />
-          <Row label="Bank (Karta/Hisob)" val={bankNetBalance} color="#000" bold />
-          <Row label="Click (Elektron)" val={clickNetBalance} color="#000" bold />
+          <Row label="Bank (Karta/Hisob)" val={totalBankBalance} color="#000" bold />
+          <Row label="Click (Elektron)" val={totalClickBalance} color="#000" bold />
           <div style={{ height: 1, background: '#ccc', margin: '8px 0' }} />
-          <Row label="Hozirgi mavjud barcha pul" val={Number(totalCashBalance) + Number(bankNetBalance) + Number(clickNetBalance)} color="#1565c0" bold />
+          <Row label="Hozirgi mavjud barcha pul" val={Number(totalCashBalance) + Number(totalBankBalance) + Number(totalClickBalance)} color="#1565c0" bold />
         </Section>
 
         {/* ── MOLIYA VA QARZLAR ───────────────────────────────────────────── */}
@@ -103,7 +104,7 @@ export default function OverallReport() {
         {/* ── SEMENT VA SAVDO ─────────────────────────────────────────────── */}
         <Section title="🏗 Sement va Savdo" color="#ff6f00">
           <Row label="Joriy sement qoldig'i" val={totalCementBalance} unit="tn" color="#ff6f00" bold />
-          <Row label="Sotilgan jami sement" val={totalSoldTons} unit="tn" color="#000" />
+          <Row label="Sotilgan jami sement" val={totalSoldAll} unit="tn" color="#000" />
           <Row label="Olingan jami sement" val={totalRecvTons} unit="tn" color="#000" />
           <div style={{ height: 1, background: '#ccc', margin: '8px 0' }} />
           <Row label="Barcha savdolar summasi" val={totalSalesSum} color="#1565c0" bold />

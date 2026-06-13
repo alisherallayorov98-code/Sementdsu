@@ -11,12 +11,15 @@ const L = {
 };
 
 function CementBal({ lang }) {
-  const { cementOpening, totalCementBalance, totalRecvTons, totalSoldTons } = useData();
+  const { cementOpening, totalCementBalance, totalRecvTons, totalSoldTons, totalSalesTons } = useData();
+
+  // Sotilgan jami = eski "Sotilgan tonna" + yangi "Sotish" bo'limi
+  const sotilganJami = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
 
   const rows = [
     { label: L.ochilish, val: fmt(cementOpening.tons) + ' tn', bg: '#fff' },
     { label: L.olingan,  val: '+' + fmt(totalRecvTons) + ' tn', bg: '#e8ffe8' },
-    { label: L.sotilgan, val: '-' + fmt(totalSoldTons) + ' tn', bg: '#ffe8e8' },
+    { label: L.sotilgan, val: '-' + fmt(sotilganJami) + ' tn', bg: '#ffe8e8' },
     { label: L.joriy,    val: fmt(totalCementBalance) + ' tn',  bg: '#ffff00' },
   ];
 

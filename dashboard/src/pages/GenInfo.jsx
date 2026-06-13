@@ -5,15 +5,17 @@ const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
 function GenInfo({ lang }) {
   const {
     totalCashBalance, totalBankBalance, totalClickBalance,
-    totalCementBalance, totalSoldTons, totalRecvTons,
+    totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
     totalDebts, totalAdvances,
-    workers, incomeRows, expenseRows, salesRows,
+    workers, incomeRows, expenseRows, salesRows, soldRows,
   } = useData();
+
+  const sotilganJami = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
 
   const totalWorkerDebt = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - Number(w.paid)), 0);
   const totalIncome     = incomeRows.reduce((s, r) => s + Number(r.amount), 0);
   const totalExpense    = expenseRows.reduce((s, r) => s + Number(r.amount), 0);
-  const totalSalesSum   = salesRows.reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
+  const totalSalesSum   = [...salesRows, ...soldRows].reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
 
   const groups = [
     {
@@ -28,7 +30,7 @@ function GenInfo({ lang }) {
       title: { latn: "Sement harakati", cyrl: "Семент ҳаракати" },
       rows: [
         { latn: "Joriy sement qoldig'i", cyrl: "Жорий семент қолдиғи", val: fmt(totalCementBalance) + " tn", unit: { latn: "", cyrl: "" } },
-        { latn: "Sotilgan tonna",         cyrl: "Сотилган тонна",       val: fmt(totalSoldTons) + " tn",     unit: { latn: "", cyrl: "" } },
+        { latn: "Sotilgan tonna",         cyrl: "Сотилган тонна",       val: fmt(sotilganJami) + " tn",      unit: { latn: "", cyrl: "" } },
         { latn: "Olingan tonna",          cyrl: "Олинган тонна",        val: fmt(totalRecvTons) + " tn",     unit: { latn: "", cyrl: "" } },
         { latn: "Sotish summasi",         cyrl: "Сотиш суммаси",        val: fmt(totalSalesSum),             unit: { latn: "so'm", cyrl: "сўм" } },
       ]

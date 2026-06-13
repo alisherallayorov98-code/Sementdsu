@@ -49,7 +49,7 @@ const L = {
   hammasi:      { latn: 'Hammasi',           cyrl: 'Ҳаммаси'              },
   yoq:          { latn: 'Yozuv topilmadi.',  cyrl: 'Ёзув топилмади.'     },
   ochilish:     { latn: "Ochilish qoldig'i", cyrl: 'Очилиш қолдиғи'     },
-  netBalans:    { latn: 'Sof bank balansi',  cyrl: 'Соф банк баланси'    },
+  netBalans:    { latn: "Bank qoldig'i (jami)", cyrl: 'Банк қолдиғи (жами)' },
   jamiKirim:    { latn: 'Jami kirim',        cyrl: 'Жами кирим'           },
   jamiChiqim:   { latn: 'Jami chiqim',       cyrl: 'Жами чиқим'           },
   bugunKirim:   { latn: 'Bugungi kirim',     cyrl: 'Бугунги кирим'        },
@@ -67,7 +67,7 @@ export default function IncomeBank({ lang }) {
     bankOpening, setBankOpening,
     bankIncomeRows,  addBankIncomeRow,  deleteBankIncomeRow,  totalBankIncome,
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
-    bankNetBalance,
+    totalBankBalance,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -175,10 +175,10 @@ export default function IncomeBank({ lang }) {
         {/* Sof balans */}
         <StatCard
           label={L.netBalans[lang]}
-          value={fmt(bankNetBalance)}
-          color={bankNetBalance >= 0 ? '#1b5e20' : '#b71c1c'}
-          bg={bankNetBalance >= 0 ? '#e8f5e9' : '#ffebee'}
-          sub="Ochilish + Kirim − Chiqim"
+          value={fmt(totalBankBalance)}
+          color={totalBankBalance >= 0 ? '#1b5e20' : '#b71c1c'}
+          bg={totalBankBalance >= 0 ? '#e8f5e9' : '#ffebee'}
+          sub="Sotuv/qarz + qo'lda — jami"
           bold
         />
       </div>

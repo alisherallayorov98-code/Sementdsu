@@ -63,7 +63,7 @@ const L = {
   ochilish:   { latn: "Ochilish qoldig'i", cyrl: 'Очилиш қолдиғи'    },
   jamiKirim:  { latn: 'Jami kirim',       cyrl: 'Жами кирим'           },
   jamiChiqim: { latn: 'Jami chiqim',      cyrl: 'Жами чиқим'           },
-  netBalans:  { latn: 'Sof Click balansi', cyrl: 'Соф Click баланси'  },
+  netBalans:  { latn: "Click qoldig'i (jami)", cyrl: 'Click қолдиғи (жами)' },
   filter_sana:{ latn: 'Sana:',            cyrl: 'Сана:'                },
   filter_xod: { latn: 'Xodim:',           cyrl: 'Ходим:'               },
   kim:        { latn: 'Kim:',             cyrl: 'Ким:'                  },
@@ -74,7 +74,7 @@ export default function IncomeClick({ lang }) {
     clickOpening, setClickOpening,
     clickIncomeRows,  addClickIncomeRow,  deleteClickIncomeRow,  totalClickIncome,
     clickExpenseRows, addClickExpenseRow, deleteClickExpenseRow, totalClickExpense,
-    clickNetBalance,
+    totalClickBalance,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -166,10 +166,10 @@ export default function IncomeClick({ lang }) {
         <StatCard label={L.jamiKirim[lang]}  value={fmt(totalClickIncome)}  color={ACCENT}    bg={ACC_LITE}  arrow="↑" sub={`Bugun: ${fmt(todayInc)}`} />
         <StatCard label={L.jamiChiqim[lang]} value={fmt(totalClickExpense)} color="#c62828"  bg="#ffebee"    arrow="↓" sub={`Bugun: ${fmt(todayExp)}`} />
         <StatCard label={L.netBalans[lang]}
-          value={fmt(clickNetBalance)}
-          color={clickNetBalance >= 0 ? '#1b5e20' : '#c62828'}
-          bg={clickNetBalance >= 0 ? '#e8f5e9' : '#ffebee'}
-          sub="Ochilish + Kirim − Chiqim" bold />
+          value={fmt(totalClickBalance)}
+          color={totalClickBalance >= 0 ? '#1b5e20' : '#c62828'}
+          bg={totalClickBalance >= 0 ? '#e8f5e9' : '#ffebee'}
+          sub="Sotuv/qarz + qo'lda — jami" bold />
       </div>
 
       {/* ── Ochilish tahrirlash ───────────────────────────────────────────── */}

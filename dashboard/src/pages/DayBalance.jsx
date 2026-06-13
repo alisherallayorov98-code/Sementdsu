@@ -55,12 +55,10 @@ const toInputDate = (s) => {
 export default function DayBalance({ lang }) {
   const {
     cashOpening,   cashRows,
-    bankOpening,   bankIncomeRows, bankExpenseRows,
-    clickOpening,  clickIncomeRows,
+    bankOpening,   bankRows,  bankIncomeRows,  bankExpenseRows,
+    clickOpening,  clickRows, clickIncomeRows, clickExpenseRows,
     incomeRows,    expenseRows,
     soldRows,
-    debtRows,
-    advanceRows,
   } = useData();
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
@@ -68,54 +66,52 @@ export default function DayBalance({ lang }) {
   const [showDetails,  setShowDetails]  = useState(false);
 
   // ── Sanagacha bo'lgan qoldiqni hisoblash ─────────────────────────────────
+  // Markaziy model bilan bir xil: kanal qatorlari (cashRows/bankRows/clickRows)
+  // sotuv/qarz/avans/oylik auto-yozuvlarini o'z ichiga oladi (ishorali summa).
   const calcBalance = (date) => {
     if (!isValidDate(date)) return null;
     const dayTs = parseDate(date);
 
-    const rowsUpTo = (rows) =>
-      rows.filter(r => parseDate(r.date) <= dayTs).reduce((s, r) => s + Number(r.amount || 0), 0);
-
-    const rowsOn = (rows) =>
-      rows.filter(r => r.date === date).reduce((s, r) => s + Number(r.amount || 0), 0);
+    const upTo    = (rows) => rows.filter(r => parseDate(r.date) <= dayTs).reduce((s, r) => s + Number(r.amount || 0), 0);
+    const upToPos = (rows) => rows.filter(r => parseDate(r.date) <= dayTs).reduce((s, r) => s + Math.max(0,  Number(r.amount || 0)), 0);
+    const upToNeg = (rows) => rows.filter(r => parseDate(r.date) <= dayTs).reduce((s, r) => s + Math.max(0, -Number(r.amount || 0)), 0);
+    const soldUpTo = (ch) => soldRows
+      .filter(r => (r.paymentChannel || 'naqd') === ch && parseDate(r.date) <= dayTs)
+      .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
 
     // ── NAQD ───────────────────────────────────────────────────────────────
-    // incomeRows — naqd kirim
-    // soldRows (naqd, click) — savdo kirim
-    // expenseRows — naqd chiqim
-    const naqdKirim = rowsUpTo(incomeRows);
-    const naqdSavdo = soldRows
-      .filter(r => r.paymentChannel === 'naqd' && parseDate(r.date) <= dayTs)
-      .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-    const naqdChiqim = rowsUpTo(expenseRows);
-    const naqdBalance = Number(cashOpening.amount) + naqdKirim + naqdSavdo - naqdChiqim;
+    const naqdKirim  = upTo(incomeRows)  + upToPos(cashRows) + soldUpTo('naqd');
+    const naqdChiqim = upTo(expenseRows) + upToNeg(cashRows);
+    const naqdBalance = Number(cashOpening.amount) + naqdKirim - naqdChiqim;
 
     // ── BANK ───────────────────────────────────────────────────────────────
-    const bankKirim  = rowsUpTo(bankIncomeRows);
-    const bankChiqim = rowsUpTo(bankExpenseRows);
-    const bankSavdo  = soldRows
-      .filter(r => r.paymentChannel === 'bank' && parseDate(r.date) <= dayTs)
-      .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-    const bankBalance = Number(bankOpening.amount) + bankKirim + bankSavdo - bankChiqim;
+    const bankKirim  = upTo(bankIncomeRows)  + upToPos(bankRows) + soldUpTo('bank');
+    const bankChiqim = upTo(bankExpenseRows) + upToNeg(bankRows);
+    const bankBalance = Number(bankOpening.amount) + bankKirim - bankChiqim;
 
     // ── CLICK ──────────────────────────────────────────────────────────────
-    const clickKirim  = rowsUpTo(clickIncomeRows);
-    const clickSavdo  = soldRows
-      .filter(r => r.paymentChannel === 'click' && parseDate(r.date) <= dayTs)
-      .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-    const clickBalance = Number(clickOpening.amount) + clickKirim + clickSavdo;
+    const clickKirim  = upTo(clickIncomeRows)  + upToPos(clickRows) + soldUpTo('click');
+    const clickChiqim = upTo(clickExpenseRows) + upToNeg(clickRows);
+    const clickBalance = Number(clickOpening.amount) + clickKirim - clickChiqim;
 
     // ── JAMI ───────────────────────────────────────────────────────────────
     const total = naqdBalance + bankBalance + clickBalance;
 
     // ── O'SHA KUNDA bo'lgan tranzaksiyalar ─────────────────────────────────
+    const sgn = (a) => (Number(a) >= 0 ? +1 : -1);
+    const onDate = (rows) => rows.filter(r => r.date === date);
     const dayTx = [
-      ...incomeRows.filter(r => r.date === date).map(r => ({ cat: '💚 Naqd kirim',   sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...expenseRows.filter(r => r.date === date).map(r => ({ cat: '🔴 Naqd chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...bankIncomeRows.filter(r => r.date === date).map(r => ({ cat: '🏦 Bank kirim', sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...bankExpenseRows.filter(r => r.date === date).map(r => ({ cat: '🏦 Bank chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...clickIncomeRows.filter(r => r.date === date).map(r => ({ cat: '💜 Click kirim', sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...soldRows.filter(r => r.date === date).map(r => ({
-        cat: `🏭 Savdo (${r.paymentChannel})`, sign: +1,
+      ...onDate(cashRows).map(r  => ({ cat: '💵 Naqd',        sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker })),
+      ...onDate(incomeRows).map(r  => ({ cat: '💚 Naqd kirim',  sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
+      ...onDate(expenseRows).map(r => ({ cat: '🔴 Naqd chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
+      ...onDate(bankRows).map(r  => ({ cat: '🏦 Bank',        sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker })),
+      ...onDate(bankIncomeRows).map(r  => ({ cat: '🏦 Bank kirim',  sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
+      ...onDate(bankExpenseRows).map(r => ({ cat: '🏦 Bank chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
+      ...onDate(clickRows).map(r => ({ cat: '💜 Click',       sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker })),
+      ...onDate(clickIncomeRows).map(r  => ({ cat: '💜 Click kirim',  sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
+      ...onDate(clickExpenseRows).map(r => ({ cat: '💜 Click chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
+      ...onDate(soldRows).map(r => ({
+        cat: `🏭 Eski savdo (${r.paymentChannel || 'naqd'})`, sign: +1,
         amount: Number(r.tons || 0) * Number(r.pricePerTon || 0),
         desc: `${r.customer} · ${r.tons} tn`, worker: r.worker,
       })),
@@ -126,9 +122,9 @@ export default function DayBalance({ lang }) {
 
     return {
       naqdBalance, bankBalance, clickBalance, total,
-      naqdKirim, naqdSavdo, naqdChiqim,
-      bankKirim, bankSavdo, bankChiqim,
-      clickKirim, clickSavdo,
+      naqdKirim, naqdChiqim,
+      bankKirim, bankChiqim,
+      clickKirim, clickChiqim,
       dayTx, dayIn, dayOut,
     };
   };
@@ -255,21 +251,21 @@ export default function DayBalance({ lang }) {
               value={result.naqdBalance}
               compare={result2?.naqdBalance}
               color="#1b5e20" bg="#e8f5e9"
-              sub={`Kirim: ${fmt(result.naqdKirim + result.naqdSavdo)} · Chiqim: ${fmt(result.naqdChiqim)}`}
+              sub={`Kirim: ${fmt(result.naqdKirim)} · Chiqim: ${fmt(result.naqdChiqim)}`}
             />
             <BalCard
               emoji="🏦" label="BANK QOLDIQ"
               value={result.bankBalance}
               compare={result2?.bankBalance}
               color="#0d47a1" bg="#e3f2fd"
-              sub={`Kirim: ${fmt(result.bankKirim + result.bankSavdo)} · Chiqim: ${fmt(result.bankChiqim)}`}
+              sub={`Kirim: ${fmt(result.bankKirim)} · Chiqim: ${fmt(result.bankChiqim)}`}
             />
             <BalCard
               emoji="💜" label="CLICK QOLDIQ"
               value={result.clickBalance}
               compare={result2?.clickBalance}
               color="#4a148c" bg="#f3e5f5"
-              sub={`Kirim: ${fmt(result.clickKirim + result.clickSavdo)}`}
+              sub={`Kirim: ${fmt(result.clickKirim)} · Chiqim: ${fmt(result.clickChiqim)}`}
             />
             <BalCard
               emoji="💰" label="UMUMIY JAMI"

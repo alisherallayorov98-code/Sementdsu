@@ -1,7 +1,36 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -c user.name=\"dev\" -c user.email=\"dev@local\" commit -q -m \"Boshlang'ich holat: Gemini bilan qurilgan loyiha \\(backup\\)\")"
+      "Bash(git -c user.name=\"dev\" -c user.email=\"dev@local\" commit -q -m \"Boshlang'ich holat: Gemini bilan qurilgan loyiha \\(backup\\)\")",
+      "Bash(git rm *)",
+      "Bash(node server.js)",
+      "Bash(curl -s http://localhost:5000/api/health)",
+      "Bash(curl -s -X PUT http://localhost:5000/api/state -H \"Content-Type: application/json\" -d '{\"workers\":[{\"id\":1,\"name\":\"Test\",\"role\":\"admin\"}],\"cash_rows\":[{\"id\":1,\"amount\":500}]}')",
+      "Bash(curl -s http://localhost:5000/api/state)",
+      "Bash(curl -s -o /dev/null -w \"frontend\\(5173\\): %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s -o /dev/null -w \"backend\\(5000\\):  %{http_code}\\\\n\" http://localhost:5000/api/health)",
+      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}  \" http://localhost:5173)",
+      "Bash(curl -s -o /dev/null -w \"backend: %{http_code}\\\\n\" http://localhost:5000/api/health)",
+      "Bash(cd /c/SEMENT/backend && rm -f db.js && echo \"eski db.js o'chirildi\")",
+      "Bash(curl -s -o /dev/null -w \"status: %{http_code}\\\\n\" http://localhost:5000/api/state)",
+      "Bash(node -e \"const s=require\\('./src/db'\\).getState\\('default'\\); const w=\\(s.workers||[]\\).map\\(x=>\\({name:x.name,role:x.role,password:x.password}\\)\\); console.log\\(JSON.stringify\\(w,null,2\\)\\); console.log\\('workers soni:', \\(s.workers||[]\\).length\\);\")",
+      "Bash(curl -s -D - -o /dev/null http://localhost:5000/api/health)",
+      "Bash(node _test_excel.mjs)",
+      "Bash(powershell -Command 'Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -Expand OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }')",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"name\":\"Sardor\",\"password\":\"3731116\"}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\); console.log\\('Jami ozgarishlar:',j.total,'| Shubhali:',j.suspiciousCount\\); const e=\\(j.entries||[]\\).find\\(x=>x.text&&x.text.includes\\('orqaga sana'\\)\\); console.log\\(e?JSON.stringify\\({user:e.userName,action:e.action,label:e.label,yozuv_sanasi:e.recordDate,server_vaqti:new Date\\(e.ts\\).toLocaleString\\('ru-RU'\\),summa:e.amount,bayroqlar:e.flags},null,2\\):'topilmadi'\\);}\\)\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('Jami:',j.total,'| Shubhali:',j.suspiciousCount\\)}\\)\")",
+      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}  backend: \" http://localhost:5173)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/api/health)",
+      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}\\\\n\" http://localhost:5173)",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/k cd /d c:\\\\SEMENT\\\\backend && npm start\" -WindowStyle Normal)",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/k cd /d c:\\\\SEMENT\\\\dashboard && npm run dev\" -WindowStyle Normal)",
+      "PowerShell(Start-Process \"http://localhost:5173\")",
+      "Bash(node -e \"require\\('exceljs'\\)\")",
+      "Bash(node -e \"require\\('bcryptjs'\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\c\\SEMENT\\backend"
     ]
   }
 }

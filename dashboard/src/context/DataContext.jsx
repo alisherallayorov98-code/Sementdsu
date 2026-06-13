@@ -96,9 +96,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('cash_opening', cashOpening), [cashOpening]);
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
   const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addCashRow   = (amount, desc) => {
+  const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
     const ts = Date.now();
-    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
+    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
 
@@ -112,9 +112,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_opening', bankOpening), [bankOpening]);
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addBankRow   = (amount, desc) => {
+  const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
     const ts = Date.now();
-    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
+    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
 
@@ -124,9 +124,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('click_opening', clickOpening), [clickOpening]);
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
   const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addClickRow   = (amount, desc) => {
+  const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
     const ts = Date.now();
-    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, amount: Number(amount), desc }]);
+    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
 
@@ -151,10 +151,8 @@ export function DataProvider({ children }) {
     setExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteExpenseRow = (id) => setExpenseRows(p => p.filter(r => r.id !== id));
-  // To'liq Naqd balansi = ochilish + cashRows (auto+manual) + incomeRows − expenseRows
-  const totalCashBalance = Number(cashOpening.amount) + _cashRowsSum
-    + incomeRows.reduce((s, r)  => s + Number(r.amount || 0), 0)
-    - expenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const _incomeSum  = incomeRows.reduce((s, r)  => s + Number(r.amount || 0), 0);
+  const _expenseSum = expenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
 
   // ── 9. Sotilgan tonna ─────────────────────────────────────────────────────
   const [soldRows, setSoldRows] = useState(() => load('sold_rows', []));
@@ -165,6 +163,16 @@ export function DataProvider({ children }) {
   };
   const deleteSoldRow = (id) => setSoldRows(p => p.filter(r => r.id !== id));
   const totalSoldTons = soldRows.reduce((s, r) => s + Number(r.tons || 0), 0);
+  // Eski "Sotilgan tonna" to'lov kanali bo'yicha pul tushumi (kassaga qo'shiladi)
+  const _soldByCh = (ch) => soldRows
+    .filter(r => (r.paymentChannel || 'naqd') === ch)
+    .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+  const _soldNaqd  = _soldByCh('naqd');
+  const _soldBank  = _soldByCh('bank');
+  const _soldClick = _soldByCh('click');
+
+  // To'liq Naqd balansi = ochilish + cashRows(auto+manual) + kirim − chiqim + eski sotuv(naqd)
+  const totalCashBalance = Number(cashOpening.amount) + _cashRowsSum + _incomeSum - _expenseSum + _soldNaqd;
 
   // ── 10. Olingan tonna ─────────────────────────────────────────────────────
   const [recvRows, setRecvRows] = useState(() => load('recv_rows', []));
@@ -367,8 +375,8 @@ export function DataProvider({ children }) {
   const totalBankExpense = bankExpenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
   // Bank sof balansi (faqat Kirim/Chiqim Bank sahifasi uchun)
   const bankNetBalance   = Number(bankOpening.amount) + totalBankIncome - totalBankExpense;
-  // To'liq Bank balansi = ochilish + bankRows (auto+manual) + bankIncomeRows − bankExpenseRows
-  const totalBankBalance = Number(bankOpening.amount) + _bankRowsSum + totalBankIncome - totalBankExpense;
+  // To'liq Bank balansi = ochilish + bankRows(auto+manual) + kirim − chiqim + eski sotuv(bank)
+  const totalBankBalance = Number(bankOpening.amount) + _bankRowsSum + totalBankIncome - totalBankExpense + _soldBank;
 
   // ── 15. Kirim click ───────────────────────────────────────────────────────
   const [clickIncomeRows, setClickIncomeRows] = useState(() => load('click_income_rows', []));
@@ -391,8 +399,8 @@ export function DataProvider({ children }) {
   const totalClickExpense = clickExpenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
   // Click sof balansi (faqat Kirim/Chiqim Click sahifasi uchun)
   const clickNetBalance   = Number(clickOpening.amount) + totalClickIncome - totalClickExpense;
-  // To'liq Click balansi = ochilish + clickRows (auto+manual) + clickIncomeRows − clickExpenseRows
-  const totalClickBalance = Number(clickOpening.amount) + _clickRowsSum + totalClickIncome - totalClickExpense;
+  // To'liq Click balansi = ochilish + clickRows(auto+manual) + kirim − chiqim + eski sotuv(click)
+  const totalClickBalance = Number(clickOpening.amount) + _clickRowsSum + totalClickIncome - totalClickExpense + _soldClick;
 
   // ── 16. Ishchilar oyligi ──────────────────────────────────────────────────
   const [workers,        setWorkers]        = useState(() => load('workers', []));
@@ -662,7 +670,7 @@ export function DataProvider({ children }) {
     // 4. Click
     clickOpening, setClickOpening, clickRows, totalClickBalance, addClickRow, deleteClickRow,
     // 5. Sement
-    cementOpening, setCementOpening, totalCementBalance, totalSoldTons, totalRecvTons,
+    cementOpening, setCementOpening, totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
     // 7. Kirim
     incomeRows, addIncomeRow, deleteIncomeRow,
     // 8. Chiqim
