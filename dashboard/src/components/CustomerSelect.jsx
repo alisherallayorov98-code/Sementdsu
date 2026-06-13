@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useData } from '../context/DataContext';
 
 export default function CustomerSelect({
@@ -178,8 +179,8 @@ export default function CustomerSelect({
         >+</button>
       </div>
 
-      {/* ── Yangi mijoz modali ───────────────────────────────────────────────── */}
-      {modal && (
+      {/* ── Yangi mijoz modali (Portal orqali — forma ichma-ich bo'lmasligi uchun) ── */}
+      {modal && createPortal(
         <div
           style={{
             position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -259,7 +260,8 @@ export default function CustomerSelect({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
