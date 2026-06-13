@@ -451,9 +451,9 @@ export function DataProvider({ children }) {
   const [tgOrders, setTgOrders] = useState(() => load('tg_orders', []));
   useEffect(() => save('tg_orders', tgOrders), [tgOrders]);
 
-  const addTgOrder = (customer, tons, note = '') => {
+  const addTgOrder = (customer, tons, note = '', worker = currentWorker) => {
     const ts = Date.now();
-    setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), customer, tons: Number(tons), status: 'kutilmoqda', note }]);
+    setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: worker || currentWorker, date: new Date().toLocaleDateString('ru-RU'), customer, tons: Number(tons), status: 'kutilmoqda', note }]);
   };
   const setTgStatus   = (id, status) => setTgOrders(p => p.map(o => o.id === id ? { ...o, status } : o));
   const deleteTgOrder = (id) => setTgOrders(p => p.filter(o => o.id !== id));

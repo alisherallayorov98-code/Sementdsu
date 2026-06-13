@@ -32,7 +32,7 @@ export default function TelegramOrder({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.customer || !form.tons) return;
-    addTgOrder(form.customer, form.tons, form.note);
+    addTgOrder(form.customer, form.tons, form.note, worker);
     setForm({ customer: '', tons: '', note: '' });
   };
 
@@ -71,7 +71,7 @@ export default function TelegramOrder({ lang }) {
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <StatBox label="Kutilayotgan zakazlar" value={pendingCount}    unit="ta" sub={`${fmtTons(pendingTons)} tn`} color="#f57f17" bg="#fffde7" bold />
         <StatBox label="Bajarilgan zakazlar"   value={completedCount}  unit="ta" sub={`${fmtTons(completedTons)} tn`} color="#2e7d32" bg="#e8f5e9" />
-        <StatBox label="Bekor qilingan"        value={canceledTons}    unit="tn" color="#c62828" bg="#ffebee" />
+        <StatBox label="Bekor qilingan"        value={fmtTons(canceledTons)} unit="tn" color="#c62828" bg="#ffebee" />
         <StatBox label="Jami tushgan zakazlar" value={fmtTons(totalTons)} unit="tn" color={ACCENT}  bg={BG} />
       </div>
 
