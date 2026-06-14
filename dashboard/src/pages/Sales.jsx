@@ -34,15 +34,16 @@ export default function Sales({ lang }) {
   const openNotify = (r) => setNotifyRow({ name: r.customer, phone: phoneOf(r.customer), text: saleMsg(r) });
 
   // ── Chek chiqarish ─────────────────────────────────────────────────────────
-  const printChek = (sale) => {
-    const s = customerSummary(sale.customer, data);
+  const printChek = (sale, qolganQarzOverride = null) => {
+    const q = qolganQarzOverride != null ? qolganQarzOverride : customerSummary(sale.customer, data).qolganQarz;
     printSaleReceipt(sale, {
       appName: appSettings?.appName || 'SEMENT',
       phone: appSettings?.companyPhone || '',
       address: appSettings?.companyAddress || '',
-      qolganQarz: s.qolganQarz,
+      qolganQarz: q,
     });
   };
+  const printChekAuto = (sale, qolganQarz) => printChek(sale, qolganQarz);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -58,16 +59,12 @@ export default function Sales({ lang }) {
 
     const created = addSaleRow({ ...form, worker: currentWorker });
     setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
-    // Sotuvdan so'ng chekni darrov taklif qilish
-    if (created && window.confirm('Sotuv saqlandi ✓\n\nMijozga chek chiqarib berasizmi?')) {
+    // ── Sotuvdan so'ng chek MAJBURIY va AVTOMATIK chiqadi (kassa sotuvi) ──────
+    // Sozlamada o'chirilgan bo'lsagina chiqmaydi (autoPrintReceipt === false).
+    if (created && appSettings?.autoPrintReceipt !== false) {
       const extraDebt = (created.paymentChannel === 'nasiya') ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
       const s = customerSummary(created.customer, data);
-      printSaleReceipt(created, {
-        appName: appSettings?.appName || 'SEMENT',
-        phone: appSettings?.companyPhone || '',
-        address: appSettings?.companyAddress || '',
-        qolganQarz: s.qolganQarz + extraDebt,
-      });
+      printChekAuto(created, s.qolganQarz + extraDebt);
     }
   };
 

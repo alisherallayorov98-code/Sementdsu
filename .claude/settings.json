@@ -28,7 +28,9 @@
       "PowerShell(Start-Process \"http://localhost:5173\")",
       "Bash(node -e \"require\\('exceljs'\\)\")",
       "Bash(node -e \"require\\('bcryptjs'\\)\")",
-      "Bash(node -e \"require\\('./src/controllers/notify.controller'\\); require\\('./src/services/sms.service'\\); require\\('./src/services/telegram.service'\\); require\\('./src/db'\\); require\\('./src/routes'\\); console.log\\('Backend OK'\\)\")"
+      "Bash(node -e \"require\\('./src/controllers/notify.controller'\\); require\\('./src/services/sms.service'\\); require\\('./src/services/telegram.service'\\); require\\('./src/db'\\); require\\('./src/routes'\\); console.log\\('Backend OK'\\)\")",
+      "PowerShell(cd \"c:\\\\SEMENT\\\\backend\"; $env:NODE_ENV='development'; $out = node -e \"try{require\\('./src/app'\\)\\(\\); const t=require\\('./src/services/telegram.service'\\); console.log\\('APP_OK'\\); process.exit\\(0\\)}catch\\(e\\){console.error\\('BOOT_ERROR:'+e.message\\); process.exit\\(1\\)}\" 2>&1; Write-Host $out)",
+      "PowerShell(try { $r = Invoke-RestMethod -Uri \"http://localhost:5000/api/health\" -TimeoutSec 5; $r | ConvertTo-Json -Compress } catch { Write-Host \"Health xato: $\\($_.Exception.Message\\)\" })"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

@@ -89,10 +89,16 @@ export function printSaleReceipt(sale, opts = {}) {
 </body></html>`;
 
   const win = window.open('', '_blank', 'width=380,height=640');
-  if (!win) { alert("Chop etish oynasi ochilmadi. Brauzer 'popup' ruxsatini bering."); return; }
+  if (!win) {
+    alert("⚠ Chek chiqmadi! Brauzer 'popup' (qalqib chiquvchi oyna) ruxsatini bering.\n\nChrome: manzil yonidagi belgini bosing → shu saytga ruxsat bering.");
+    return false;
+  }
   win.document.write(html);
   win.document.close();
   win.focus();
+  // Chop etgach oynani avtomatik yopish (kiosk-printing rejimida ham toza ishlaydi)
+  win.onafterprint = () => { try { win.close(); } catch { /* ignore */ } };
   // Kontent yuklangach chop etish
-  setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 250);
+  setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+  return true;
 }

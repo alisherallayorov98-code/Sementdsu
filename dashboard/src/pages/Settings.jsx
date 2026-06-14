@@ -336,6 +336,10 @@ export default function Settings({ lang }) {
                   <label style={{ fontSize: 12, color: '#555', marginBottom: 4, display: 'block' }}>Korxona manzili (chek tepasida)</label>
                   <input type="text" placeholder="Shahar, ko'cha..." value={appF.companyAddress || ''} onChange={e => setAppF({...appF, companyAddress: e.target.value})} style={inp} />
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#444', cursor: 'pointer', background: '#fff', border: '1px solid #c5e1a5', borderRadius: 6, padding: '8px 10px' }}>
+                  <input type="checkbox" checked={appF.autoPrintReceipt !== false} onChange={e => setAppF({...appF, autoPrintReceipt: e.target.checked})} />
+                  <span><b>Sotuvdan keyin chek avtomatik chiqsin</b><br/><span style={{ fontSize: 11, color: '#777' }}>Kassa sotuvida har bir sotuvdan so'ng chek darrov chop etiladi (majburiy rejim).</span></span>
+                </label>
               </div>
             </div>
 

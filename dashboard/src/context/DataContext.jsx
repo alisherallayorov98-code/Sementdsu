@@ -97,6 +97,7 @@ export function DataProvider({ children }) {
     monitorDays: 14, // mijoz nazorati: necha kun xarid bo'lmasa "jim qoldi" deb belgilash
     companyPhone: '',   // chekda chiqadi
     companyAddress: '', // chekda chiqadi
+    autoPrintReceipt: true, // sotuvdan keyin chek avtomatik chiqsin (majburiy)
   }));
   useEffect(() => save('app_settings', appSettings), [appSettings]);
   const updateAppSettings = (data) => setAppSettings(p => ({ ...p, ...data }));
