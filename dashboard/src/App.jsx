@@ -10,6 +10,7 @@ import Dashboard     from './pages/Dashboard';
 import Reports       from './pages/Reports';
 import Audit         from './pages/Audit';
 import Monitoring    from './pages/Monitoring';
+import Distribution  from './pages/Distribution';
 
 import GenInfo       from './pages/GenInfo';
 import CashBal       from './pages/CashBal';
@@ -48,6 +49,7 @@ const FULL_MENU = [
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Каризлар",          roles: ['admin', 'sotuvchi'] },
   { path: '/advances',       latn: "Avanslar",              cyrl: "Аванслар",          roles: ['admin'] },
   { path: '/sales',          latn: "Sotish",                cyrl: "Сотиш",             roles: ['admin', 'sotuvchi'] },
+  { path: '/distribution',   latn: "🚛 Yuk taqsimlash",      cyrl: "🚛 Юк тақсимлаш",    roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/income_bank',    latn: "Kirim/Chiqim (Bank)",   cyrl: "Кирим/Чиқим банк",  roles: ['admin', 'sotuvchi'] },
   { path: '/income_click',   latn: "Kirim/Chiqim (Click)",  cyrl: "Кирим/Чиқим клик",  roles: ['admin', 'sotuvchi'] },
   { path: '/worker_salary',  latn: "Ishchilar oyligi",      cyrl: "Ишчилар ойлиги",    roles: ['admin'] },
@@ -145,6 +147,7 @@ function App() {
               <Route path="/debts"          element={<Debts          lang={lang} />} />
               <Route path="/advances"       element={<Advances       lang={lang} />} />
               <Route path="/sales"          element={<Sales          lang={lang} />} />
+              <Route path="/distribution"   element={<Distribution />} />
               <Route path="/income_bank"    element={<IncomeBank     lang={lang} />} />
               <Route path="/income_click"   element={<IncomeClick    lang={lang} />} />
               <Route path="/worker_salary"  element={<WorkerSalary   lang={lang} />} />

@@ -23,6 +23,7 @@ export default function CustomerSelect({
   width = 160,
   required = false,
   accentColor = '#283593',
+  inputId,
 }) {
   const { customers, addCustomer } = useData();
 
@@ -91,6 +92,7 @@ export default function CustomerSelect({
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative' }}>
         <div style={{ position: 'relative' }}>
           <input
+            id={inputId}
             value={value}
             onChange={e => { onChange(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
