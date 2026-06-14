@@ -247,7 +247,8 @@ export default function Settings({ lang }) {
                 <label style={{ fontSize: 12, fontWeight: 'bold', color: '#666' }}>Roli (Ruxsatlari)</label>
                 <select value={newW.role} onChange={e => setNewW({...newW, role: e.target.value})} style={inp}>
                   <option value="admin">Admin (Hamma joyga ruxsat)</option>
-                  <option value="sotuvchi">Sotuvchi (Kassa, Savdo, Ombor)</option>
+                  <option value="kassir">Kassir (Chek majburiy — kassa sotuvi)</option>
+                  <option value="sotuvchi">Sotuvchi (Optom — chek ixtiyoriy)</option>
                   <option value="omborchi">Omborchi (Faqat Ombor va Yuk qabul qilish)</option>
                 </select>
               </div>
@@ -282,7 +283,8 @@ export default function Settings({ lang }) {
                     <td style={{ padding: 12 }}>
                       <select value={w.role || 'sotuvchi'} onChange={(e) => updateWorker(w.id, { role: e.target.value })} style={{ padding: 4, borderRadius: 4, border: '1px solid #ccc' }}>
                         <option value="admin">Admin</option>
-                        <option value="sotuvchi">Sotuvchi</option>
+                        <option value="kassir">Kassir</option>
+                        <option value="sotuvchi">Sotuvchi (optom)</option>
                         <option value="omborchi">Omborchi</option>
                       </select>
                     </td>

@@ -18,7 +18,8 @@ const BG     = '#e1f5fe';
 
 export default function Sales({ lang }) {
   const data = useData();
-  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings, customers } = data;
+  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings, customers, currentUser } = data;
+  const isKassir = currentUser?.role === 'kassir';
   const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
   const [search, setSearch] = useState('');
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
@@ -59,9 +60,9 @@ export default function Sales({ lang }) {
 
     const created = addSaleRow({ ...form, worker: currentWorker });
     setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
-    // ── Sotuvdan so'ng chek MAJBURIY va AVTOMATIK chiqadi (kassa sotuvi) ──────
-    // Sozlamada o'chirilgan bo'lsagina chiqmaydi (autoPrintReceipt === false).
-    if (created && appSettings?.autoPrintReceipt !== false) {
+    // ── Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi ───────────
+    // Optom (admin/sotuvchi) uchun avtomatik chiqmaydi — ular qo'lda 🧾 bosadi.
+    if (created && isKassir && appSettings?.autoPrintReceipt !== false) {
       const extraDebt = (created.paymentChannel === 'nasiya') ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
       const s = customerSummary(created.customer, data);
       printChekAuto(created, s.qolganQarz + extraDebt);
@@ -121,7 +122,14 @@ export default function Sales({ lang }) {
 
       {/* ── QO'SHISH FORMASI ──────────────────────────────────────────────── */}
       <div style={{ background: '#f5f5f5', border: `1px solid #ccc`, padding: '16px 20px', borderRadius: 8, marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 'bold', color: ACCENT, marginBottom: 12 }}>🛒 Yangi savdoni ro'yxatga olish</div>
+        <div style={{ fontSize: 14, fontWeight: 'bold', color: ACCENT, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          🛒 Yangi savdoni ro'yxatga olish
+          {isKassir && appSettings?.autoPrintReceipt !== false && (
+            <span style={{ fontSize: 11, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #2e7d32', borderRadius: 12, padding: '2px 10px', fontWeight: 'bold' }}>
+              🧾 Chek avtomatik chiqadi (kassir)
+            </span>
+          )}
+        </div>
         
         <form onSubmit={handleAdd} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>

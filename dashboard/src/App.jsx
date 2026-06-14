@@ -71,8 +71,10 @@ function App() {
     return <Login lang={lang} />;
   }
 
-  // Rollarga qarab menyuni filtrlash
-  const myMenu = FULL_MENU.filter(m => m.roles.includes(currentUser.role));
+  // Rollarga qarab menyuni filtrlash.
+  // "kassir" — sotuvchi bilan bir xil ko'rinishga ega (kassa, savdo, ombor).
+  const effectiveRole = currentUser.role === 'kassir' ? 'sotuvchi' : currentUser.role;
+  const myMenu = FULL_MENU.filter(m => m.roles.includes(effectiveRole));
 
   const currentItem = myMenu.find(item => item.path === location.pathname);
   const pageTitle   = currentItem ? currentItem[lang] : "Xush Kelibsiz";
