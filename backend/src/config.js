@@ -27,6 +27,12 @@ module.exports = {
   // Vergul bilan ajratilgan ruxsat etilgan manzillar yoki '*' (barchasi)
   CORS_ORIGINS:    process.env.CORS_ORIGINS || '*',
   TELEGRAM_TOKEN:  (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+  // ── SMS (Eskiz.uz) ──────────────────────────────────────────────────────
+  // Eskiz hisobidan: email + parol. Sender (from) tasdiqlangan nom yoki '4546'.
+  ESKIZ_EMAIL:    (process.env.ESKIZ_EMAIL || '').trim(),
+  ESKIZ_PASSWORD: (process.env.ESKIZ_PASSWORD || '').trim(),
+  ESKIZ_FROM:     (process.env.ESKIZ_FROM || '4546').trim(),
+  ESKIZ_BASE:     (process.env.ESKIZ_BASE || 'https://notify.eskiz.uz/api').trim(),
   DATA_DIR,
   DEFAULT_ACCOUNT: 'default',
   MAX_BODY:        '25mb',

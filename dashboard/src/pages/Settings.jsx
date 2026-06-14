@@ -356,6 +356,17 @@ export default function Settings({ lang }) {
               </div>
             </div>
 
+            {/* Mijozga xabar yuborish — qo'llanma */}
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 'bold', color: '#444', marginBottom: 6, display: 'block' }}>📨 Mijozga xabar yuborish (Telegram / SMS)</label>
+              <div style={{ fontSize: 12, color: '#666', background: '#f1f8e9', padding: 10, borderRadius: 4, border: '1px solid #c5e1a5' }}>
+                <p style={{ margin: '0 0 6px' }}><strong style={{ color: '#2e7d32' }}>📱 Telegram (bepul):</strong> Mijoz botingizga kirib <code>/ulash</code> yozadi va "📱 Raqamni ulashish" tugmasini bosadi. Shundan so'ng uning kartochkasida "Telegram ulangan ✓" chiqadi va siz kompyuterdan xabar yuborasiz.</p>
+                <p style={{ margin: '0 0 6px' }}><strong style={{ color: '#1565c0' }}>✉️ SMS (Eskiz.uz):</strong> <code>backend/.env</code> fayliga <code>ESKIZ_EMAIL</code>, <code>ESKIZ_PASSWORD</code> va <code>ESKIZ_FROM</code> (tasdiqlangan nom) yozing va backendni qayta ishga tushiring. SMS pullik — Eskiz balansingizdan yechiladi.</p>
+                <p style={{ margin: 0 }}><strong style={{ color: '#6a1b9a' }}>📞 Qo'ng'iroq:</strong> Mijoz telefoni yonidagi 📞 tugmasi (mobil/planshetda) dialerni ochadi.</p>
+                <p style={{ margin: '6px 0 0', fontStyle: 'italic' }}>Xabar yuborish: mijoz kartochkasi, "Sotish" yoki "Qarzlar" sahifasidagi ✉️ tugmasi orqali.</p>
+              </div>
+            </div>
+
             <hr style={{ border: 'none', borderTop: '1px dashed #ccc', margin: '10px 0' }} />
 
             <button type="submit" style={{ ...btn, padding: '12px', fontSize: 16 }}>💾 Saqlash va Qo'llash</button>

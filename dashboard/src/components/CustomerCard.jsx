@@ -3,19 +3,27 @@
 // qoldiq qarz, qoldiq avans, jami xarid (tonna/summa), sotuvlar, qarz to'lovlari,
 // telegram zakazlari. Modal oyna ko'rinishida.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
+import NotifyModal from './NotifyModal';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
 export default function CustomerCard({ name, onClose }) {
   const data = useData();
-  const { customers, appSettings, setMonitor } = data;
+  const { customers, appSettings, setMonitor, tgChatIdFor } = data;
   const cust = customers.find(c => c.name === name);
   const s = customerSummary(name, data);
   const act = cust?.monitored ? activityStatus(s, cust, Number(appSettings?.monitorDays) || 14) : null;
+  const tgLinked = cust?.phone ? !!tgChatIdFor(cust.phone) : false;
+
+  const [notify, setNotify] = useState(false);
+  const defaultMsg = s.qolganQarz > 0
+    ? `Hurmatli ${name}! Sizning qoldiq qarzingiz: ${fmt(s.qolganQarz)} so'm. To'lov uchun rahmat.`
+    : `Hurmatli ${name}!`;
 
   const box = (label, value, color, bg) => (
     <div style={{ flex: 1, minWidth: 150, padding: '10px 14px', background: bg, borderLeft: `4px solid ${color}`, borderRadius: 4 }}>
@@ -49,10 +57,21 @@ export default function CustomerCard({ name, onClose }) {
             </div>
             <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
               {cust?.phone ? `📞 ${cust.phone}` : 'Telefon yo\'q'}{cust?.address ? `  •  📍 ${cust.address}` : ''}
+              {cust?.phone && (tgLinked
+                ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>📱 Telegram ulangan</span>
+                : <span style={{ marginLeft: 8, background: 'rgba(255,255,255,0.25)', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>Telegram ulanmagan</span>)}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 20, width: 32, height: 32, borderRadius: 16, cursor: 'pointer' }}>✕</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {cust?.phone && (
+              <button onClick={() => setNotify(true)} title="Xabar yuborish (Telegram/SMS)"
+                style={{ background: '#2e7d32', border: 'none', color: '#fff', fontSize: 12, padding: '0 12px', borderRadius: 16, cursor: 'pointer', fontWeight: 'bold' }}>✉️ Xabar</button>
+            )}
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 20, width: 32, height: 32, borderRadius: 16, cursor: 'pointer' }}>✕</button>
+          </div>
         </div>
+
+        {notify && <NotifyModal name={name} phone={cust?.phone || ''} defaultText={defaultMsg} onClose={() => setNotify(false)} />}
 
         {/* Nazorat holati (faqat nazoratdagi mijoz uchun) */}
         {act && (

@@ -36,7 +36,10 @@ const lastBackup = {};
 const accDir    = (acc) => path.join(ACCOUNTS_DIR, sanitize(acc));
 const dbFile    = (acc) => path.join(accDir(acc), 'db.json');
 const backupDir = (acc) => path.join(accDir(acc), 'backups');
-const emptyDb   = () => ({ state: {}, botOrders: [], updatedAt: null });
+const emptyDb   = () => ({ state: {}, botOrders: [], tgContacts: [], updatedAt: null });
+
+// Telefonni solishtirish uchun normallashtirish — faqat oxirgi 9 raqam (UZ)
+const normPhone = (p) => String(p || '').replace(/\D/g, '').slice(-9);
 
 // accountId'ni yo'l hujumlaridan tozalash
 function sanitize(acc) {
@@ -68,8 +71,9 @@ function load(acc) {
     console.error(`[DB:${acc}] o'qish xatosi:`, e.message);
     db = restore(acc) || emptyDb();
   }
-  if (!db.state)     db.state = {};
-  if (!db.botOrders) db.botOrders = [];
+  if (!db.state)      db.state = {};
+  if (!db.botOrders)  db.botOrders = [];
+  if (!db.tgContacts) db.tgContacts = [];
   cache[acc] = db;
   return db;
 }
@@ -115,5 +119,27 @@ module.exports = {
   getBotOrders(acc)    { return load(acc).botOrders || []; },
   addBotOrder(acc, o)  { const db = load(acc); db.botOrders.push(o); persist(acc); },
   clearBotOrders(acc)  { const db = load(acc); db.botOrders = []; persist(acc); },
+
+  // ── Telegram kontaktlari (telefon → chatId) ─────────────────────────────
+  getTgContacts(acc)   { return load(acc).tgContacts || []; },
+  // Upsert: telefon bo'yicha yangilaydi yoki qo'shadi
+  upsertTgContact(acc, { phone, chatId, name }) {
+    const db = load(acc);
+    const np = normPhone(phone);
+    const i = db.tgContacts.findIndex(c => normPhone(c.phone) === np && np);
+    const rec = { phone: String(phone || ''), chatId, name: name || '', at: Date.now() };
+    if (i !== -1) db.tgContacts[i] = { ...db.tgContacts[i], ...rec };
+    else db.tgContacts.push(rec);
+    persist(acc);
+    return rec;
+  },
+  // Telefon bo'yicha chatId topish
+  findChatId(acc, phone) {
+    const np = normPhone(phone);
+    if (!np) return null;
+    const c = (load(acc).tgContacts || []).find(x => normPhone(x.phone) === np);
+    return c ? c.chatId : null;
+  },
+  normPhone,
   info(acc)            { const db = load(acc); return { updatedAt: db.updatedAt, botOrdersPending: db.botOrders.length }; },
 };

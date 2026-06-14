@@ -55,6 +55,10 @@ export const api = {
   // Audit / Nazorat jurnali (admin)
   getAudit: (limit = 1000) => req(`/api/audit?limit=${limit}`),
 
+  // Bildirishnoma (Telegram / SMS)
+  getTgContacts: () => req('/api/tg_contacts'),
+  notify: (payload) => req('/api/notify', { method: 'POST', body: JSON.stringify(payload) }),
+
   health: () => req('/api/health', {}, { auth: false }),
 };
 

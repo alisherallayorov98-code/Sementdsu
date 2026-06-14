@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import NotifyModal from '../components/NotifyModal';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -52,7 +53,16 @@ export default function Debts({ lang }) {
   const {
     debtRows, addDebtRow, payDebt, deleteDebtRow,
     totalDebts, totalDebtsPaid, totalDebtsAll,
+    customers,
   } = useData();
+
+  const [reminder, setReminder] = useState(null); // { name, phone, text }
+  const openReminder = (r) => {
+    const remaining = Math.max(0, Number(r.amount) - Number(r.paid));
+    const phone = customers.find(c => c.name === r.customer)?.phone || '';
+    const text = `Hurmatli ${r.customer}! Eslatma: sizning qoldiq qarzingiz ${fmt(remaining)} so'm. Iloji bo'lsa to'lovni amalga oshiring. Rahmat!`;
+    setReminder({ name: r.customer, phone, text });
+  };
 
   const [form, setForm]       = useState({ customer: '', amount: '', note: '' });
   const [payForm, setPayForm] = useState({ id: null, amount: '', note: '', channel: 'naqd' });
@@ -376,6 +386,15 @@ export default function Debts({ lang }) {
                           📋 {L.tarix[lang]}
                         </button>
                       )}
+                      {remaining > 0 && (
+                        <button
+                          onClick={() => openReminder(r)}
+                          title="Qarz eslatmasini yuborish (Telegram/SMS)"
+                          style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#e8f5e9', border: '1px solid #2e7d32', borderRadius: 3, color: '#2e7d32' }}
+                        >
+                          ✉️
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDelete(r.id)}
                         style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828' }}
@@ -399,6 +418,8 @@ export default function Debts({ lang }) {
           </tbody>
         </table>
       )}
+
+      {reminder && <NotifyModal name={reminder.name} phone={reminder.phone} defaultText={reminder.text} onClose={() => setReminder(null)} />}
     </div>
   );
 }

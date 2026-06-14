@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
+import NotifyModal from '../components/NotifyModal';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -17,9 +18,20 @@ const BG     = '#e1f5fe';
 
 export default function Sales({ lang }) {
   const data = useData();
-  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings } = data;
+  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings, customers } = data;
   const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
   const [search, setSearch] = useState('');
+  const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
+
+  const phoneOf = (name) => customers.find(c => c.name === name)?.phone || '';
+  const CH_LBL = { naqd: 'Naqd', bank: 'Bank', click: 'Click', nasiya: 'Nasiya (qarzga)' };
+  const saleMsg = (r) => {
+    const total = Number(r.tons || 0) * Number(r.pricePerTon || 0);
+    const base = `Hurmatli ${r.customer}! ${fmtTons(r.tons)} tn sement sotildi. Summa: ${fmt(total)} so'm. To'lov: ${CH_LBL[r.paymentChannel] || r.paymentChannel}.`;
+    const q = customerSummary(r.customer, data).qolganQarz;
+    return q > 0 ? `${base} Qoldiq qarz: ${fmt(q)} so'm. Rahmat!` : `${base} Rahmat!`;
+  };
+  const openNotify = (r) => setNotifyRow({ name: r.customer, phone: phoneOf(r.customer), text: saleMsg(r) });
 
   // ── Chek chiqarish ─────────────────────────────────────────────────────────
   const printChek = (sale) => {
@@ -211,6 +223,8 @@ export default function Sales({ lang }) {
                   <td style={{ ...tdS, textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <button onClick={() => printChek(r)} title="Chek chiqarish"
                       style={{ cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', color: '#1565c0', borderRadius: 3, padding: '2px 7px', marginRight: 4, fontSize: 13 }}>🧾</button>
+                    <button onClick={() => openNotify(r)} title="Xabar yuborish (Telegram/SMS)"
+                      style={{ cursor: 'pointer', background: '#e8f5e9', border: '1px solid #2e7d32', color: '#2e7d32', borderRadius: 3, padding: '2px 7px', marginRight: 4, fontSize: 13 }}>✉️</button>
                     <button onClick={() => { if(window.confirm("O'chirasizmi? (Sement qoldig'i joyiga qaytadi)")) deleteSaleRow(r.id); }}
                       title="O'chirish"
                       style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button>
@@ -222,6 +236,7 @@ export default function Sales({ lang }) {
         </table>
       </div>
 
+      {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}
     </div>
   );
 }

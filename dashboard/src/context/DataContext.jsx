@@ -581,6 +581,24 @@ export function DataProvider({ children }) {
   const hydratedRef = useRef(false); // backenddan yuklanmaguncha saqlamaymiz
   const saveTimer   = useRef(null);
 
+  // ── Bildirishnoma (Telegram/SMS) holati ──────────────────────────────────
+  const [tgContacts, setTgContacts] = useState([]);
+  const [notifyMeta, setNotifyMeta] = useState({ botRunning: false, smsConfigured: false });
+  const refreshTgContacts = async () => {
+    try {
+      const r = await api.getTgContacts();
+      setTgContacts(r.contacts || []);
+      setNotifyMeta({ botRunning: !!r.botRunning, smsConfigured: !!r.smsConfigured });
+    } catch { /* backend o'chiq bo'lishi mumkin */ }
+  };
+  // Telefon (oxirgi 9 raqam) bo'yicha ulangan chatId topish
+  const tgChatIdFor = (phone) => {
+    const np = String(phone || '').replace(/\D/g, '').slice(-9);
+    if (!np) return null;
+    const c = tgContacts.find(x => String(x.phone || '').replace(/\D/g, '').slice(-9) === np);
+    return c ? c.chatId : null;
+  };
+
   // Serverga sinxronlanadigan barcha bo'limlar (sessiya — currentUser — bunda yo'q)
   const STATE_SETTERS = {
     app_settings:       setAppSettings,
@@ -710,12 +728,23 @@ export function DataProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // 4) Telegram kontaktlari (ulangan raqamlar) — kirilganda + har 30s
+  useEffect(() => {
+    if (!token) return;
+    refreshTgContacts();
+    const id = setInterval(refreshTgContacts, 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   // ─────────────────────────────────────────────────────────────────────────
   const value = {
     // Auth & Settings
     currentUser, token, login, logout, currentWorker, setCurrentWorker,
     appSettings, updateAppSettings,
     backendOnline,
+    // Bildirishnoma (Telegram/SMS)
+    tgContacts, notifyMeta, refreshTgContacts, tgChatIdFor,
     // 2. Naqd pul
     cashOpening, setCashOpening, cashRows, totalCashBalance, addCashRow, deleteCashRow,
     // 3. Bank
