@@ -294,6 +294,51 @@ export function DataProvider({ children }) {
     setBankRows(p  => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
     setClickRows(p => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
   };
+  // ── Mijoz qarzini bittada qabul qilish (kassir uchun — eng oson) ──────────
+  // Summa mijozning qarzlariga ESKISIDAN boshlab taqsimlanadi, kassaga kirim
+  // yoziladi. Natija: { applied (qarzga ketgan), leftover (ortiqcha) }.
+  const payCustomerDebt = (customer, amount, channel = 'naqd', note = '') => {
+    const base = Date.now();
+    const today = new Date().toLocaleDateString('ru-RU');
+    let left = Number(amount) || 0;
+    if (left <= 0) return { applied: 0, leftover: 0 };
+
+    // Eng eski qarzdan boshlab to'lash rejasi
+    const plan = {};
+    let applied = 0;
+    debtRows
+      .filter(r => r.customer === customer && Math.max(0, Number(r.amount) - Number(r.paid)) > 0)
+      .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
+      .forEach(r => {
+        if (left <= 0) return;
+        const rem = Math.max(0, Number(r.amount) - Number(r.paid));
+        const pay = Math.min(rem, left);
+        plan[r.id] = pay; left -= pay; applied += pay;
+      });
+
+    if (applied <= 0) return { applied: 0, leftover: Number(amount) || 0 };
+
+    // Qarzlarni yangilash (har biriga to'lov yozuvi, kanal bilan)
+    setDebtRows(p => p.map(r => {
+      const pay = plan[r.id];
+      if (!pay) return r;
+      return {
+        ...r,
+        paid: Number(r.paid) + pay,
+        payments: [...(r.payments || []), { id: base + (r.id % 100000), date: today, amount: pay, note: note || 'Kassaga to\'lov', worker: currentWorker, channel }],
+      };
+    }));
+
+    // Kassaga bitta umumiy kirim (sotuvdan farqlash uchun sourceType: debt_payment)
+    const tag  = `🔗 Qarz to'lovi: ${customer}`;
+    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${[customer]}_pc${base}`, createdAt: base, worker: currentWorker, date: today };
+    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
+    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
+    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
+
+    return { applied, leftover: Math.max(0, (Number(amount) || 0) - applied) };
+  };
+
   // Excel'dan ko'plab qarz import qilish (unikal id bilan)
   const importDebts = (rows) => {
     const base = Date.now();
@@ -763,7 +808,7 @@ export function DataProvider({ children }) {
     // 10. Olingan tonna
     recvRows, addRecvRow, deleteRecvRow, importRecvRows,
     // 11. Qarzlar
-    debtRows, addDebtRow, payDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
+    debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
     advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
     // 13. Sotish

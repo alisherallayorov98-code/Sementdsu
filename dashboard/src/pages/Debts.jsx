@@ -51,10 +51,26 @@ const STATUS_STYLE = {
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function Debts({ lang }) {
   const {
-    debtRows, addDebtRow, payDebt, deleteDebtRow,
+    debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow,
     totalDebts, totalDebtsPaid, totalDebtsAll,
     customers,
   } = useData();
+
+  // ── Tez to'lov (kassir uchun) — mijoz qarzini bittada qabul qilish ─────────
+  const [quick, setQuick] = useState({ customer: '', amount: '', channel: 'naqd' });
+  const quickRemaining = quick.customer
+    ? debtRows.filter(r => r.customer === quick.customer).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
+    : 0;
+  const handleQuickPay = (e) => {
+    e.preventDefault();
+    if (!quick.customer || !quick.amount) return;
+    const res = payCustomerDebt(quick.customer, quick.amount, quick.channel, 'Kassaga to\'lov');
+    if (res.applied <= 0) { alert("Bu mijozda qoldiq qarz yo'q."); return; }
+    let msg = `✅ ${fmt(res.applied)} so'm qarz to'landi (${quick.channel}).\nKassaga kirim qilindi.`;
+    if (res.leftover > 0) msg += `\n\n⚠ ${fmt(res.leftover)} so'm ortiqcha — qabul qilinmadi (qarzdan ko'p). Kerak bo'lsa "Avanslar"ga yozing.`;
+    alert(msg);
+    setQuick({ customer: '', amount: '', channel: 'naqd' });
+  };
 
   const [reminder, setReminder] = useState(null); // { name, phone, text }
   const openReminder = (r) => {
@@ -118,6 +134,53 @@ export default function Debts({ lang }) {
         <StatCard label={L.jamiPaid[lang]} value={fmt(totalDebtsPaid)} color="#2e7d32" bg="#e8f5e9" />
         <StatCard label={L.jamiLeft[lang]} value={fmt(totalDebts)}     color="#c62828" bg="#ffebee" />
       </div>
+
+      {/* ── TEZ TO'LOV (kassir) — mijoz qarzini bittada qabul qilish ───────── */}
+      <form onSubmit={handleQuickPay} style={{
+        display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center',
+        padding: '12px 14px', background: '#e8f5e9', border: '2px solid #2e7d32', borderRadius: 8,
+      }}>
+        <span style={{ fontWeight: 'bold', color: '#1b5e20', fontSize: 14 }}>💰 Qarz to'lovini qabul qilish:</span>
+        <CustomerSelect
+          value={quick.customer}
+          onChange={name => setQuick({ ...quick, customer: name })}
+          placeholder="Mijozni tanlang"
+          accentColor="#2e7d32"
+          required
+        />
+        {quick.customer && (
+          <span style={{ fontSize: 12, color: quickRemaining > 0 ? '#c62828' : '#2e7d32', fontWeight: 'bold' }}>
+            Qoldiq qarz: {fmt(quickRemaining)} so'm
+          </span>
+        )}
+        <input
+          type="number" placeholder="Qancha to'ladi?"
+          value={quick.amount}
+          onChange={e => setQuick({ ...quick, amount: e.target.value })}
+          style={{ ...inp, width: 150, border: '1px solid #2e7d32' }}
+        />
+        {[
+          { v: 'naqd', label: '💵 Naqd', color: '#1565c0' },
+          { v: 'bank', label: '🏦 Bank', color: '#2e7d32' },
+          { v: 'click', label: '📱 Click', color: '#6a1b9a' },
+        ].map(ch => (
+          <button key={ch.v} type="button" onClick={() => setQuick({ ...quick, channel: ch.v })} style={{
+            padding: '5px 12px', fontSize: 12, cursor: 'pointer',
+            border: `2px solid ${quick.channel === ch.v ? ch.color : '#ccc'}`,
+            background: quick.channel === ch.v ? ch.color : '#fff',
+            color: quick.channel === ch.v ? '#fff' : '#333', borderRadius: 4, fontWeight: 'bold',
+          }}>{ch.label}</button>
+        ))}
+        <button type="submit" style={{ padding: '7px 22px', cursor: 'pointer', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', fontSize: 14 }}>
+          ✓ Qabul qilish
+        </button>
+        {quick.customer && quick.amount > 0 && (
+          <button type="button" onClick={() => setQuick({ ...quick, amount: String(quickRemaining) })}
+            style={{ padding: '7px 12px', cursor: 'pointer', background: '#fff', color: '#2e7d32', border: '1px solid #2e7d32', borderRadius: 4, fontSize: 12 }}>
+            To'liq ({fmt(quickRemaining)})
+          </button>
+        )}
+      </form>
 
       {/* ── QARZ QO'SHISH FORMASI ─────────────────────────────────────────── */}
       <form onSubmit={handleAdd} style={{
