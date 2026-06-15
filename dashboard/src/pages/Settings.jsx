@@ -33,8 +33,10 @@ export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
     customers, importCustomers, importDebts,
+    warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
   } = useData();
   const [tab, setTab] = useState('workers');
+  const [newWh, setNewWh] = useState('');
 
   // ── Excel import: Mijozlar ────────────────────────────────────────────────
   const importCustomersHandler = (rows) => {
@@ -104,7 +106,7 @@ export default function Settings({ lang }) {
   };
 
   // Xodim qo'shish formasi
-  const [newW, setNewW] = useState({ name: '', role: 'sotuvchi', password: '1234', position: '' });
+  const [newW, setNewW] = useState({ name: '', role: 'sotuvchi', password: '1234', position: '', warehouseId: '' });
   
   // App sozlamalari formasi
   const [appF, setAppF] = useState(appSettings);
@@ -233,8 +235,37 @@ export default function Settings({ lang }) {
 
       {/* XODIMLAR TABI */}
       {tab === 'workers' && (
+        <>
+        {/* ── SKLADLAR (OMBORLAR) BOSHQARUVI ──────────────────────────────── */}
+        <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: 16, marginBottom: 20 }}>
+          <h3 style={{ marginTop: 0, color: '#1b5e20' }}>🏬 Skladlar (omborlar)</h3>
+          <p style={{ fontSize: 12, color: '#555', margin: '0 0 10px' }}>
+            Har bir sklad alohida qoldiqqa ega. Xodimga sklad biriktirsangiz — u kirganda o'z skladi tanlangan bo'ladi.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+            {warehouses.map(w => (
+              <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #c8e6c9', borderRadius: 6, padding: '6px 10px' }}>
+                <input value={w.name} onChange={e => updateWarehouse(w.id, e.target.value)}
+                  style={{ border: '1px solid #ddd', borderRadius: 4, padding: '4px 8px', fontSize: 13, width: 160 }} />
+                {warehouses.length > 1 && (
+                  <button onClick={() => { if (window.confirm(`"${w.name}" skladini o'chirasizmi? (yozuvlari asosiy skladga o'tadi)`)) deleteWarehouse(w.id); }}
+                    style={{ background: '#ffebee', color: '#c62828', border: '1px solid #ef9a9a', borderRadius: 4, cursor: 'pointer', padding: '4px 8px', fontSize: 12 }}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={newWh} onChange={e => setNewWh(e.target.value)} placeholder="Yangi sklad nomi (masalan: Chakana do'kon)"
+              style={{ border: '1px solid #a5d6a7', borderRadius: 4, padding: '7px 10px', fontSize: 13, width: 280 }} />
+            <button onClick={() => { if (newWh.trim()) { addWarehouse(newWh.trim()); setNewWh(''); } }}
+              style={{ background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', padding: '7px 16px', fontWeight: 'bold' }}>
+              + Sklad qo'shish
+            </button>
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 }}>
-          
+
           {/* Yangi qo'shish */}
           <div style={{ background: '#f9f9f9', padding: 20, borderRadius: 8, border: '1px solid #eee', alignSelf: 'start' }}>
             <h3 style={{ marginTop: 0, color: appSettings.themeColor }}>Yangi xodim qo'shish</h3>
@@ -257,6 +288,13 @@ export default function Settings({ lang }) {
                 <input type="text" value={newW.password} onChange={e => setNewW({...newW, password: e.target.value})} style={inp} required />
               </div>
               <div>
+                <label style={{ fontSize: 12, fontWeight: 'bold', color: '#666' }}>Sklad (biriktirilgan ombor)</label>
+                <select value={newW.warehouseId} onChange={e => setNewW({...newW, warehouseId: e.target.value})} style={inp}>
+                  <option value="">— sklad tanlanmagan —</option>
+                  {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+              <div>
                 <label style={{ fontSize: 12, fontWeight: 'bold', color: '#666' }}>Lavozimi (Izoh)</label>
                 <input type="text" value={newW.position} onChange={e => setNewW({...newW, position: e.target.value})} style={inp} />
               </div>
@@ -271,6 +309,7 @@ export default function Settings({ lang }) {
                 <tr>
                   <th style={{ padding: 12 }}>Ism (Login)</th>
                   <th style={{ padding: 12 }}>Rol</th>
+                  <th style={{ padding: 12 }}>Sklad</th>
                   <th style={{ padding: 12 }}>Parol</th>
                   <th style={{ padding: 12 }}>Lavozim</th>
                   <th style={{ padding: 12 }}>Boshqarish</th>
@@ -286,6 +325,12 @@ export default function Settings({ lang }) {
                         <option value="kassir">Kassir</option>
                         <option value="sotuvchi">Sotuvchi (optom)</option>
                         <option value="omborchi">Omborchi</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <select value={w.warehouseId || ''} onChange={(e) => updateWorker(w.id, { warehouseId: e.target.value })} style={{ padding: 4, borderRadius: 4, border: '1px solid #ccc' }}>
+                        <option value="">— yo'q —</option>
+                        {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
                       </select>
                     </td>
                     <td style={{ padding: 12 }}>
@@ -307,6 +352,7 @@ export default function Settings({ lang }) {
           </div>
 
         </div>
+        </>
       )}
 
       {/* APP SOZLAMALARI TABI */}

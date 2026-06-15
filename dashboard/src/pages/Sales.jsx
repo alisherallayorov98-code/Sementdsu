@@ -18,9 +18,13 @@ const BG     = '#e1f5fe';
 
 export default function Sales({ lang }) {
   const data = useData();
-  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings, customers, currentUser } = data;
+  const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings, customers, currentUser,
+          warehouses, defaultWhId, cementBalanceOf, whName } = data;
   const isKassir = currentUser?.role === 'kassir';
-  const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
+  const myWh = currentUser?.warehouseId || defaultWhId;
+  const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: '' });
+  const activeWh = form.warehouseId || myWh;
+  const whBalance = cementBalanceOf(activeWh);
   const [search, setSearch] = useState('');
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
 
@@ -51,15 +55,15 @@ export default function Sales({ lang }) {
     e.preventDefault();
     if (!form.customer || !form.tons || !form.pricePerTon) return;
 
-    // Qoldiqni tekshirish
-    if (Number(form.tons) > Number(totalCementBalance)) {
-      if (!window.confirm(`Diqqat! Omboringizda faqat ${totalCementBalance} tn sement bor. Baribir sotasizmi?`)) {
+    // Qoldiqni tekshirish (tanlangan sklad bo'yicha)
+    if (Number(form.tons) > Number(whBalance)) {
+      if (!window.confirm(`Diqqat! "${whName(activeWh)}" skladida faqat ${whBalance} tn sement bor. Baribir sotasizmi?`)) {
         return;
       }
     }
 
-    const created = addSaleRow({ ...form, worker: currentWorker });
-    setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '' });
+    const created = addSaleRow({ ...form, warehouseId: activeWh, worker: currentWorker });
+    setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: form.warehouseId });
     // ── Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi ───────────
     // Optom (admin/sotuvchi) uchun avtomatik chiqmaydi — ular qo'lda 🧾 bosadi.
     if (created && isKassir && appSettings?.autoPrintReceipt !== false) {
@@ -93,11 +97,15 @@ export default function Sales({ lang }) {
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         {/* Joriy Sement Qoldig'i (Katta qizil/yashil karta) */}
         <div style={{ background: '#fff3e0', borderLeft: `6px solid #e65100`, padding: '16px 20px', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', minWidth: 220 }}>
-          <div style={{ fontSize: 12, color: '#e65100', marginBottom: 4, fontWeight: 'bold' }}>Joriy Sement Qoldig'i</div>
-          <div style={{ fontSize: 28, fontWeight: 'bold', color: totalCementBalance > 0 ? '#1b5e20' : '#c62828', fontFamily: 'monospace' }}>
-            {fmtTons(totalCementBalance)} <span style={{ fontSize: 14, color: '#888' }}>tn</span>
+          <div style={{ fontSize: 12, color: '#e65100', marginBottom: 4, fontWeight: 'bold' }}>
+            {warehouses.length > 1 ? `Qoldiq: ${whName(activeWh)}` : "Joriy Sement Qoldig'i"}
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Omborda bor sement</div>
+          <div style={{ fontSize: 28, fontWeight: 'bold', color: whBalance > 0 ? '#1b5e20' : '#c62828', fontFamily: 'monospace' }}>
+            {fmtTons(whBalance)} <span style={{ fontSize: 14, color: '#888' }}>tn</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+            {warehouses.length > 1 ? `Umumiy: ${fmtTons(totalCementBalance)} tn` : 'Omborda bor sement'}
+          </div>
         </div>
 
         {/* Jami Savdo */}
@@ -151,6 +159,14 @@ export default function Sales({ lang }) {
             <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>1 tn narxi *</label>
             <input type="number" placeholder="Masalan: 500000" value={form.pricePerTon} onChange={e => setForm({ ...form, pricePerTon: e.target.value })} style={{ ...inp, width: 140 }} required />
           </div>
+          {warehouses.length > 1 && (
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>Qaysi skladdan *</label>
+              <select value={activeWh} onChange={e => setForm({ ...form, warehouseId: e.target.value })} style={{ ...inp, width: 150, fontWeight: 'bold', color: '#1b5e20' }}>
+                {warehouses.map(w => <option key={w.id} value={w.id}>🏬 {w.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>To'lov turi *</label>
             <select value={form.paymentChannel} onChange={e => setForm({ ...form, paymentChannel: e.target.value })} style={{ ...inp, width: 120, fontWeight: 'bold', color: '#333' }}>

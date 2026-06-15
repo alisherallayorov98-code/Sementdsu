@@ -102,6 +102,24 @@ export function DataProvider({ children }) {
   useEffect(() => save('app_settings', appSettings), [appSettings]);
   const updateAppSettings = (data) => setAppSettings(p => ({ ...p, ...data }));
 
+  // ── Skladlar (omborlar) ───────────────────────────────────────────────────
+  // Foydalanuvchi o'zi nomlaydi. Birinchisi standart (eski ma'lumotlar shunga tegishli).
+  const [warehouses, setWarehouses] = useState(() => load('warehouses', [
+    { id: 'main', name: 'Asosiy sklad' },
+  ]));
+  useEffect(() => save('warehouses', warehouses), [warehouses]);
+  const defaultWhId = warehouses[0]?.id || 'main';
+  // Yozuvning skladi (bo'lmasa yoki o'chirilgan bo'lsa — standart)
+  const whOf = (row) => (row?.warehouseId && warehouses.some(w => w.id === row.warehouseId)) ? row.warehouseId : defaultWhId;
+  const whName = (id) => warehouses.find(w => w.id === id)?.name || '—';
+  const addWarehouse = (name) => {
+    const id = 'wh' + Date.now();
+    setWarehouses(p => [...p, { id, name: String(name).trim() || 'Sklad' }]);
+    return id;
+  };
+  const updateWarehouse = (id, name) => setWarehouses(p => p.map(w => w.id === id ? { ...w, name } : w));
+  const deleteWarehouse = (id) => setWarehouses(p => p.length > 1 ? p.filter(w => w.id !== id) : p);
+
 
   // ── 2. Naqd pul ──────────────────────────────────────────────────────────
   const [cashOpening, setCashOpening] = useState(() => load('cash_opening', { date: '25.04.2025', amount: 20000000 }));
@@ -212,6 +230,7 @@ export function DataProvider({ children }) {
       paymentChannel: entry.paymentChannel || 'naqd',
       cardName: entry.cardName || '', factoryTime: entry.factoryTime || '',
       izoh: entry.izoh || '',
+      warehouseId: entry.warehouseId || defaultWhId,
     };
     setRecvRows(p => [...p, row]);
 
@@ -437,6 +456,17 @@ export function DataProvider({ children }) {
   // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
   const totalCementBalance = Number(cementOpening.tons) + totalRecvTons - totalSoldTons - totalSalesTons;
 
+  // ── Sklad bo'yicha qoldiq ──────────────────────────────────────────────────
+  // Ochilish faqat standart skladga tegishli. Olingan(+) / sotilgan,sotuv(−).
+  const cementByWarehouse = warehouses.map(w => {
+    const recv  = recvRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
+    const sales = salesRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
+    const sold  = soldRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
+    const opening = w.id === defaultWhId ? Number(cementOpening.tons || 0) : 0;
+    return { id: w.id, name: w.name, opening, recv, out: sales + sold, balance: opening + recv - sales - sold };
+  });
+  const cementBalanceOf = (whId) => (cementByWarehouse.find(w => w.id === whId) || {}).balance ?? 0;
+
   const [bankIncomeRows, setBankIncomeRows] = useState(() => load('bank_income_rows', []));
   useEffect(() => save('bank_income_rows', bankIncomeRows), [bankIncomeRows]);
   const addBankIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
@@ -498,8 +528,9 @@ export function DataProvider({ children }) {
       position: opts.position || '',
       phone:    opts.phone    || '',
       note:     opts.note     || '',
-      role:     opts.role     || 'sotuvchi', // admin, sotuvchi, omborchi
+      role:     opts.role     || 'sotuvchi', // admin, kassir, sotuvchi, omborchi
       password: opts.password || '1234',     // Standart parol
+      warehouseId: opts.warehouseId || null, // biriktirilgan sklad
     }]);
   };
 
@@ -648,6 +679,7 @@ export function DataProvider({ children }) {
   // Serverga sinxronlanadigan barcha bo'limlar (sessiya — currentUser — bunda yo'q)
   const STATE_SETTERS = {
     app_settings:       setAppSettings,
+    warehouses:         setWarehouses,
     cash_opening:       setCashOpening,
     cash_rows:          setCashRows,
     bank_opening:       setBankOpening,
@@ -678,6 +710,7 @@ export function DataProvider({ children }) {
   // Holatning joriy "suratini" yig'ish (serverga shu jo'natiladi)
   const snapshot = {
     app_settings:       appSettings,
+    warehouses:         warehouses,
     cash_opening:       cashOpening,
     cash_rows:          cashRows,
     bank_opening:       bankOpening,
@@ -799,6 +832,9 @@ export function DataProvider({ children }) {
     clickOpening, setClickOpening, clickRows, totalClickBalance, addClickRow, deleteClickRow,
     // 5. Sement
     cementOpening, setCementOpening, totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
+    // Skladlar (omborlar)
+    warehouses, addWarehouse, updateWarehouse, deleteWarehouse, whOf, whName, defaultWhId,
+    cementByWarehouse, cementBalanceOf,
     // 7. Kirim
     incomeRows, addIncomeRow, deleteIncomeRow,
     // 8. Chiqim

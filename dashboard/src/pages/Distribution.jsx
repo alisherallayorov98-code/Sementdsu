@@ -21,21 +21,26 @@ const CHANNELS = [
 ];
 
 export default function Distribution() {
-  const { salesRows, addSaleRow, deleteSaleRow, recvRows, totalCementBalance, currentWorker } = useData();
+  const { salesRows, addSaleRow, deleteSaleRow, recvRows, totalCementBalance, currentWorker,
+          warehouses, whOf, defaultWhId, currentUser, cementBalanceOf, whName } = useData();
+  const myWh = currentUser?.warehouseId || defaultWhId;
 
   // Standart sozlamalar (har kiritmada qayta yozmaslik uchun)
   const [defPrice, setDefPrice]     = useState('');
   const [defChannel, setDefChannel] = useState('nasiya');
+  const [wh, setWh] = useState(myWh); // qaysi skladdan taqsimlanmoqda
 
   // Tez kiritish formasi
   const [row, setRow] = useState({ customer: '', tons: '', price: '' });
   const tonsRef = useRef();
 
   const t = today();
-  const todaySales = salesRows.filter(r => r.date === t);
-  const bugunOlingan      = recvRows.filter(r => r.date === t).reduce((s, r) => s + Number(r.tons || 0), 0);
+  // Tanlangan sklad bo'yicha
+  const todaySales = salesRows.filter(r => r.date === t && whOf(r) === wh);
+  const bugunOlingan      = recvRows.filter(r => r.date === t && whOf(r) === wh).reduce((s, r) => s + Number(r.tons || 0), 0);
   const bugunTaqsimlangan = todaySales.reduce((s, r) => s + Number(r.tons || 0), 0);
   const qolgan = bugunOlingan - bugunTaqsimlangan;
+  const whQoldiq = cementBalanceOf(wh);
 
   const add = (e) => {
     e.preventDefault();
@@ -47,6 +52,7 @@ export default function Distribution() {
       pricePerTon: price || 0,
       paymentChannel: defChannel,
       note: 'Taqsimot',
+      warehouseId: wh,
       worker: currentWorker,
     });
     setRow({ customer: '', tons: '', price: '' });
@@ -59,12 +65,26 @@ export default function Distribution() {
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13 }}>
 
+      {/* ── SKLAD TANLASH ──────────────────────────────────────────────────── */}
+      {warehouses.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 'bold', color: '#01579b' }}>🏬 Qaysi skladdan:</span>
+          {warehouses.map(w => (
+            <button key={w.id} onClick={() => setWh(w.id)} style={{
+              padding: '6px 16px', cursor: 'pointer', borderRadius: 6, fontSize: 13, fontWeight: 'bold',
+              border: `2px solid ${wh === w.id ? '#01579b' : '#ccc'}`,
+              background: wh === w.id ? '#01579b' : '#fff', color: wh === w.id ? '#fff' : '#333',
+            }}>{w.name}</button>
+          ))}
+        </div>
+      )}
+
       {/* ── JONLI QOLDIQ ───────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <Stat label="Bugun olingan (zavoddan)" value={fmtT(bugunOlingan)} unit="tn" color="#1565c0" bg="#e3f2fd" />
         <Stat label="Bugun taqsimlangan"       value={fmtT(bugunTaqsimlangan)} unit="tn" color="#2e7d32" bg="#e8f5e9" />
         <Stat label="Bugundan qolgan"          value={fmtT(qolgan)} unit="tn" color={qolgan < 0 ? '#c62828' : '#ef6c00'} bg="#fff3e0" big />
-        <Stat label="Omborda umumiy qoldiq"    value={fmtT(totalCementBalance)} unit="tn" color="#5d4037" bg="#efebe9" />
+        <Stat label={warehouses.length > 1 ? `"${whName(wh)}" qoldig'i` : 'Omborda qoldiq'} value={fmtT(whQoldiq)} unit="tn" color="#5d4037" bg="#efebe9" />
       </div>
 
       {/* ── STANDART SOZLAMALAR ────────────────────────────────────────────── */}

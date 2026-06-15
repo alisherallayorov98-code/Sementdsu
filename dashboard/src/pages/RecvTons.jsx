@@ -90,11 +90,13 @@ export default function RecvTons({ lang }) {
   const {
     recvRows, addRecvRow, deleteRecvRow, importRecvRows,
     currentWorker, setCurrentWorker,
+    warehouses, whName, defaultWhId, currentUser,
   } = useData();
+  const myWh = currentUser?.warehouseId || defaultWhId;
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
-    paymentChannel:'naqd', cardName:'', factoryTime:'', izoh:'',
+    paymentChannel:'naqd', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
   });
   const [filterSource, setFilterSource] = useState('');
   const [filterBrand,  setFilterBrand]  = useState('');
@@ -116,9 +118,10 @@ export default function RecvTons({ lang }) {
       paymentChannel: form.paymentChannel,
       cardName: form.cardName, factoryTime: form.factoryTime,
       izoh: form.izoh,
+      warehouseId: form.warehouseId || myWh,
     });
     setForm({ source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
-              paymentChannel:'naqd', cardName:'', factoryTime:'', izoh:'' });
+              paymentChannel:'naqd', cardName:'', factoryTime:'', izoh:'', warehouseId:'' });
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
@@ -421,6 +424,11 @@ export default function RecvTons({ lang }) {
           <input placeholder={L.mashina[lang]} value={form.vehicleNo} onChange={e=>setForm({...form,vehicleNo:e.target.value})} style={{ ...inp, width:100 }} />
           <input type="number" placeholder={L.tonna[lang]} value={form.tons} onChange={e=>setForm({...form,tons:e.target.value})} style={{ ...inp, width:90 }} required />
           <input type="number" placeholder={L.narx[lang]}  value={form.pricePerTon} onChange={e=>setForm({...form,pricePerTon:e.target.value})} style={{ ...inp, width:110 }} />
+          {warehouses.length > 1 && (
+            <select value={form.warehouseId || myWh} onChange={e=>setForm({...form,warehouseId:e.target.value})} style={{ ...inp, fontWeight:'bold', color:'#1b5e20' }} title="Qaysi skladga">
+              {warehouses.map(w => <option key={w.id} value={w.id}>🏬 {w.name}</option>)}
+            </select>
+          )}
           <select value={form.paymentChannel} onChange={e=>setForm({...form,paymentChannel:e.target.value})} style={inp}>
             {TOLOV.map(t=><option key={t.v} value={t.v}>{t[lang==='cyrl'?'cyrl':'latn']}</option>)}
           </select>

@@ -52,7 +52,7 @@ async function authenticate(account, name, password) {
   }
 
   if (!match) return null;
-  return { id: w.id, name: w.name, role: w.role || 'sotuvchi' };
+  return { id: w.id, name: w.name, role: w.role || 'sotuvchi', warehouseId: w.warehouseId || null };
 }
 
 // Yangi xodim yaratishda yoki parol yangilanganda hash qilish uchun
