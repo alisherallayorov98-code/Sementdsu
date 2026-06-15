@@ -71,9 +71,9 @@ export function DataProvider({ children }) {
 
   // Kirish — server tomonda tekshiriladi, JWT token qaytadi.
   // Birinchi foydalanuvchi (xodimlar yo'q bo'lsa) avtomatik admin bo'ladi (server bootstrap).
-  const login = async (name, password) => {
+  const login = async (name, password, account = '') => {
     try {
-      const res = await api.login(name, password);
+      const res = await api.login(name, password, account);
       if (!res?.token) return false;
       api.setToken(res.token);
       setTokenState(res.token);
@@ -81,6 +81,19 @@ export function DataProvider({ children }) {
       return true;
     } catch {
       return false;
+    }
+  };
+  // Yangi tashkilot ochish (SaaS). Xato bo'lsa matn qaytaradi.
+  const signup = async (account, name, password) => {
+    try {
+      const res = await api.signup(account, name, password);
+      if (!res?.token) return { ok: false, error: 'Xatolik' };
+      api.setToken(res.token);
+      setTokenState(res.token);
+      setCurrentUser(res.user);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
     }
   };
   const logout = () => {
@@ -914,7 +927,7 @@ export function DataProvider({ children }) {
   // ─────────────────────────────────────────────────────────────────────────
   const value = {
     // Auth & Settings
-    currentUser, token, login, logout, currentWorker, setCurrentWorker,
+    currentUser, token, login, signup, logout, currentWorker, setCurrentWorker,
     appSettings, updateAppSettings,
     backendOnline,
     // Bildirishnoma (Telegram/SMS)

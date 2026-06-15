@@ -12,6 +12,7 @@ const router = express.Router();
 
 // ── Auth (ochiq) ──────────────────────────────────────────────────────────
 router.post('/auth/login', loginLimiter, auth.login);
+router.post('/auth/signup', loginLimiter, auth.signup);
 router.get('/auth/me', authenticate, auth.me);
 
 // ── Holat (himoyalangan) ──────────────────────────────────────────────────

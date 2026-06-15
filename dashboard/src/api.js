@@ -40,7 +40,8 @@ async function req(path, options = {}, { auth = true } = {}) {
 
 export const api = {
   // Auth
-  login: (name, password) => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ name, password }) }, { auth: false }),
+  login: (name, password, account = '') => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ name, password, account }) }, { auth: false }),
+  signup: (account, name, password) => req('/api/auth/signup', { method: 'POST', body: JSON.stringify({ account, name, password }) }, { auth: false }),
   getToken,
   setToken,
 
