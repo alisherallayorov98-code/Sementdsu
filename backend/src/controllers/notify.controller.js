@@ -23,6 +23,7 @@ exports.send = async (req, res) => {
   let { chatId = null } = req.body || {};
 
   if (!text.trim()) return res.status(400).json({ ok: false, error: 'Xabar matni bo\'sh' });
+  if (text.length > 1000) return res.status(400).json({ ok: false, error: 'Xabar matni juda uzun (1000 belgidan oshmasin)' });
   if (!Array.isArray(channels) || channels.length === 0) {
     return res.status(400).json({ ok: false, error: 'Kanal tanlanmagan' });
   }
