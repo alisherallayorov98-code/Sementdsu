@@ -22,8 +22,9 @@ export default function Dashboard() {
   const {
     totalCashBalance, totalBankBalance, totalClickBalance, totalCementBalance,
     totalDebts, salesRows, soldRows, incomeRows, expenseRows, tgOrders, debtRows, currentUser,
-    customers, appSettings,
+    customers, appSettings, pendingRecvCount, pendingBankCount,
   } = data;
+  const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
 
   const [card, setCard] = useState(null);
 
@@ -71,6 +72,21 @@ export default function Dashboard() {
         <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" color="#c62828" bg="#ffebee" onClick={() => navigate('/debts')} />
         <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} color="#ef6c00" bg="#fff3e0" onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
       </div>
+
+      {/* 🟡 Tekshirilmagan (import qilingan) yozuvlar */}
+      {pendingTotal > 0 && (
+        <div style={{ marginBottom: 16, border: '2px solid #f9a825', borderRadius: 6, background: '#fffde7', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontWeight: 'bold', color: '#e65100' }}>
+            🟡 {pendingTotal} ta tekshirilmagan yozuv bor — tasdiqlash kerak
+            {pendingBankCount > 0 && ` · Bank o'tkazma: ${pendingBankCount}`}
+            {pendingRecvCount > 0 && ` · Sement olish: ${pendingRecvCount}`}
+          </span>
+          <span style={{ display: 'flex', gap: 8 }}>
+            {pendingBankCount > 0 && <button onClick={() => navigate('/income_bank')} style={{ cursor: 'pointer', background: '#0d47a1', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', fontWeight: 'bold' }}>Bank →</button>}
+            {pendingRecvCount > 0 && <button onClick={() => navigate('/recv_tons')} style={{ cursor: 'pointer', background: '#e65100', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', fontWeight: 'bold' }}>Sement →</button>}
+          </span>
+        </div>
+      )}
 
       {/* ⚠️ Mijoz nazorati ogohlantirishi (faqat jim qolganlar bo'lsa) */}
       {quietCustomers.length > 0 && (

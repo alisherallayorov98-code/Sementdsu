@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 
@@ -88,11 +89,12 @@ const downloadTemplate = () => {
 
 export default function RecvTons({ lang }) {
   const {
-    recvRows, addRecvRow, deleteRecvRow, importRecvRows,
+    recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow,
     currentWorker, setCurrentWorker,
     warehouses, whName, defaultWhId, currentUser,
   } = useData();
   const myWh = currentUser?.warehouseId || defaultWhId;
+  const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
@@ -518,8 +520,10 @@ export default function RecvTons({ lang }) {
               {[...filtered].reverse().map((r, i) => {
                 const s = Number(r.tons||0) * Number(r.pricePerTon||0);
                 return (
-                  <tr key={r.id} style={{ background: i%2===0?'#fff':'#f5f5f5' }}>
-                    <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{filtered.length-i}</td>
+                  <tr key={r.id} style={{ background: r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
+                    <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>
+                      {r.pending ? <span title="Tekshirilmagan" style={{ color:'#e65100' }}>⚠</span> : filtered.length-i}
+                    </td>
                     <td style={{ fontSize:12 }}>{r.date}</td>
                     <td>
                       <button
@@ -538,7 +542,14 @@ export default function RecvTons({ lang }) {
                     <td style={{ fontSize:11, color:'#555' }}>{r.cardName||'—'}</td>
                     <td style={{ fontSize:10, color:'#555' }}>{r.factoryTime||'—'}</td>
                     <td style={{ fontSize:11, color:'#003366', fontWeight:r.worker?'bold':'normal' }}>{r.worker||'—'}</td>
-                    <td>
+                    <td style={{ whiteSpace:'nowrap' }}>
+                      {r.pending && (
+                        <button
+                          onClick={() => setVerifyRow({ ...r })}
+                          title="Tekshirib tasdiqlash"
+                          style={{ fontSize:11, cursor:'pointer', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
+                        >✓ Tekshirish</button>
+                      )}
                       <button
                         onClick={() => { if(window.confirm("O'chirilsinmi?")) deleteRecvRow(r.id); }}
                         style={{ fontSize:10, cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', padding:'2px 5px' }}
@@ -561,9 +572,66 @@ export default function RecvTons({ lang }) {
 
       {renderModal()}
       {renderImportPreview()}
+
+      {/* ── TEKSHIRISH (TASDIQLASH) MODALI ─────────────────────────────────── */}
+      {verifyRow && createPortal(
+        <div onClick={() => setVerifyRow(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:460, fontFamily:'Tahoma, sans-serif' }}>
+            <div style={{ background:'#e65100', color:'#fff', padding:'12px 16px', borderRadius:'8px 8px 0 0', fontWeight:'bold' }}>
+              ✓ Yetkazmani tekshirib tasdiqlash
+            </div>
+            <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ fontSize:12, color:'#777' }}>Sana: {verifyRow.date} · {fmtT(verifyRow.tons)} tn</div>
+              <Field label="Zavod / Manba *">
+                <input value={verifyRow.source} onChange={e => setVerifyRow({ ...verifyRow, source: e.target.value })} style={vInp} placeholder="Zavod nomi" />
+              </Field>
+              <Field label="Marka">
+                <input value={verifyRow.brand} onChange={e => setVerifyRow({ ...verifyRow, brand: e.target.value })} style={vInp} placeholder="Sement markasi" />
+              </Field>
+              <div style={{ display:'flex', gap:10 }}>
+                <Field label="Tonna *"><input type="number" value={verifyRow.tons} onChange={e => setVerifyRow({ ...verifyRow, tons: e.target.value })} style={vInp} /></Field>
+                <Field label="Narx (1 tn)"><input type="number" value={verifyRow.pricePerTon} onChange={e => setVerifyRow({ ...verifyRow, pricePerTon: e.target.value })} style={vInp} /></Field>
+              </div>
+              <Field label="To'lov turi (zavodga)">
+                <select value={verifyRow.paymentChannel} onChange={e => setVerifyRow({ ...verifyRow, paymentChannel: e.target.value })} style={vInp}>
+                  <option value="bank">🏦 Bank (o'tkazma)</option>
+                  <option value="naqd">💵 Naqd</option>
+                  <option value="click">📱 Click</option>
+                </select>
+              </Field>
+              {warehouses.length > 1 && (
+                <Field label="Sklad">
+                  <select value={verifyRow.warehouseId || myWh} onChange={e => setVerifyRow({ ...verifyRow, warehouseId: e.target.value })} style={vInp}>
+                    {warehouses.map(w => <option key={w.id} value={w.id}>🏬 {w.name}</option>)}
+                  </select>
+                </Field>
+              )}
+              <div style={{ fontSize:12, color:'#1b5e20', background:'#e8f5e9', padding:8, borderRadius:4 }}>
+                Tasdiqlangach: <b>{fmt(Number(verifyRow.tons||0)*Number(verifyRow.pricePerTon||0))} so'm</b> tegishli kassadan (zavodga to'lov) chiqim qilinadi.
+              </div>
+              <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                <button onClick={() => { if(!verifyRow.source){ alert('Zavod nomini kiriting'); return; } verifyRecvRow(verifyRow.id, { source: verifyRow.source, brand: verifyRow.brand, tons: Number(verifyRow.tons)||0, pricePerTon: Number(verifyRow.pricePerTon)||0, paymentChannel: verifyRow.paymentChannel, warehouseId: verifyRow.warehouseId || myWh }); setVerifyRow(null); }}
+                  style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>✓ Tasdiqlash</button>
+                <button onClick={() => setVerifyRow(null)} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
+
+function Field({ label, children }) {
+  return (
+    <label style={{ display:'block', flex:1 }}>
+      <span style={{ display:'block', fontSize:11, fontWeight:'bold', color:'#555', marginBottom:3 }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+const vInp = { width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4, fontFamily:'Tahoma, sans-serif' };
 
 const thS = { border:'1px solid #999', padding:'5px 8px', background:'#f0f0f0', fontWeight:'bold', fontSize:12, textAlign:'left' };
 const tdS = { border:'1px solid #ccc', padding:'5px 8px', fontSize:12 };

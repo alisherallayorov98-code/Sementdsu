@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
+import CustomerSelect from '../components/CustomerSelect';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -68,8 +71,39 @@ export default function IncomeBank({ lang }) {
     bankIncomeRows,  addBankIncomeRow,  deleteBankIncomeRow,  totalBankIncome,
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
     totalBankBalance,
+    importBankIncomeRows, verifyBankIncomeRow,
     currentWorker, setCurrentWorker,
   } = useData();
+
+  // Excel import (bank o'tkazmalari) + tekshirish modali
+  const [importPreview, setImportPreview] = useState(null); // [{date,amount,desc}]
+  const [verifyBank, setVerifyBank] = useState(null);       // tasdiqlanayotgan qator
+
+  // Bank ko'chirma Excel'ini o'qish (ustunlar: sana, summa, izoh)
+  const handleBankExcel = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const norm = (k) => String(k).toLowerCase().trim();
+        const pick = (row, keys) => { for (const k of Object.keys(row)) { if (keys.includes(norm(k))) return row[k]; } return ''; };
+        const rows = json.map(r => ({
+          date: String(pick(r, ['sana','date','дата']) || '').trim(),
+          amount: Number(String(pick(r, ['summa','amount','сумма','сумма прихода'])).replace(/\s/g,'').replace(/,/g,'')) || 0,
+          desc: String(pick(r, ['izoh','desc','назначение','описание','отправитель','kontragent','контрагент']) || '').trim(),
+        })).filter(r => r.amount > 0);
+        if (!rows.length) { alert("Excel'da summa topilmadi. Ustunlar: sana, summa, izoh."); return; }
+        setImportPreview(rows);
+      } catch { alert("Excel o'qishda xato."); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  const confirmBankImport = () => { importBankIncomeRows(importPreview); setImportPreview(null); };
 
   // Aktiv tab: 'kirim' | 'chiqim'
   const [activeTab, setActiveTab] = useState('kirim');
@@ -245,6 +279,15 @@ export default function IncomeBank({ lang }) {
             </button>
           </form>
 
+          {/* Excel import (bank ko'chirma) */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+            <label style={{ background: '#00695c', color: '#fff', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold', fontSize: 12 }}>
+              📥 Bank ko'chirmasini Excel'dan yuklash
+              <input type="file" accept=".xlsx,.xls" onChange={handleBankExcel} style={{ display: 'none' }} />
+            </label>
+            <span style={{ fontSize: 11, color: '#888' }}>Ustunlar: sana, summa, izoh. Yuklangach sariq bo'lib turadi — tekshirib tasdiqlaysiz.</span>
+          </div>
+
           {/* Filter */}
           <FilterBar lang={lang} L={L}
             showAll={incShowAll} setShowAll={setIncShowAll}
@@ -257,7 +300,7 @@ export default function IncomeBank({ lang }) {
           {/* Jadval */}
           <RowsTable
             rows={filteredInc} color="#0d47a1" total={filteredIncTotal}
-            onDelete={handleDelIncome} lang={lang} L={L} jami={L.jami[lang]}
+            onDelete={handleDelIncome} onVerify={(r) => setVerifyBank({ ...r })} lang={lang} L={L} jami={L.jami[lang]}
             amountColor="#0d47a1" todayStr={todayStr()}
           />
         </div>
@@ -306,6 +349,62 @@ export default function IncomeBank({ lang }) {
             amountColor="#b71c1c" todayStr={todayStr()}
           />
         </div>
+      )}
+
+      {/* ── IMPORT PREVIEW ─────────────────────────────────────────────────── */}
+      {importPreview && createPortal(
+        <div onClick={() => setImportPreview(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:560, maxHeight:'80vh', overflow:'auto', fontFamily:'Tahoma, sans-serif' }}>
+            <div style={{ background:'#00695c', color:'#fff', padding:'12px 16px', fontWeight:'bold' }}>
+              📥 Yuklanadigan bank o'tkazmalari ({importPreview.length} ta)
+            </div>
+            <div style={{ padding:16 }}>
+              <p style={{ fontSize:12, color:'#666', margin:'0 0 10px' }}>Bular <b style={{color:'#e65100'}}>sariq (tekshirilmagan)</b> bo'lib qo'shiladi. Keyin har birini ochib mijozni biriktirib tasdiqlaysiz.</p>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead><tr style={{ background:'#f0f0f0' }}><th style={tdMini}>Sana</th><th style={{...tdMini, textAlign:'right'}}>Summa</th><th style={tdMini}>Izoh</th></tr></thead>
+                <tbody>
+                  {importPreview.slice(0, 50).map((r, i) => (
+                    <tr key={i}><td style={tdMini}>{r.date || '—'}</td><td style={{...tdMini, textAlign:'right', fontFamily:'monospace'}}>{fmt(r.amount)}</td><td style={tdMini}>{r.desc || '—'}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+              {importPreview.length > 50 && <p style={{ fontSize:11, color:'#888' }}>...va yana {importPreview.length - 50} ta</p>}
+              <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                <button onClick={confirmBankImport} style={{ flex:1, padding:'9px 0', background:'#00695c', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>✓ Yuklash ({importPreview.length} ta)</button>
+                <button onClick={() => setImportPreview(null)} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── TEKSHIRISH (mijoz biriktirish) ─────────────────────────────────── */}
+      {verifyBank && createPortal(
+        <div onClick={() => setVerifyBank(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:440, fontFamily:'Tahoma, sans-serif' }}>
+            <div style={{ background:'#0d47a1', color:'#fff', padding:'12px 16px', borderRadius:'8px 8px 0 0', fontWeight:'bold' }}>
+              ✓ O'tkazmani tekshirib tasdiqlash
+            </div>
+            <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ fontSize:13 }}>Sana: <b>{verifyBank.date}</b> · Summa: <b style={{ color:'#0d47a1' }}>{fmt(verifyBank.amount)} so'm</b></div>
+              <div>
+                <label style={{ display:'block', fontSize:11, fontWeight:'bold', color:'#555', marginBottom:4 }}>Qaysi mijoz puli? *</label>
+                <CustomerSelect value={verifyBank.customer || ''} onChange={v => setVerifyBank({ ...verifyBank, customer: v })} placeholder="Mijozni tanlang" accentColor="#0d47a1" />
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:11, fontWeight:'bold', color:'#555', marginBottom:4 }}>Izoh (bankdan)</label>
+                <input value={verifyBank.desc || ''} onChange={e => setVerifyBank({ ...verifyBank, desc: e.target.value })} style={{ width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4 }} />
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={() => { if(!verifyBank.customer){ alert('Mijozni tanlang'); return; } verifyBankIncomeRow(verifyBank.id, { customer: verifyBank.customer, desc: verifyBank.desc }); setVerifyBank(null); }}
+                  style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>✓ Tasdiqlash</button>
+                <button onClick={() => setVerifyBank(null)} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -373,7 +472,7 @@ function FilterBar({ lang, L, showAll, setShowAll, filterDate, setFilterDate, fi
 // ─────────────────────────────────────────────────────────────────────────────
 // JADVAL
 // ─────────────────────────────────────────────────────────────────────────────
-function RowsTable({ rows, total, onDelete, L, jami, amountColor, todayStr: today }) {
+function RowsTable({ rows, total, onDelete, onVerify, L, jami, amountColor, todayStr: today }) {
   if (rows.length === 0)
     return <p style={{ color: '#888', fontStyle: 'italic', marginTop: 16 }}>{L.yoq?.latn || 'Yozuv topilmadi.'}</p>;
 
@@ -401,8 +500,8 @@ function RowsTable({ rows, total, onDelete, L, jami, amountColor, todayStr: toda
         {rows.map((r, i) => {
           const isToday = r.date === today;
           return (
-            <tr key={r.id} style={{ background: isToday ? (amountColor === '#0d47a1' ? '#e8f0ff' : '#fff0f0') : (i % 2 === 0 ? '#fff' : '#f9f9f9') }}>
-              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
+            <tr key={r.id} style={{ background: r.pending ? '#fff8c4' : (isToday ? (amountColor === '#0d47a1' ? '#e8f0ff' : '#fff0f0') : (i % 2 === 0 ? '#fff' : '#f9f9f9')) }}>
+              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{r.pending ? <span title="Tekshirilmagan" style={{ color: '#e65100' }}>⚠</span> : i + 1}</td>
               <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', color: '#555' }}>
                 {fmtT(r.createdAt || (r.id > 1e10 ? r.id : null))}
               </td>
@@ -418,11 +517,22 @@ function RowsTable({ rows, total, onDelete, L, jami, amountColor, todayStr: toda
               <td style={{ fontSize: 12, color: '#003366', fontWeight: r.worker ? 'bold' : 'normal' }}>
                 {r.worker || '—'}
               </td>
-              <td style={{ fontSize: 13 }}>{r.desc || '—'}</td>
+              <td style={{ fontSize: 13 }}>
+                {r.customer && <b style={{ color: '#1565c0' }}>👤 {r.customer}</b>}
+                {r.customer && r.desc ? ' · ' : ''}
+                {r.desc || (!r.customer ? '—' : '')}
+                {r.pending && !r.customer && <span style={{ color: '#e65100', fontSize: 11 }}> ⚠ mijoz biriktirilmagan</span>}
+              </td>
               <td style={{ textAlign: 'right', fontWeight: 'bold', color: amountColor, fontFamily: 'monospace', fontSize: 13 }}>
                 {fmt2(r.amount)}
               </td>
-              <td style={{ textAlign: 'center' }}>
+              <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {r.pending && onVerify && (
+                  <button onClick={() => onVerify(r)} title="Tekshirib tasdiqlash"
+                    style={{ fontSize: 11, cursor: 'pointer', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', marginRight: 4, fontWeight: 'bold' }}>
+                    ✓ Tekshirish
+                  </button>
+                )}
                 <button onClick={() => onDelete(r.id)}
                   style={{ fontSize: 10, cursor: 'pointer', background: '#ffebee', border: '1px solid #e53935', padding: '2px 6px', borderRadius: 3, color: '#c62828' }}>
                   ✕
@@ -446,6 +556,8 @@ function RowsTable({ rows, total, onDelete, L, jami, amountColor, todayStr: toda
 // ─────────────────────────────────────────────────────────────────────────────
 // STATISTIKA KARTOCHKASI
 // ─────────────────────────────────────────────────────────────────────────────
+const tdMini = { border: '1px solid #e0e0e0', padding: '5px 8px', fontSize: 12, textAlign: 'left' };
+
 function StatCard({ label, value, color, bg, sub, bold, arrow, clickable, onEdit }) {
   return (
     <div

@@ -253,7 +253,8 @@ export function DataProvider({ children }) {
     setBankRows(p  => p.filter(r => r.sourceId !== id));
     setClickRows(p => p.filter(r => r.sourceId !== id));
   };
-  // Excel'dan ko'plab "Olingan tonna" import (unikal id, kassaga tegmaydi — tarixiy)
+  // Excel'dan ko'plab "Olingan tonna" import — TEKSHIRILMAGAN (pending) holatda.
+  // Pul (zavodga to'lov) tasdiqlangandagina yoziladi.
   const importRecvRows = (rows) => {
     const base = Date.now();
     setRecvRows(p => [...p, ...rows.map((r, i) => ({
@@ -261,11 +262,32 @@ export function DataProvider({ children }) {
       date: r.date || new Date().toLocaleDateString('ru-RU'),
       source: r.source || '', brand: r.brand || '', vehicleNo: r.vehicleNo || '',
       tons: Number(r.tons) || 0, pricePerTon: Number(r.pricePerTon) || 0,
-      paymentChannel: r.paymentChannel || 'naqd',
+      paymentChannel: r.paymentChannel || 'bank',
       cardName: r.cardName || '', factoryTime: r.factoryTime || '', izoh: r.izoh || '',
+      warehouseId: r.warehouseId || defaultWhId,
+      pending: true, // tekshirilmagan — sariq
     }))]);
   };
+  // Tasdiqlash: maydonlarni yangilab, pending'ni olib tashlaydi va zavodga
+  // to'lovni (tegishli kassadan chiqim) yozadi.
+  const verifyRecvRow = (id, patch = {}) => {
+    const cur = recvRows.find(r => r.id === id);
+    if (!cur || !cur.pending) return;
+    const m = { ...cur, ...patch, pending: false };
+    setRecvRows(p => p.map(r => r.id === id ? m : r));
+    const sum = Number(m.tons || 0) * Number(m.pricePerTon || 0);
+    if (sum > 0) {
+      const today = new Date().toLocaleDateString('ru-RU');
+      const tag  = `🔗 Sement olish: ${m.source || ''} (${fmtTons(m.tons)} tn)`;
+      const link = { auto: true, sourceType: 'recv', sourceId: id, createdAt: Date.now(), worker: currentWorker, date: m.date || today };
+      const ch = m.paymentChannel || 'bank';
+      if      (ch === 'naqd')  setCashRows(p  => [...p, { ...link, id: Date.now() + 2, amount: -sum, desc: tag }]);
+      else if (ch === 'bank')  setBankRows(p  => [...p, { ...link, id: Date.now() + 2, amount: -sum, desc: tag }]);
+      else if (ch === 'click') setClickRows(p => [...p, { ...link, id: Date.now() + 2, amount: -sum, desc: tag }]);
+    }
+  };
   const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
+  const pendingRecvCount = recvRows.filter(r => r.pending).length;
 
   // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
   // Eslatma: yangi "Sotish" (salesRows) ham hisobga olinadi — pastda salesRows
@@ -474,7 +496,24 @@ export function DataProvider({ children }) {
     setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteBankIncomeRow = (id) => setBankIncomeRows(p => p.filter(r => r.id !== id));
+  // Excel'dan bank o'tkazmalarini import — TEKSHIRILMAGAN (pending) holatda.
+  // Xodim qaysi mijoz puli ekanini biriktirib tasdiqlaydi.
+  const importBankIncomeRows = (rows) => {
+    const base = Date.now();
+    setBankIncomeRows(p => [...p, ...rows.map((r, i) => ({
+      id: base + i, createdAt: base + i, worker: currentWorker,
+      date: r.date || new Date().toLocaleDateString('ru-RU'),
+      amount: Number(r.amount) || 0,
+      desc: r.desc || '',
+      customer: r.customer || '',
+      pending: true, // tekshirilmagan — sariq
+    }))]);
+  };
+  // Tasdiqlash: mijoz/izoh biriktirib, pending'ni olib tashlaydi
+  const verifyBankIncomeRow = (id, patch = {}) =>
+    setBankIncomeRows(p => p.map(r => r.id === id ? { ...r, ...patch, pending: false } : r));
   const totalBankIncome = bankIncomeRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const pendingBankCount = bankIncomeRows.filter(r => r.pending).length;
 
   // ── 14b. Chiqim bank ─────────────────────────────────────────────────────
   const [bankExpenseRows, setBankExpenseRows] = useState(() => load('bank_expense_rows', []));
@@ -842,7 +881,7 @@ export function DataProvider({ children }) {
     // 9. Sotilgan tonna
     soldRows, addSoldRow, deleteSoldRow,
     // 10. Olingan tonna
-    recvRows, addRecvRow, deleteRecvRow, importRecvRows,
+    recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow, pendingRecvCount,
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
@@ -851,6 +890,7 @@ export function DataProvider({ children }) {
     salesRows, addSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank
     bankIncomeRows, addBankIncomeRow, deleteBankIncomeRow, totalBankIncome,
+    importBankIncomeRows, verifyBankIncomeRow, pendingBankCount,
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
     bankNetBalance,
     // 15. Kirim click + Chiqim click
