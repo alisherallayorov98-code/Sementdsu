@@ -36,13 +36,34 @@ export default function MapPage() {
 
   const colorOf = (m) => m.status ? m.status.color : '#1565c0';
 
-  // Xaritani bir marta yaratish
+  // Xaritani bir marta yaratish (ko'cha + sputnik qatlamlari)
   useEffect(() => {
     if (!window.L || mapObj.current || !mapRef.current) return;
-    const map = window.L.map(mapRef.current).setView([41.311, 69.240], 11); // Toshkent default
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '© OpenStreetMap',
-    }).addTo(map);
+    const map = window.L.map(mapRef.current, { maxZoom: 21 }).setView([41.311, 69.240], 11); // Toshkent default
+
+    // Ko'cha xaritasi (OSM). maxNativeZoom — plitkalar shu darajagacha mavjud,
+    // undan yaqinroqqa olib kelsa oxirgi plitkalar KATTALASHTIRILADI (bo'sh qolmaydi).
+    const street = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxNativeZoom: 19, maxZoom: 21, attribution: '© OpenStreetMap',
+    });
+    // Sputnik (Esri World Imagery — bepul, kalitsiz). {z}/{y}/{x} tartibi.
+    const satellite = window.L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxNativeZoom: 18, maxZoom: 21, attribution: 'Tiles © Esri',
+      });
+    // Sputnik ustiga ko'cha/nom yozuvlari (ixtiyoriy, sputnikda mo'ljal uchun)
+    const labels = window.L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        maxNativeZoom: 18, maxZoom: 21, attribution: '',
+      });
+    const satelliteGroup = window.L.layerGroup([satellite, labels]);
+
+    street.addTo(map); // standart — ko'cha
+    window.L.control.layers(
+      { '🗺 Ko\'cha xaritasi': street, '🛰 Sputnik': satelliteGroup },
+      null, { collapsed: false }
+    ).addTo(map);
+
     mapObj.current = map;
     layerRef.current = window.L.layerGroup().addTo(map);
   }, []);
