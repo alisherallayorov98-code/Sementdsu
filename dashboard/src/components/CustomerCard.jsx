@@ -14,11 +14,25 @@ const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) :
 
 export default function CustomerCard({ name, onClose }) {
   const data = useData();
-  const { customers, appSettings, setMonitor, tgChatIdFor } = data;
+  const { customers, appSettings, setMonitor, tgChatIdFor, tgLocationFor, updateCustomer } = data;
   const cust = customers.find(c => c.name === name);
   const s = customerSummary(name, data);
   const act = cust?.monitored ? activityStatus(s, cust, Number(appSettings?.monitorDays) || 14) : null;
   const tgLinked = cust?.phone ? !!tgChatIdFor(cust.phone) : false;
+  // Effektiv joylashuv: qo'lda belgilangan ustun, bo'lmasa botdan
+  const loc = (cust?.lat != null && cust?.lon != null)
+    ? { lat: cust.lat, lon: cust.lon }
+    : (cust?.phone ? tgLocationFor(cust.phone) : null);
+
+  const setMyLocation = () => {
+    if (!cust) return;
+    if (!navigator.geolocation) { alert("Brauzer joylashuvni qo'llab-quvvatlamaydi."); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { updateCustomer(cust.id, { lat: pos.coords.latitude, lon: pos.coords.longitude }); alert("📍 Joylashuv saqlandi (shu qurilma)."); },
+      () => alert("Joylashuvni olishning iloji bo'lmadi. Ruxsat bering yoki GPS yoqing."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const [notify, setNotify] = useState(false);
   const defaultMsg = s.qolganQarz > 0
@@ -60,6 +74,16 @@ export default function CustomerCard({ name, onClose }) {
               {cust?.phone && (tgLinked
                 ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>📱 Telegram ulangan</span>
                 : <span style={{ marginLeft: 8, background: 'rgba(255,255,255,0.25)', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>Telegram ulanmagan</span>)}
+            </div>
+            <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {loc
+                ? <a href={`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lon}`} target="_blank" rel="noreferrer"
+                    style={{ background: '#1565c0', color: '#fff', padding: '3px 10px', borderRadius: 12, textDecoration: 'none', fontWeight: 'bold' }}>📍 Xaritada ochish</a>
+                : <span style={{ opacity: 0.8 }}>📍 Joylashuv belgilanmagan</span>}
+              {cust && <button onClick={setMyLocation} title="Shu qurilmaning joriy joylashuvini saqlash"
+                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 12, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>
+                {loc ? '🔄 Joylashuvni yangilash' : '➕ Joylashuvni belgilash'}
+              </button>}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>

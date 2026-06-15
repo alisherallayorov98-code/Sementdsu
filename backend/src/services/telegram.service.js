@@ -16,8 +16,11 @@ const isRunning = () => running;
 
 const shareKeyboard = {
   reply_markup: {
-    keyboard: [[{ text: '📱 Raqamni ulashish', request_contact: true }]],
-    resize_keyboard: true, one_time_keyboard: true,
+    keyboard: [
+      [{ text: '📱 Raqamni ulashish', request_contact: true }],
+      [{ text: '📍 Joylashuvni yuborish', request_location: true }],
+    ],
+    resize_keyboard: true, one_time_keyboard: false,
   },
 };
 
@@ -40,6 +43,19 @@ function start() {
   // Raqam ulash uchun alohida buyruq
   bot.onText(/\/ulash/, (msg) => {
     bot.sendMessage(msg.chat.id, 'Raqamingizni ulash uchun tugmani bosing:', shareKeyboard);
+  });
+
+  // Joylashuv yuborilganda — do'kon koordinatasini saqlash (chatId bo'yicha)
+  bot.on('location', (msg) => {
+    try {
+      const { latitude, longitude } = msg.location;
+      db.upsertTgLocation(DEFAULT_ACCOUNT, msg.chat.id, latitude, longitude);
+      bot.sendMessage(msg.chat.id,
+        `✅ Joylashuvingiz saqlandi!\nEndi do'koningiz xaritada ko'rinadi.`,
+        { reply_markup: { remove_keyboard: true } });
+    } catch (e) {
+      console.error('[Telegram] location xatosi:', e.message);
+    }
   });
 
   // Kontakt ulashilganda — telefon↔chatId bog'lash

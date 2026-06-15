@@ -133,6 +133,14 @@ module.exports = {
     persist(acc);
     return rec;
   },
+  // Joylashuvni chatId bo'yicha saqlash (bot 📍 location yuborganda)
+  upsertTgLocation(acc, chatId, lat, lon) {
+    const db = load(acc);
+    let c = db.tgContacts.find(x => x.chatId === chatId);
+    if (c) { c.lat = lat; c.lon = lon; c.at = Date.now(); }
+    else { db.tgContacts.push({ phone: '', chatId, lat, lon, at: Date.now() }); }
+    persist(acc);
+  },
   // Telefon bo'yicha chatId topish
   findChatId(acc, phone) {
     const np = normPhone(phone);

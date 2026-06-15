@@ -11,6 +11,7 @@ import Reports       from './pages/Reports';
 import Audit         from './pages/Audit';
 import Monitoring    from './pages/Monitoring';
 import Distribution  from './pages/Distribution';
+import MapPage       from './pages/MapPage';
 
 import GenInfo       from './pages/GenInfo';
 import CashBal       from './pages/CashBal';
@@ -58,6 +59,7 @@ const FULL_MENU = [
   { path: '/overall_report', latn: "Hammasidan otchyot",    cyrl: "Хаммасидан очёт",   roles: ['admin'] },
   { path: '/customers',      latn: "Mijozlar bazasi",       cyrl: "Мижозлар базаси",   roles: ['admin', 'sotuvchi'] },
   { path: '/monitoring',     latn: "🔔 Mijoz nazorati",      cyrl: "🔔 Мижоз назорати",  roles: ['admin', 'sotuvchi'] },
+  { path: '/map',            latn: "🗺 Xarita",              cyrl: "🗺 Харита",          roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/day_balance',    latn: "Sana bo'yicha qoldiq",  cyrl: "Сана бўйича қолдиқ",roles: ['admin', 'sotuvchi'] },
   { path: '/audit',          latn: "🔒 Nazorat (Audit)",     cyrl: "🔒 Назорат",         roles: ['admin'] },
   { path: '/settings',       latn: "Sozlamalar (Admin)",    cyrl: "Созламалар",        roles: ['admin'] },
@@ -156,6 +158,7 @@ function App() {
               <Route path="/overall_report" element={<OverallReport  lang={lang} />} />
               <Route path="/customers"      element={<Customers      lang={lang} />} />
               <Route path="/monitoring"     element={<Monitoring />} />
+              <Route path="/map"            element={<MapPage />} />
               <Route path="/day_balance"    element={<DayBalance     lang={lang} />} />
               <Route path="/audit"          element={<Audit />} />
               <Route path="/settings"       element={<Settings       lang={lang} />} />

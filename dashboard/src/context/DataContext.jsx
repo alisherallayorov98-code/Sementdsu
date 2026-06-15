@@ -714,6 +714,13 @@ export function DataProvider({ children }) {
     const c = tgContacts.find(x => String(x.phone || '').replace(/\D/g, '').slice(-9) === np);
     return c ? c.chatId : null;
   };
+  // Telefon bo'yicha bot orqali yuborilgan joylashuv ({lat, lon}) topish
+  const tgLocationFor = (phone) => {
+    const np = String(phone || '').replace(/\D/g, '').slice(-9);
+    if (!np) return null;
+    const c = tgContacts.find(x => String(x.phone || '').replace(/\D/g, '').slice(-9) === np && x.lat != null && x.lon != null);
+    return c ? { lat: c.lat, lon: c.lon } : null;
+  };
 
   // Serverga sinxronlanadigan barcha bo'limlar (sessiya — currentUser — bunda yo'q)
   const STATE_SETTERS = {
@@ -862,7 +869,7 @@ export function DataProvider({ children }) {
     appSettings, updateAppSettings,
     backendOnline,
     // Bildirishnoma (Telegram/SMS)
-    tgContacts, notifyMeta, refreshTgContacts, tgChatIdFor,
+    tgContacts, notifyMeta, refreshTgContacts, tgChatIdFor, tgLocationFor,
     // 2. Naqd pul
     cashOpening, setCashOpening, cashRows, totalCashBalance, addCashRow, deleteCashRow,
     // 3. Bank
