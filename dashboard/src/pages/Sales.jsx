@@ -19,12 +19,13 @@ const BG     = '#e1f5fe';
 export default function Sales({ lang }) {
   const data = useData();
   const { salesRows, addSaleRow, deleteSaleRow, currentWorker, totalCementBalance, appSettings, customers, currentUser,
-          warehouses, defaultWhId, cementBalanceOf, whName } = data;
+          warehouses, defaultWhId, cementBalanceOf, whName, advanceBalanceOf } = data;
   const isKassir = currentUser?.role === 'kassir';
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: '' });
   const activeWh = form.warehouseId || myWh;
   const whBalance = cementBalanceOf(activeWh);
+  const custAdvance = form.customer ? advanceBalanceOf(form.customer) : 0;
   const [search, setSearch] = useState('');
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
 
@@ -169,12 +170,18 @@ export default function Sales({ lang }) {
           )}
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>To'lov turi *</label>
-            <select value={form.paymentChannel} onChange={e => setForm({ ...form, paymentChannel: e.target.value })} style={{ ...inp, width: 120, fontWeight: 'bold', color: '#333' }}>
+            <select value={form.paymentChannel} onChange={e => setForm({ ...form, paymentChannel: e.target.value })} style={{ ...inp, width: 140, fontWeight: 'bold', color: '#333' }}>
               <option value="naqd">💵 Naqd</option>
               <option value="bank">🏦 Bank</option>
               <option value="click">💜 Click</option>
               <option value="nasiya">⚠️ Nasiya (Qarz)</option>
+              <option value="avans">🅰️ Avansdan</option>
             </select>
+            {form.customer && form.paymentChannel === 'avans' && (
+              <div style={{ fontSize: 11, color: custAdvance > 0 ? '#2e7d32' : '#c62828', marginTop: 3 }}>
+                Mavjud avans: <b>{fmt(custAdvance)} so'm</b>{custAdvance <= 0 ? ' — yetmaydi, qolgani qarzga yoziladi' : ''}
+              </div>
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>Izoh / Mashina raqami</label>

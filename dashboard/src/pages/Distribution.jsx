@@ -18,6 +18,7 @@ const CHANNELS = [
   { v: 'naqd',   label: '💵 Naqd',          color: '#1565c0' },
   { v: 'bank',   label: '🏦 Bank',          color: '#2e7d32' },
   { v: 'click',  label: '📱 Click',         color: '#6a1b9a' },
+  { v: 'avans',  label: '🅰️ Avansdan',      color: '#00838f' },
 ];
 
 export default function Distribution() {

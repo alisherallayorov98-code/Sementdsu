@@ -442,6 +442,46 @@ export function DataProvider({ children }) {
   const totalAdvances     = advanceRows.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
   const totalAdvancesUsed = advanceRows.reduce((s, r) => s + Number(r.used), 0);
   const totalAdvancesAll  = advanceRows.reduce((s, r) => s + Number(r.amount), 0);
+  // Mijozning qoldiq avansi
+  const advanceBalanceOf = (customer) => advanceRows
+    .filter(r => r.customer === customer)
+    .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
+  // Sotuvda avansdan yechish — eng eski avansdan boshlab, sourceId (saleId) bilan
+  // belgilab. Qaytarilgan: ishlatilgan summa.
+  const consumeAdvance = (customer, amount, saleId) => {
+    let left = Number(amount) || 0;
+    if (left <= 0) return 0;
+    const ts = Date.now();
+    const today = new Date().toLocaleDateString('ru-RU');
+    const plan = {};
+    let applied = 0;
+    advanceRows
+      .filter(r => r.customer === customer && Math.max(0, Number(r.amount) - Number(r.used)) > 0)
+      .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
+      .forEach(r => {
+        if (left <= 0) return;
+        const rem = Math.max(0, Number(r.amount) - Number(r.used));
+        const use = Math.min(rem, left);
+        plan[r.id] = use; left -= use; applied += use;
+      });
+    if (applied <= 0) return 0;
+    setAdvanceRows(p => p.map(r => {
+      const use = plan[r.id];
+      if (!use) return r;
+      return { ...r, used: Number(r.used) + use,
+        usages: [...(r.usages || []), { id: ts + (r.id % 100000), saleId, date: today, amount: use, note: 'Sotuvga ishlatildi', worker: currentWorker }] };
+    }));
+    return applied;
+  };
+  // Sotuv o'chirilsa — ishlatilgan avansni qaytarish (saleId bo'yicha)
+  const restoreAdvanceForSale = (saleId) => {
+    setAdvanceRows(p => p.map(r => {
+      const mine = (r.usages || []).filter(u => u.saleId === saleId);
+      if (!mine.length) return r;
+      const back = mine.reduce((s, u) => s + Number(u.amount || 0), 0);
+      return { ...r, used: Math.max(0, Number(r.used) - back), usages: (r.usages || []).filter(u => u.saleId !== saleId) };
+    }));
+  };
 
   // ── 13. Sotish ────────────────────────────────────────────────────────────
   const [salesRows, setSalesRows] = useState(() => load('sales_rows', []));
@@ -449,7 +489,6 @@ export function DataProvider({ children }) {
   const addSaleRow = (entry) => {
     const ts = Date.now();
     const sale = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
-    setSalesRows(p => [...p, sale]);
 
     // ── INTEGRATSIYA: savdo → tegishli bo'limga avtomatik yozuv ─────────────
     // Pul/qarz/qoldiq shu orqali yangilanadi. Avtomatik yozuvlar belgilanadi
@@ -463,11 +502,21 @@ export function DataProvider({ children }) {
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
       else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer: sale.customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+      else if (channel === 'avans') {
+        // Avansdan yechamiz (pul allaqachon kassada). Yetmasa — qolgani qarzga.
+        const applied = consumeAdvance(sale.customer, sum, ts);
+        sale.advanceUsed = applied;
+        const rem = sum - applied;
+        if (rem > 0) setDebtRows(p => [...p, { ...link, id: ts + 1, customer: sale.customer, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+      }
     }
+    setSalesRows(p => [...p, sale]);
     return sale; // chek chiqarish uchun
   };
   // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi
   const deleteSaleRow = (id) => {
+    const sale = salesRows.find(r => r.id === id);
+    if (sale && sale.advanceUsed) restoreAdvanceForSale(id); // ishlatilgan avansni qaytarish
     setSalesRows(p  => p.filter(r => r.id !== id));
     setCashRows(p   => p.filter(r => r.sourceId !== id));
     setBankRows(p   => p.filter(r => r.sourceId !== id));
@@ -892,7 +941,7 @@ export function DataProvider({ children }) {
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
-    advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
+    advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     // 13. Sotish
     salesRows, addSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank
