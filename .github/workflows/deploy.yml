@@ -1,0 +1,22 @@
+name: Deploy to VPS
+
+# master'ga push bo'lganda avtomatik ishga tushadi
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}   # GitHub'da qo'lda ham bosib ishga tushirish mumkin
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH orqali serverda deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/Sementdsu
+            git pull origin master
+            bash deploy.sh
