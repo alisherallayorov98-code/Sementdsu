@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -139,6 +140,20 @@ export default function TelegramOrder({ lang }) {
         <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 }}>
           {filtered.length} ta zakaz ({fmtTons(filteredTotalTons)} tn)
         </span>
+        <ExcelExport
+          filename="Telegram_zakazlar"
+          sheetName="Zakazlar"
+          title="Telegram zakazlari hisoboti"
+          columns={[
+            { header: 'Sana', value: o => o.date },
+            { header: 'Mijoz', value: o => o.customer },
+            { header: 'Tonna', value: o => Number(o.tons || 0) },
+            { header: 'Xodim', value: o => o.worker || '' },
+            { header: 'Izoh', value: o => o.note || '' },
+            { header: 'Holati', value: o => ({ kutilmoqda: 'Kutilmoqda', bajarildi: 'Bajarildi', bekor: 'Bekor qilindi' }[o.status] || o.status) },
+          ]}
+          rows={filtered}
+        />
       </div>
 
       {/* ── JADVAL ────────────────────────────────────────────────────────── */}

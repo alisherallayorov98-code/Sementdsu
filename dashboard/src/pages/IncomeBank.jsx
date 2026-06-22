@@ -3,8 +3,18 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+
+const bankExportColumns = [
+  { header: 'Sana', value: (r) => r.date || '' },
+  { header: 'Xodim', value: (r) => r.worker || '' },
+  { header: 'Mijoz', value: (r) => r.customer || '' },
+  { header: 'Izoh', value: (r) => r.desc || '' },
+  { header: "Summa (so'm)", value: (r) => Number(r.amount || 0) },
+  { header: 'Holat', value: (r) => (r.pending ? 'Tekshirilmagan' : 'Tasdiqlangan') },
+];
 
 const fmtTime = (ts) => {
   if (!ts || ts < 1e10) return '—';
@@ -297,6 +307,11 @@ export default function IncomeBank({ lang }) {
             filteredTotal={filteredIncTotal} color="#0d47a1" btnS={btnS} inp={inp}
           />
 
+          <div style={{ marginBottom: 10 }}>
+            <ExcelExport filename="Bank_kirim" sheetName="Bank kirim" title="Kirim (Bank)"
+              columns={bankExportColumns} rows={filteredInc} />
+          </div>
+
           {/* Jadval */}
           <RowsTable
             rows={filteredInc} color="#0d47a1" total={filteredIncTotal}
@@ -341,6 +356,11 @@ export default function IncomeBank({ lang }) {
             workerList={expWorkers} filteredCount={filteredExp.length}
             filteredTotal={filteredExpTotal} color="#b71c1c" btnS={btnS} inp={inp}
           />
+
+          <div style={{ marginBottom: 10 }}>
+            <ExcelExport filename="Bank_chiqim" sheetName="Bank chiqim" title="Chiqim (Bank)"
+              columns={bankExportColumns} rows={filteredExp} />
+          </div>
 
           {/* Jadval */}
           <RowsTable

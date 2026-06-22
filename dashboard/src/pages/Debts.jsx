@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import NotifyModal from '../components/NotifyModal';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -229,6 +230,21 @@ export default function Debts({ lang }) {
           </button>
         ))}
         <span style={{ marginLeft: 6, color: '#888', fontSize: 11 }}>({filtered.length} ta)</span>
+        <ExcelExport
+          filename="Qarzlar"
+          sheetName="Qarzlar"
+          title="Qarzlar hisoboti"
+          columns={[
+            { header: 'Sana', value: r => r.date },
+            { header: 'Mijoz', value: r => r.customer },
+            { header: 'Qarz summasi', value: r => Number(r.amount || 0) },
+            { header: "To'landi", value: r => Number(r.paid || 0) },
+            { header: 'Qolgan qarz', value: r => Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)) },
+            { header: 'Holat', value: r => STATUS_STYLE[getStatus(r.amount, r.paid)].label.latn },
+            { header: 'Izoh', value: r => r.note || '' },
+          ]}
+          rows={filtered}
+        />
       </div>
 
       {/* ── TO'LOV MODAL OVERLAY ─────────────────────────────────────────── */}

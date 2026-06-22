@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -414,6 +415,26 @@ export default function SoldTons({ lang }) {
           </tr>
         </tbody>
       </table>
+
+      {/* ── Excel eksport ── */}
+      <div style={{ marginBottom: 10 }}>
+        <ExcelExport
+          filename="Sotilgan_tonna"
+          sheetName="Sotilgan tonna"
+          title="Sotilgan tonna hisoboti"
+          columns={[
+            { header: 'Sana', value: r => r.date },
+            { header: 'Mijoz', value: r => r.customer },
+            { header: 'Tonna', value: r => Number(r.tons || 0) },
+            { header: 'Narx (1 tn)', value: r => Number(r.pricePerTon || 0) },
+            { header: 'Jami summa', value: r => Number(r.tons || 0) * Number(r.pricePerTon || 0) },
+            { header: "To'lov usuli", value: r => r.paymentChannel },
+            { header: 'Izoh', value: r => r.izoh || '' },
+            { header: 'Xodim', value: r => r.worker || '' },
+          ]}
+          rows={[...soldRows].reverse()}
+        />
+      </div>
 
       {/* ── Asosiy jadval ── */}
       {soldRows.length === 0 ? (

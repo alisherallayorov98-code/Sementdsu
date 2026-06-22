@@ -4,6 +4,7 @@ import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
 import NotifyModal from '../components/NotifyModal';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -204,6 +205,22 @@ export default function Sales({ lang }) {
       {/* ── QIDIRUV VA JADVAL ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <input placeholder="🔍 Mijoz yoki izoh bo'yicha qidirish..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, width: 300 }} />
+        <ExcelExport
+          filename="Savdo"
+          sheetName="Savdo"
+          title="Savdo hisoboti"
+          columns={[
+            { header: 'Sana', value: r => r.date },
+            { header: 'Mijoz', value: r => r.customer },
+            { header: 'Izoh', value: r => r.note || '' },
+            { header: "To'lov turi", value: r => r.paymentChannel },
+            { header: 'Tonna', value: r => Number(r.tons || 0) },
+            { header: 'Narx (1 tn)', value: r => Number(r.pricePerTon || 0) },
+            { header: 'Jami summa', value: r => Number(r.tons || 0) * Number(r.pricePerTon || 0) },
+            { header: 'Xodim', value: r => r.worker || '' },
+          ]}
+          rows={filtered}
+        />
       </div>
 
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>

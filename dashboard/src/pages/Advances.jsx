@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -167,6 +168,21 @@ export default function Advances({ lang }) {
           </button>
         ))}
         <span style={{ marginLeft: 6, color: '#888', fontSize: 11 }}>({filtered.length} ta)</span>
+        <ExcelExport
+          filename="Avanslar"
+          sheetName="Avanslar"
+          title="Avanslar hisoboti"
+          columns={[
+            { header: 'Sana', value: r => r.date },
+            { header: 'Mijoz', value: r => r.customer },
+            { header: 'Avans summasi', value: r => Number(r.amount || 0) },
+            { header: 'Ishlatildi', value: r => Number(r.used || 0) },
+            { header: 'Qolgan avans', value: r => Math.max(0, Number(r.amount || 0) - Number(r.used || 0)) },
+            { header: 'Holat', value: r => STATUS_STYLE[getStatus(r.amount, r.used)].label.latn },
+            { header: 'Izoh', value: r => r.note || '' },
+          ]}
+          rows={filtered}
+        />
       </div>
 
       {/* ── ISHLATISH MODAL ──────────────────────────────────────────────── */}

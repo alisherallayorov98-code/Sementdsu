@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -260,6 +261,21 @@ export default function Expense({ lang }) {
             )}
             <td style={{ paddingLeft: 10, color: '#666', fontSize: 11 }}>
               ({filtered.length} ta · {fmt(filteredTotal)} so'm)
+            </td>
+            <td style={{ paddingLeft: 10 }}>
+              <ExcelExport
+                filename="Chiqim_naqd"
+                sheetName="Chiqim"
+                title="Chiqim (Naqd/Oylik/Sement/Avans)"
+                columns={[
+                  { header: 'Sana', value: (r) => r.date || '' },
+                  { header: 'Tur', value: (r) => typeInfo(r.srcType).latn },
+                  { header: 'Xodim', value: (r) => r.worker || '' },
+                  { header: 'Izoh', value: (r) => r.izoh || '' },
+                  { header: "Summa (so'm)", value: (r) => Number(r.summa || 0) },
+                ]}
+                rows={filtered}
+              />
             </td>
           </tr>
         </tbody>

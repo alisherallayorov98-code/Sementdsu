@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtDateTime = (ts) => new Date(ts).toLocaleString('ru-RU');
@@ -70,6 +71,23 @@ export default function Audit() {
         </button>
         <input placeholder="🔍 Xodim, bo'lim yoki izoh..." value={q} onChange={e => setQ(e.target.value)}
           style={{ padding: '5px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, width: 240, marginLeft: 'auto' }} />
+        <ExcelExport
+          filename="Nazorat_jurnali"
+          sheetName="Audit"
+          title="Nazorat jurnali (audit)"
+          columns={[
+            { header: 'Haqiqiy vaqt (server)', value: e => fmtDateTime(e.ts) },
+            { header: 'Xodim', value: e => e.userName || '' },
+            { header: 'Rol', value: e => e.role || '' },
+            { header: 'Amal', value: e => (ACTION[e.action]?.label || e.action) },
+            { header: 'Nima', value: e => e.label || '' },
+            { header: 'Izoh', value: e => e.text || '' },
+            { header: 'Yozuv sanasi', value: e => e.recordDate || '' },
+            { header: 'Summa', value: e => Number(e.amount || 0) },
+            { header: 'Ogohlantirish', value: e => (e.flags || []).map(f => f.text).join('; ') },
+          ]}
+          rows={list}
+        />
       </div>
 
       {loading ? <p style={{ color: '#888' }}>Yuklanmoqda...</p>

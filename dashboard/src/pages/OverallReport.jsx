@@ -1,4 +1,5 @@
 import { useData } from '../context/DataContext';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -56,11 +57,50 @@ export default function OverallReport() {
   // Sof kapital (Aktiv - Passiv)
   const netCapital = totalAssets - totalLiabilities;
 
+  // ── Excel uchun barcha ko'rsatkichlar ──
+  const reportRows = [
+    { k: "Sof kapital (o'z pulimiz)", v: netCapital, b: "so'm" },
+    { k: 'Jami aktivlar', v: totalAssets, b: "so'm" },
+    { k: 'Jami majburiyatlar', v: totalLiabilities, b: "so'm" },
+    { k: "Naqd pul qoldig'i", v: Number(totalCashBalance || 0), b: "so'm" },
+    { k: 'Bank qoldig\'i', v: Number(totalBankBalance || 0), b: "so'm" },
+    { k: 'Click qoldig\'i', v: Number(totalClickBalance || 0), b: "so'm" },
+    { k: 'Mijozlar bizga qarzi (debitor)', v: Number(totalDebts || 0), b: "so'm" },
+    { k: 'Biz olgan avanslar', v: Number(totalAdvances || 0), b: "so'm" },
+    { k: 'Ishchilardan qarzimiz', v: totalWDebt, b: "so'm" },
+    { k: 'Haydovchilardan qarzimiz', v: totalDriverDebt, b: "so'm" },
+    { k: 'Jami naqd kirim', v: totalIncome, b: "so'm" },
+    { k: 'Jami naqd chiqim', v: totalExpense, b: "so'm" },
+    { k: 'Bank orqali kirim', v: Number(totalBankIncome || 0), b: "so'm" },
+    { k: 'Bank orqali chiqim', v: Number(totalBankExpense || 0), b: "so'm" },
+    { k: 'Click orqali kirim', v: Number(totalClickIncome || 0), b: "so'm" },
+    { k: 'Click orqali chiqim', v: Number(totalClickExpense || 0), b: "so'm" },
+    { k: "Joriy sement qoldig'i", v: Number(totalCementBalance || 0), b: 'tn' },
+    { k: 'Sotilgan jami sement', v: totalSoldAll, b: 'tn' },
+    { k: 'Olingan jami sement', v: Number(totalRecvTons || 0), b: 'tn' },
+    { k: 'Barcha savdolar summasi', v: totalSalesSum, b: "so'm" },
+    { k: 'Kutilayotgan zakazlar', v: pendingTgTons, b: 'tn' },
+    { k: 'Jami tushgan zakazlar', v: totalTgTons, b: 'tn' },
+  ];
+
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', paddingBottom: 40 }}>
-      <h2 style={{ color: '#1565c0', borderBottom: '2px solid #e3f2fd', paddingBottom: 10, marginBottom: 20 }}>
-        Umumiy Moliyaviy Holat (Xulosa)
-      </h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e3f2fd', paddingBottom: 10, marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={{ color: '#1565c0', margin: 0 }}>
+          Umumiy Moliyaviy Holat (Xulosa)
+        </h2>
+        <ExcelExport
+          filename="Umumiy_hisobot"
+          sheetName="Umumiy holat"
+          title="Umumiy moliyaviy holat (xulosa)"
+          columns={[
+            { header: "Ko'rsatkich", key: 'k' },
+            { header: 'Qiymat', key: 'v' },
+            { header: 'Birlik', key: 'b' },
+          ]}
+          rows={reportRows}
+        />
+      </div>
 
       {/* ── 1. ASOSIY KAPITAL ────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 30 }}>

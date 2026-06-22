@@ -1,8 +1,16 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+
+const clickExportColumns = [
+  { header: 'Sana', value: (r) => r.date || '' },
+  { header: 'Xodim', value: (r) => r.worker || '' },
+  { header: 'Izoh', value: (r) => r.desc || '' },
+  { header: "Summa (so'm)", value: (r) => Number(r.amount || 0) },
+];
 
 const fmtTime = (ts) => {
   if (!ts || ts < 1e10) return '—';
@@ -259,6 +267,11 @@ export default function IncomeClick({ lang }) {
             filteredTotal={filteredIncTotal} color={ACCENT} btnS={btnS} inp={inp} L={L} lang={lang}
           />
 
+          <div style={{ marginBottom: 10 }}>
+            <ExcelExport filename="Click_kirim" sheetName="Click kirim" title="Kirim (Click)"
+              columns={clickExportColumns} rows={filteredInc} />
+          </div>
+
           {/* Jadval */}
           <RowsTable rows={filteredInc} total={filteredIncTotal}
             onDelete={handleDelIncome} amountColor={ACCENT} todayStr={todayStr()} jami={L.jami[lang]} />
@@ -306,6 +319,11 @@ export default function IncomeClick({ lang }) {
             workerList={expWorkers} filteredCount={filteredExp.length}
             filteredTotal={filteredExpTotal} color="#c62828" btnS={btnS} inp={inp} L={L} lang={lang}
           />
+
+          <div style={{ marginBottom: 10 }}>
+            <ExcelExport filename="Click_chiqim" sheetName="Click chiqim" title="Chiqim (Click)"
+              columns={clickExportColumns} rows={filteredExp} />
+          </div>
 
           {/* Jadval */}
           <RowsTable rows={filteredExp} total={filteredExpTotal}

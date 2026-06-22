@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -118,6 +119,21 @@ function WorkersTab() {
             background: filterStatus === v ? ACC_W : '#fff', color: filterStatus === v ? '#fff' : '#333', borderRadius: 3,
           }}>{label}</button>
         ))}
+        <ExcelExport
+          filename="Ishchilar_oyligi"
+          sheetName="Ishchilar"
+          title="Ishchilar oyligi hisoboti"
+          columns={[
+            { header: 'Ism', value: w => w.name },
+            { header: 'Lavozim', value: w => w.position || '' },
+            { header: 'Telefon', value: w => w.phone || '' },
+            { header: 'Oylik', value: w => Number(w.salary || 0) },
+            { header: "To'landi", value: w => Number(w.paid || 0) },
+            { header: 'Qolgan', value: w => Math.max(0, Number(w.salary || 0) - Number(w.paid || 0)) },
+            { header: 'Izoh', value: w => w.note || '' },
+          ]}
+          rows={filtered}
+        />
         <button onClick={() => setShowForm(v => !v)} style={{
           padding: '5px 16px', cursor: 'pointer', background: showForm ? '#c62828' : ACC_W, color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', marginLeft: 'auto',
         }}>{showForm ? '✕ Yopish' : '+ Yangi xodim'}</button>
@@ -283,6 +299,21 @@ function DriversTab() {
       {/* Filter */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         <input placeholder="🔍 Ism yoki mashina raqami..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, width: 220 }} />
+        <ExcelExport
+          filename="Haydovchilar"
+          sheetName="Haydovchilar"
+          title="Haydovchilar hisoboti"
+          columns={[
+            { header: 'Ism', value: d => d.name },
+            { header: 'Mashina raqami', value: d => d.carNumber || '' },
+            { header: 'Telefon', value: d => d.phone || '' },
+            { header: 'Qatnovlar (ta)', value: d => getStats(d.id).count },
+            { header: 'Ishladi (som)', value: d => getStats(d.id).earnings },
+            { header: "To'landi (som)", value: d => getStats(d.id).paid },
+            { header: 'Qarzimiz (som)', value: d => getStats(d.id).balance },
+          ]}
+          rows={filtered}
+        />
         <button onClick={() => setShowForm(v => !v)} style={{ padding: '5px 16px', cursor: 'pointer', background: showForm ? '#c62828' : ACC_D, color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', marginLeft: 'auto' }}>
           {showForm ? '✕ Yopish' : '+ Yangi haydovchi'}
         </button>

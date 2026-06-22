@@ -1,4 +1,5 @@
 import { useData } from '../context/DataContext';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -50,7 +51,25 @@ function CementBal({ lang }) {
         {L.date[lang]}: {cementOpening.date} &nbsp;|&nbsp;
         {L.ochilish[lang]}: <b>{cementOpening.tons} tn</b>
       </p>
-      <div style={{ fontWeight: 'bold', fontSize: 13, color: '#333', margin: '6px 0' }}>Umumiy (barcha skladlar):</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '6px 0', maxWidth: 400 }}>
+        <div style={{ fontWeight: 'bold', fontSize: 13, color: '#333' }}>Umumiy (barcha skladlar):</div>
+        <ExcelExport
+          filename="Sement_qoldigi"
+          sheetName="Sement qoldig'i"
+          title="Sement qoldig'i (umumiy)"
+          columns={[
+            { header: "Ko'rsatkich", key: 'k' },
+            { header: 'Tonna', key: 'v' },
+          ]}
+          rows={[
+            { k: "Ochilish qoldig'i", v: Number(cementOpening.tons || 0) },
+            { k: 'Olingan tonna', v: Number(totalRecvTons || 0) },
+            { k: 'Sotilgan tonna', v: sotilganJami },
+            { k: 'Joriy qoldiq', v: Number(totalCementBalance || 0) },
+            ...cementByWarehouse.map(w => ({ k: `Sklad: ${w.name}`, v: Number(w.balance || 0) })),
+          ]}
+        />
+      </div>
       <table className="data-table" style={{ width: 400 }}>
         <tbody>
           {rows.map((r, i) => (

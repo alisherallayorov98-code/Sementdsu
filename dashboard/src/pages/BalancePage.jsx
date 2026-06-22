@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -155,9 +156,26 @@ export default function BalancePage({ lang, type, title, color }) {
 
       {/* ── JADVAL ───────────────────────────────────────────────────────── */}
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <div style={{ background: color, color: '#fff', padding: '10px 14px', fontWeight: 'bold', fontSize: 14, display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ background: color, color: '#fff', padding: '10px 14px', fontWeight: 'bold', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <span>📋 {selectedDate} kunidagi barcha harakatlar ({dayTx.length} ta)</span>
-          <span>Sof o'zgarish: {dayNet > 0 ? '+' : ''}{fmt(dayNet)} so'm</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span>Sof o'zgarish: {dayNet > 0 ? '+' : ''}{fmt(dayNet)} so'm</span>
+            <ExcelExport
+              filename={`${title}_${selectedDate}`}
+              sheetName={title}
+              title={`${title} — ${selectedDate}`}
+              columns={[
+                { header: 'Sana', value: () => selectedDate },
+                { header: 'Vaqt', value: (r) => fmtT(r.createdAt) },
+                { header: 'Kategoriya', value: (r) => r.cat },
+                { header: 'Xodim', value: (r) => r.worker || '' },
+                { header: 'Izoh / Mijoz', value: (r) => (typeof r.desc === 'object' ? r.desc[lang] : (r.desc || '')) },
+                { header: 'Kirim/Chiqim', value: (r) => (r.sign > 0 ? 'Kirim' : 'Chiqim') },
+                { header: "Summa (so'm)", value: (r) => Number(r.amount) * r.sign },
+              ]}
+              rows={dayTx}
+            />
+          </div>
         </div>
         
         {dayTx.length === 0 ? (

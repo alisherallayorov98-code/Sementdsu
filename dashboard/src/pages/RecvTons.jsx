@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(3); };
@@ -488,6 +489,27 @@ export default function RecvTons({ lang }) {
             </td>
             <td style={{ paddingLeft:10, color:'#666', fontSize:11 }}>
               ({filtered.length} ta yozuv)
+            </td>
+            <td style={{ paddingLeft:10 }}>
+              <ExcelExport
+                filename="Olingan_tonna"
+                sheetName="Olingan tonna"
+                title="Olingan tonna hisoboti"
+                columns={[
+                  { header: 'Sana', value: r => r.date },
+                  { header: 'Manbaa (zavod)', value: r => r.source },
+                  { header: 'Marka', value: r => r.brand || '' },
+                  { header: 'Mashina №', value: r => r.vehicleNo || '' },
+                  { header: 'Tonna', value: r => Number(r.tons || 0) },
+                  { header: 'Narx (1 tn)', value: r => Number(r.pricePerTon || 0) },
+                  { header: 'Jami summa', value: r => Number(r.tons || 0) * Number(r.pricePerTon || 0) },
+                  { header: "To'lov usuli", value: r => r.paymentChannel || '' },
+                  { header: 'Karta nomi', value: r => r.cardName || '' },
+                  { header: 'Vaqt (zavod)', value: r => r.factoryTime || '' },
+                  { header: 'Xodim', value: r => r.worker || '' },
+                ]}
+                rows={[...filtered].reverse()}
+              />
             </td>
           </tr>
         </tbody>

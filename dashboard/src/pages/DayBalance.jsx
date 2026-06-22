@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
+import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtS = (n) => (n >= 0 ? '+' : '') + fmt(n);
@@ -235,13 +236,28 @@ export default function DayBalance({ lang }) {
             display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
           }}>
             <span>📅 {selectedDate} — kun oxiri qoldig'i</span>
-            <button
-              onClick={() => setShowDetails(v => !v)}
-              style={{ ...inp, cursor: 'pointer', fontSize: 12, padding: '3px 12px',
-                background: showDetails ? '#283593' : '#e8eaf6',
-                color: showDetails ? '#fff' : '#283593', fontWeight: 'bold' }}>
-              {showDetails ? '▲ Batafsil yopish' : '▼ Batafsil ko\'rish'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <ExcelExport
+                filename={`Kunlik_balans_${selectedDate.replace(/\./g, '-')}`}
+                sheetName="Kunlik harakatlar"
+                title={`${selectedDate} — kunlik harakatlar`}
+                columns={[
+                  { header: 'Kategoriya', value: t => t.cat },
+                  { header: 'Izoh', value: t => t.desc || '' },
+                  { header: 'Xodim', value: t => t.worker || '' },
+                  { header: 'Kirim/Chiqim', value: t => (t.sign > 0 ? 'Kirim' : 'Chiqim') },
+                  { header: 'Summa', value: t => Number(t.amount || 0) },
+                ]}
+                rows={result.dayTx}
+              />
+              <button
+                onClick={() => setShowDetails(v => !v)}
+                style={{ ...inp, cursor: 'pointer', fontSize: 12, padding: '3px 12px',
+                  background: showDetails ? '#283593' : '#e8eaf6',
+                  color: showDetails ? '#fff' : '#283593', fontWeight: 'bold' }}>
+                {showDetails ? '▲ Batafsil yopish' : '▼ Batafsil ko\'rish'}
+              </button>
+            </div>
           </div>
 
           {/* Balans kartalar */}

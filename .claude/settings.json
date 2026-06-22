@@ -33,7 +33,13 @@
       "PowerShell(try { $r = Invoke-RestMethod -Uri \"http://localhost:5000/api/health\" -TimeoutSec 5; $r | ConvertTo-Json -Compress } catch { Write-Host \"Health xato: $\\($_.Exception.Message\\)\" })",
       "Bash(grep -iv \"relation\\\\|allocation\\\\|//\")",
       "Bash(node -e \"require\\('./src/controllers/state.controller'\\); require\\('./src/app'\\)\\(\\); console.log\\('Backend OK'\\)\")",
-      "Bash(node -e \"console.log\\('express', require\\('express/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\('express', require\\('express/package.json'\\).version\\)\")",
+      "Bash(grep -E \"\\\\.env$|/data/|node_modules\")",
+      "Bash(gh auth *)",
+      "Bash(git ls-remote *)",
+      "Bash(git ls-tree *)",
+      "Bash(grep -E \"\\\\.env$|backend/data/\")",
+      "Bash(git -C c:/SEMENT branch --show-current)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"
