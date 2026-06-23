@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
@@ -8,6 +8,7 @@ import ExcelExport from '../components/ExcelExport';
 import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -32,6 +33,8 @@ export default function Sales({ lang }) {
   const custAdvance = form.customer ? advanceBalanceOf(form.customer) : 0;
   const [search, setSearch] = useState('');
   const [range, setRange] = useState({ from: '', to: '' });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
   const [card, setCard] = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
@@ -97,6 +100,8 @@ export default function Sales({ lang }) {
     sorted.filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()) || (r.note||'').toLowerCase().includes(search.toLowerCase())),
     range
   );
+  useEffect(() => { setPage(1); }, [search, range.from, range.to]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const inp = { padding: '6px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
 
@@ -251,7 +256,7 @@ export default function Sales({ lang }) {
           <tbody>
             {filtered.length === 0 ? (
               <tr><td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#888', fontStyle: 'italic' }}>Savdo topilmadi.</td></tr>
-            ) : filtered.map((r, i) => {
+            ) : paged.map((r, i) => {
               const typeColor = r.paymentChannel === 'naqd' ? '#2e7d32' : r.paymentChannel === 'bank' ? '#0d47a1' : r.paymentChannel === 'click' ? '#4a148c' : '#c62828';
               const typeBg    = r.paymentChannel === 'naqd' ? '#e8f5e9' : r.paymentChannel === 'bank' ? '#e3f2fd' : r.paymentChannel === 'click' ? '#f3e5f5' : '#ffebee';
               return (
@@ -293,6 +298,7 @@ export default function Sales({ lang }) {
             })}
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
       </div>
 
       {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}

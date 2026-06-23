@@ -6,6 +6,7 @@ import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -499,6 +500,9 @@ function FilterBar({ lang, L, showAll, setShowAll, filterDate, setFilterDate, fi
 // JADVAL
 // ─────────────────────────────────────────────────────────────────────────────
 function RowsTable({ rows, total, onDelete, onVerify, L, jami, amountColor, todayStr: today }) {
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  const paged = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   if (rows.length === 0)
     return <p style={{ color: '#888', fontStyle: 'italic', marginTop: 16 }}>{L.yoq?.latn || 'Yozuv topilmadi.'}</p>;
 
@@ -510,6 +514,7 @@ function RowsTable({ rows, total, onDelete, onVerify, L, jami, amountColor, toda
   };
 
   return (
+    <>
     <table className="data-table" style={{ width: '100%', maxWidth: 820 }}>
       <thead>
         <tr>
@@ -523,11 +528,12 @@ function RowsTable({ rows, total, onDelete, onVerify, L, jami, amountColor, toda
         </tr>
       </thead>
       <tbody>
-        {rows.map((r, i) => {
+        {paged.map((r, i) => {
           const isToday = r.date === today;
+          const absIdx = (page - 1) * PAGE_SIZE + i;
           return (
             <tr key={r.id} style={{ background: r.pending ? '#fff8c4' : (isToday ? (amountColor === '#0d47a1' ? '#e8f0ff' : '#fff0f0') : (i % 2 === 0 ? '#fff' : '#f9f9f9')) }}>
-              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{r.pending ? <span title="Tekshirilmagan" style={{ color: '#e65100' }}>⚠</span> : i + 1}</td>
+              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{r.pending ? <span title="Tekshirilmagan" style={{ color: '#e65100' }}>⚠</span> : absIdx + 1}</td>
               <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', color: '#555' }}>
                 {fmtT(r.createdAt || (r.id > 1e10 ? r.id : null))}
               </td>
@@ -576,6 +582,8 @@ function RowsTable({ rows, total, onDelete, onVerify, L, jami, amountColor, toda
         </tr>
       </tbody>
     </table>
+    <Paginator total={rows.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+    </>
   );
 }
 

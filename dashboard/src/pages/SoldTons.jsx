@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
 import ExcelExport from '../components/ExcelExport';
+import Paginator from '../components/Paginator';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 
@@ -78,6 +79,8 @@ export default function SoldTons({ lang }) {
 
   const [form, setForm]               = useState({ mijoz:'', tonna:'', narx:'', tolov:'naqd', izoh:'' });
   const [range, setRange]             = useState({ from: '', to: '' });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
   const [modalCustomer, setModalCustomer] = useState(null);
   const [payForm, setPayForm]             = useState({ debtId: null, amount: '' });
   const printRef = useRef();
@@ -124,6 +127,9 @@ export default function SoldTons({ lang }) {
   const totalSum     = viewRows.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
   const totalNasiya  = viewRows.filter(r => r.paymentChannel==='nasiya')
                                .reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
+  useEffect(() => { setPage(1); }, [range.from, range.to]);
+  const reversedView = [...viewRows].reverse();
+  const paged = reversedView.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Akt Sverka chop etish ─────────────────────────────────────────────────
   const handlePrint = () => {
@@ -449,6 +455,7 @@ export default function SoldTons({ lang }) {
       {viewRows.length === 0 ? (
         <p style={{ color:'#666', fontStyle:'italic' }}>{L.yoq[lang]}</p>
       ) : (
+        <>
         <table className="data-table" style={{ width:'100%' }}>
           <thead>
             <tr>
@@ -466,14 +473,14 @@ export default function SoldTons({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {[...viewRows].reverse().map((r, i) => {
+            {paged.map((r, i) => {
               const sum      = Number(r.tons||0) * Number(r.pricePerTon||0);
               const isNasiya = r.paymentChannel === 'nasiya';
               const custDebt = isNasiya ? getCustomerDebt(r.customer) : 0;
               const rowBg    = isNasiya ? '#fff5ee' : (i%2===0?'#fff':'#f9f9f9');
               return (
                 <tr key={r.id} style={{ background:rowBg }}>
-                  <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{viewRows.length - i}</td>
+                  <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{viewRows.length - ((page - 1) * PAGE_SIZE + i)}</td>
                   <td style={{ fontSize:12 }}>{r.date}</td>
                   <td style={{ fontWeight:'bold', color:'#003366' }}>
                     {isNasiya ? (
@@ -536,6 +543,8 @@ export default function SoldTons({ lang }) {
             </tr>
           </tbody>
         </table>
+        <Paginator total={viewRows.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {/* ── Modal: Mijoz qarz tarixi ── */}

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -64,6 +65,8 @@ function WorkersTab() {
   const [modalWorker, setModalWorker] = useState(null);
   const [search, setSearch]         = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   const handleAdd = (e) => {
     e.preventDefault();
@@ -96,6 +99,8 @@ function WorkersTab() {
   let filtered = workers.filter(w => !search || w.name.toLowerCase().includes(search.toLowerCase()) || (w.position||'').toLowerCase().includes(search.toLowerCase()) || (w.phone||'').includes(search));
   if (filterStatus === 'toliq') filtered = filtered.filter(w => Number(w.salary) <= Number(w.paid));
   if (filterStatus === 'qoldi') filtered = filtered.filter(w => Number(w.salary) > Number(w.paid));
+  useEffect(() => { setPage(1); }, [search, filterStatus]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const inp = { padding: '4px 7px', fontSize: 12, border: '1px solid #ccc', borderRadius: 3, fontFamily: 'Tahoma, sans-serif' };
 
@@ -156,6 +161,7 @@ function WorkersTab() {
 
       {/* Jadval */}
       {filtered.length === 0 ? <p style={{ color: '#888', fontStyle: 'italic' }}>Xodim topilmadi.</p> : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -165,7 +171,7 @@ function WorkersTab() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((w, i) => {
+            {paged.map((w, i) => {
               const remaining = Math.max(0, Number(w.salary) - Number(w.paid || 0));
               const isPaid = remaining <= 0;
               return (
@@ -226,6 +232,8 @@ function WorkersTab() {
             </tr>
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {/* Modal */}
@@ -267,6 +275,8 @@ function DriversTab() {
   const [modalDriver, setModalDriver] = useState(null);
   const [tripForm, setTripForm] = useState({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' });
   const [search, setSearch]     = useState('');
+  const [page2, setPage2] = useState(1);
+  const PAGE_SIZE2 = 100;
 
   const handleAdd = (e) => { e.preventDefault(); if (!form.name) return; addDriver(form.name, form.carNumber, form.phone); setForm({ name: '', carNumber: '', phone: '' }); setShowForm(false); };
   const saveEdit = (id) => { if (!editData.name) return; updateDriver(id, editData); setEditId(null); };
@@ -285,6 +295,8 @@ function DriversTab() {
   const totalQatnov  = allStats.reduce((s, x) => s + x.count, 0);
 
   const filtered = drivers.filter(d => !search || d.name.toLowerCase().includes(search.toLowerCase()) || (d.carNumber||'').toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => { setPage2(1); }, [search]);
+  const paged2 = filtered.slice((page2 - 1) * PAGE_SIZE2, page2 * PAGE_SIZE2);
   const inp = { padding: '4px 7px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3, fontFamily: 'Tahoma, sans-serif' };
 
   return (
@@ -331,6 +343,7 @@ function DriversTab() {
 
       {/* Jadval */}
       {filtered.length === 0 ? <p style={{ color: '#888', fontStyle: 'italic' }}>Haydovchi topilmadi.</p> : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -339,7 +352,7 @@ function DriversTab() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((d, i) => {
+            {paged2.map((d, i) => {
               const st = getStats(d.id);
               return (
                 <tr key={d.id} style={{ background: st.balance > 0 ? '#fff8e1' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
@@ -375,6 +388,8 @@ function DriversTab() {
             })}
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page2} setPage={setPage2} pageSize={PAGE_SIZE2} />
+        </>
       )}
 
       {/* Modal */}

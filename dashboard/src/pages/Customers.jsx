@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
 import CustomerCard from '../components/CustomerCard';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -20,6 +21,8 @@ export default function Customers() {
   const [modalName, setModalName] = useState(null); // ochilgan mijoz kartochkasi (nom)
   const [sortBy, setSortBy]     = useState('date'); // date | name | debt | xarid | avans | recent
   const [onlyDebt, setOnlyDebt] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   // ── Yagona hisoblagich (yangi "Sotish" + eski "Sotilgan tonna" birga) ─────
   const stat = (name) => customerSummary(name, data);
@@ -59,6 +62,8 @@ export default function Customers() {
   if (sortBy === 'avans')  filtered.sort((a, b) => b._s.qolganAvans - a._s.qolganAvans);
   if (sortBy === 'recent') filtered.sort((a, b) => b._s.lastSaleAt - a._s.lastSaleAt);
   if (sortBy === 'date')   filtered.sort((a, b) => b.id - a.id);
+  useEffect(() => { setPage(1); }, [search, sortBy, onlyDebt]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Umumiy statistika ─────────────────────────────────────────────────────
   const allStats = customers.map(c => stat(c.name));
@@ -178,6 +183,7 @@ export default function Customers() {
       {filtered.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic', marginTop: 20 }}>Mijoz topilmadi.</p>
       ) : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -194,11 +200,11 @@ export default function Customers() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c, i) => {
+            {paged.map((c, i) => {
               const st = c._s;
               return (
                 <tr key={c.id} style={{ background: st.qolganQarz > 0 ? '#fff9f0' : (i % 2 === 0 ? '#fff' : '#f4f5ff') }}>
-                  <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
+                  <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
 
                   {editId === c.id ? (
                     <>
@@ -267,6 +273,8 @@ export default function Customers() {
             })}
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {/* ── MIJOZ KARTOCHKASI (yagona) ───────────────────────────────────── */}

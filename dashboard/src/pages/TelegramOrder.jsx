@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -28,6 +29,8 @@ export default function TelegramOrder({ lang }) {
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'kutilmoqda' | 'bajarildi' | 'bekor'
   const [filterDate, setFilterDate]     = useState('');
   const [search, setSearch]             = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -62,6 +65,8 @@ export default function TelegramOrder({ lang }) {
   });
 
   const filteredTotalTons = filtered.reduce((s, o) => s + Number(o.tons), 0);
+  useEffect(() => { setPage(1); }, [search, filterDate]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const inp = { padding: '5px 8px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3, fontFamily: 'Tahoma, sans-serif' };
 
@@ -158,6 +163,7 @@ export default function TelegramOrder({ lang }) {
 
       {/* ── JADVAL ────────────────────────────────────────────────────────── */}
       {filtered.length === 0 ? <p style={{ color: '#888', fontStyle: 'italic', marginTop: 20 }}>Zakaz topilmadi.</p> : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -173,7 +179,7 @@ export default function TelegramOrder({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((o, i) => {
+            {paged.map((o, i) => {
               const bg = o.status === 'kutilmoqda' ? '#fffde7' : o.status === 'bajarildi' ? '#f1f8e9' : '#ffebee';
               const sColor = o.status === 'kutilmoqda' ? '#f57f17' : o.status === 'bajarildi' ? '#2e7d32' : '#c62828';
               return (
@@ -213,6 +219,8 @@ export default function TelegramOrder({ lang }) {
             </tr>
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -399,6 +400,9 @@ function FilterBar({ showAll, setShowAll, filterDate, setFilterDate, filterWorke
 // JADVAL
 // ─────────────────────────────────────────────────────────────────────────────
 function RowsTable({ rows, total, onDelete, amountColor, todayStr: today, jami }) {
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  const paged = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   if (rows.length === 0)
     return <p style={{ color: '#888', fontStyle: 'italic', marginTop: 16 }}>Yozuv topilmadi.</p>;
 
@@ -410,6 +414,7 @@ function RowsTable({ rows, total, onDelete, amountColor, todayStr: today, jami }
   };
 
   return (
+    <>
     <table className="data-table" style={{ width: '100%', maxWidth: 820 }}>
       <thead>
         <tr>
@@ -423,11 +428,11 @@ function RowsTable({ rows, total, onDelete, amountColor, todayStr: today, jami }
         </tr>
       </thead>
       <tbody>
-        {rows.map((r, i) => {
+        {paged.map((r, i) => {
           const isToday = r.date === today;
           return (
             <tr key={r.id} style={{ background: isToday ? '#f3e5f5' : (i % 2 === 0 ? '#fff' : '#f9f9f9') }}>
-              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
+              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
               <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', color: '#555' }}>
                 {fmtT(r.createdAt || (r.id > 1e10 ? r.id : null))}
               </td>
@@ -456,6 +461,8 @@ function RowsTable({ rows, total, onDelete, amountColor, todayStr: today, jami }
         </tr>
       </tbody>
     </table>
+    <Paginator total={rows.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+    </>
   );
 }
 

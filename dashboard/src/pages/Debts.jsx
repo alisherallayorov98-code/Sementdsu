@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import NotifyModal from '../components/NotifyModal';
@@ -6,6 +6,7 @@ import ExcelExport from '../components/ExcelExport';
 import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -89,6 +90,8 @@ export default function Debts({ lang }) {
   const [search, setSearch]   = useState('');
   const [range,  setRange]    = useState({ from: '', to: '' });
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
   const [history, setHistory] = useState(null);  // qaysi qarz tarixi ko'rinmoqda
   const [card, setCard]       = useState(null);  // ochilgan mijoz kartochkasi (ismi)
 
@@ -129,6 +132,9 @@ export default function Debts({ lang }) {
     })
     .slice()
     .reverse(); // yangi yozuvlar tepada
+
+  useEffect(() => { setPage(1); }, [search, filter, range.from, range.to]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -418,6 +424,7 @@ export default function Debts({ lang }) {
       {filtered.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic', marginTop: 20 }}>{L.yozuvYoq[lang]}</p>
       ) : (
+        <>
         <table className="data-table" style={{ width: '100%', maxWidth: 900 }}>
           <thead>
             <tr>
@@ -433,7 +440,7 @@ export default function Debts({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => {
+            {paged.map((r, i) => {
               const remaining = Math.max(0, Number(r.amount) - Number(r.paid));
               const st        = getStatus(r.amount, r.paid);
               const ss        = STATUS_STYLE[st];
@@ -505,6 +512,8 @@ export default function Debts({ lang }) {
             </tr>
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {reminder && <NotifyModal name={reminder.name} phone={reminder.phone} defaultText={reminder.text} onClose={() => setReminder(null)} />}

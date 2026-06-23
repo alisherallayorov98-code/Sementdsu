@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -27,6 +28,8 @@ export default function Drivers({ lang }) {
   const [tripForm, setTripForm] = useState({ destination: '', price: '', note: '', isPayment: false });
 
   const [search, setSearch]     = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   // ── Qo'shish ──────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -80,6 +83,9 @@ export default function Drivers({ lang }) {
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     (d.carNumber || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => { setPage(1); }, [search]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const inp = { padding: '4px 7px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3, fontFamily: 'Tahoma, sans-serif' };
 
@@ -236,6 +242,7 @@ export default function Drivers({ lang }) {
 
       {/* ── HAYDOVCHILAR JADVALI ──────────────────────────────────────────── */}
       {filtered.length === 0 ? <p style={{ color: '#888', fontStyle: 'italic' }}>Haydovchi topilmadi.</p> : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -249,7 +256,7 @@ export default function Drivers({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((d, i) => {
+            {paged.map((d, i) => {
               const st = getStats(d.id);
               return (
                 <tr key={d.id} style={{ background: st.balance > 0 ? '#fff8e1' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
@@ -294,6 +301,8 @@ export default function Drivers({ lang }) {
             })}
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {/* ── MODAL ───────────────────────────────────────────────────────────── */}

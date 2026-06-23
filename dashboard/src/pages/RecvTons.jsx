@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
+import Paginator from '../components/Paginator';
 import SupplierSelect from '../components/SupplierSelect';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -101,6 +102,8 @@ export default function RecvTons({ lang }) {
   });
   const [filterSource, setFilterSource] = useState('');
   const [filterBrand,  setFilterBrand]  = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
   const [importRows,   setImportRows]   = useState(null); // Excel preview
   const [modalSource,  setModalSource]  = useState(null); // Akt Sverka
 
@@ -217,6 +220,9 @@ export default function RecvTons({ lang }) {
 
   const totalTons = filtered.reduce((s,r) => s + Number(r.tons||0), 0);
   const totalSum  = filtered.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
+  useEffect(() => { setPage(1); }, [filterSource, filterBrand, range.from, range.to]);
+  const reversedFiltered = [...filtered].reverse();
+  const paged = reversedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Akt Sverka chop etish ─────────────────────────────────────────────────
   const handlePrint = () => {
@@ -559,6 +565,7 @@ export default function RecvTons({ lang }) {
       {filtered.length === 0 ? (
         <p style={{ color:'#666', fontStyle:'italic' }}>{L.yoq[lang]}</p>
       ) : (
+        <>
         <div style={{ overflowX:'auto' }}>
           <table className="data-table" style={{ width:'100%', minWidth:1000 }}>
             <thead>
@@ -579,12 +586,13 @@ export default function RecvTons({ lang }) {
               </tr>
             </thead>
             <tbody>
-              {[...filtered].reverse().map((r, i) => {
+              {paged.map((r, i) => {
                 const s = Number(r.tons||0) * Number(r.pricePerTon||0);
+                const absIdx = (page - 1) * PAGE_SIZE + i;
                 return (
                   <tr key={r.id} style={{ background: r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
                     <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>
-                      {r.pending ? <span title="Tekshirilmagan" style={{ color:'#e65100' }}>⚠</span> : filtered.length-i}
+                      {r.pending ? <span title="Tekshirilmagan" style={{ color:'#e65100' }}>⚠</span> : filtered.length-absIdx}
                     </td>
                     <td style={{ fontSize:12 }}>{r.date}</td>
                     <td>
@@ -629,7 +637,9 @@ export default function RecvTons({ lang }) {
               </tr>
             </tbody>
           </table>
+          <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
         </div>
+        </>
       )}
 
       {renderModal()}

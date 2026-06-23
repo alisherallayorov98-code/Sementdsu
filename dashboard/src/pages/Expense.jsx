@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
+import Paginator from '../components/Paginator';
 import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -61,6 +62,8 @@ export default function Expense({ lang }) {
   const [filterType,   setFilterType]   = useState('');
   const [filterWorker, setFilterWorker] = useState('');
   const [range, setRange] = useState({ from: '', to: '' });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   // ── Naqd chiqim qo'shish ─────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -138,6 +141,8 @@ export default function Expense({ lang }) {
   });
   const grandTotal    = Object.values(totals).reduce((s, v) => s + v, 0);
   const filteredTotal = filtered.reduce((s, r) => s + Number(r.summa || 0), 0);
+  useEffect(() => { setPage(1); }, [filterType, filterWorker, range.from, range.to]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const inp = { padding: '3px 6px', fontFamily: 'Tahoma, sans-serif', fontSize: 12, border: '2px inset #ffffff' };
   const btnStyle = (active) => ({
@@ -289,6 +294,7 @@ export default function Expense({ lang }) {
       {filtered.length === 0 ? (
         <p style={{ color: '#666', fontStyle: 'italic' }}>{L.yoq[lang]}</p>
       ) : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -303,7 +309,7 @@ export default function Expense({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => {
+            {paged.map((r, i) => {
               const ti = typeInfo(r.srcType);
               const rowBg = i % 2 === 0 ? ti.bg : '#f9f9f9';
               return (
@@ -353,6 +359,8 @@ export default function Expense({ lang }) {
             </tr>
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
     </div>
   );

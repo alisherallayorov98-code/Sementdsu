@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import SupplierSelect from '../components/SupplierSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const ACCENT = '#00695c';
@@ -21,6 +22,8 @@ export default function SupplierDebts() {
   const [search, setSearch] = useState('');
   const [history, setHistory] = useState(null); // qaysi yetkazib beruvchi to'lov tarixi
   const [range, setRange] = useState({ from: '', to: '' });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   const debtOf = (name) => supplierDebtOf(name);
 
@@ -52,6 +55,8 @@ export default function SupplierDebts() {
   );
 
   const remOf = pay.supplier ? debtOf(pay.supplier) : 0;
+  useEffect(() => { setPage(1); }, [search]);
+  const paged = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13, paddingBottom: 30 }}>
@@ -120,6 +125,7 @@ export default function SupplierDebts() {
       {rows.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic' }}>Hozircha yetkazib beruvchi yo'q.</p>
       ) : (
+        <>
         <table className="data-table" style={{ width: '100%', maxWidth: 820, marginBottom: 24 }}>
           <thead>
             <tr>
@@ -132,9 +138,9 @@ export default function SupplierDebts() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {paged.map((r, i) => (
               <tr key={r.name} style={{ background: r.debt > 0 ? '#fff' : '#e8f5e9' }}>
-                <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
+                <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
                 <td style={{ fontWeight: 'bold', color: '#004d40' }}>🏭 {r.name}</td>
                 <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.received)}</td>
                 <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(r.paid)}</td>
@@ -166,6 +172,8 @@ export default function SupplierDebts() {
             </tr>
           </tbody>
         </table>
+        <Paginator total={rows.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {/* ── TO'LOVLAR TARIXI (ro'yxat + sana filtri) ────────────────────────── */}

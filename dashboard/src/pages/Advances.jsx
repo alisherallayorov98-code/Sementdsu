@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
+import Paginator from '../components/Paginator';
 import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
@@ -62,6 +63,8 @@ export default function Advances({ lang }) {
   const [search, setSearch]   = useState('');
   const [range,  setRange]    = useState({ from: '', to: '' });
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
   const [history, setHistory] = useState(null);
   const [card, setCard]       = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
@@ -102,6 +105,9 @@ export default function Advances({ lang }) {
     })
     .slice()
     .reverse();
+
+  useEffect(() => { setPage(1); }, [search, filter, range.from, range.to]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -326,6 +332,7 @@ export default function Advances({ lang }) {
       {filtered.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic', marginTop: 20 }}>{L.yozuvYoq[lang]}</p>
       ) : (
+        <>
         <table className="data-table" style={{ width: '100%', maxWidth: 900 }}>
           <thead>
             <tr>
@@ -341,7 +348,7 @@ export default function Advances({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => {
+            {paged.map((r, i) => {
               const remaining = Math.max(0, Number(r.amount) - Number(r.used));
               const st        = getStatus(r.amount, r.used);
               const ss        = STATUS_STYLE[st];
@@ -404,6 +411,8 @@ export default function Advances({ lang }) {
             </tr>
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
 
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}

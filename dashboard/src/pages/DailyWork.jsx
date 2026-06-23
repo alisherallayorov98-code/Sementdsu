@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => {
@@ -85,6 +86,8 @@ export default function DailyWork({ lang }) {
   const [filterDate,   setFilterDate]   = useState(todayStr());
   const [showAll,      setShowAll]      = useState(false);
   const [filterWorker, setFilterWorker] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   // ── Barcha manbaalardan yig'ish ──────────────────────────────────────────
   const allRows = [
@@ -179,6 +182,8 @@ export default function DailyWork({ lang }) {
   const totalSotil  = filtered.filter(r => r.type === 'sotilgan').reduce((s, r) => s + Number(r.tonna || 0), 0);
   const totalOling  = filtered.filter(r => r.type === 'olingan').reduce((s, r) => s + Number(r.tonna || 0), 0);
   const sof         = totalKirim - totalChiqim;
+  useEffect(() => { setPage(1); }, [filterDate, filterWorker, showAll]);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const btnStyle = (active) => ({
     padding: '3px 10px',
@@ -328,6 +333,7 @@ export default function DailyWork({ lang }) {
       {filtered.length === 0 ? (
         <p style={{ color: '#666', fontStyle: 'italic' }}>{L.yozuv_yoq[lang]}</p>
       ) : (
+        <>
         <table className="data-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -343,7 +349,7 @@ export default function DailyWork({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => {
+            {paged.map((r, i) => {
               const meta = TYPE_LABEL[r.type] || {};
               const isKirim  = r.type.startsWith('kirim');
               const isChiqim = r.type === 'chiqim';
@@ -393,6 +399,8 @@ export default function DailyWork({ lang }) {
             </tr>
           </tbody>
         </table>
+        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        </>
       )}
     </div>
   );
