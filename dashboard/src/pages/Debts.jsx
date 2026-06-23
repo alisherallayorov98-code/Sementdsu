@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import NotifyModal from '../components/NotifyModal';
 import ExcelExport from '../components/ExcelExport';
+import CustomerCard from '../components/CustomerCard';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -86,6 +87,7 @@ export default function Debts({ lang }) {
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
   const [history, setHistory] = useState(null);  // qaysi qarz tarixi ko'rinmoqda
+  const [card, setCard]       = useState(null);  // ochilgan mijoz kartochkasi (ismi)
 
   // ── Forma submit ────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -433,7 +435,8 @@ export default function Debts({ lang }) {
                 <tr key={r.id} style={{ background: ss.bg }}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
                   <td style={{ fontSize: 12 }}>{r.date}</td>
-                  <td style={{ fontWeight: 'bold', color: '#003366' }}>{r.customer}</td>
+                  <td onClick={() => setCard(r.customer)} title="Mijoz ma'lumotlarini ochish"
+                    style={{ fontWeight: 'bold', color: '#003366', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}>{r.customer}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.amount)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(r.paid)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828', fontWeight: 'bold' }}>{fmt(remaining)}</td>
@@ -499,6 +502,7 @@ export default function Debts({ lang }) {
       )}
 
       {reminder && <NotifyModal name={reminder.name} phone={reminder.phone} defaultText={reminder.text} onClose={() => setReminder(null)} />}
+      {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
     </div>
   );
 }

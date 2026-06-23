@@ -5,6 +5,7 @@ import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
 import NotifyModal from '../components/NotifyModal';
 import ExcelExport from '../components/ExcelExport';
+import CustomerCard from '../components/CustomerCard';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -29,6 +30,7 @@ export default function Sales({ lang }) {
   const custAdvance = form.customer ? advanceBalanceOf(form.customer) : 0;
   const [search, setSearch] = useState('');
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
+  const [card, setCard] = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
   const phoneOf = (name) => customers.find(c => c.name === name)?.phone || '';
   const CH_LBL = { naqd: 'Naqd', bank: 'Bank', click: 'Click', nasiya: 'Nasiya (qarzga)' };
@@ -251,7 +253,10 @@ export default function Sales({ lang }) {
                     <div style={{ fontSize: 10, fontWeight: 'bold' }}>{fmtT(r.createdAt)}</div>
                   </td>
                   <td style={{ ...tdS, width: 220 }}>
-                    <div style={{ fontWeight: 'bold', color: '#1565c0' }}>{r.customer}</div>
+                    <div onClick={() => setCard(r.customer)} title="Mijoz ma'lumotlarini ochish"
+                      style={{ fontWeight: 'bold', color: '#1565c0', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}>
+                      {r.customer}
+                    </div>
                     <div style={{ fontSize: 11, color: '#777' }}>{r.note || '—'}</div>
                     {r.worker && <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>👷 {r.worker}</div>}
                   </td>
@@ -282,6 +287,7 @@ export default function Sales({ lang }) {
       </div>
 
       {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}
+      {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
     </div>
   );
 }
