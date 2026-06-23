@@ -31,8 +31,8 @@ exports.login = async (req, res) => {
 // Faqat akkaunt hali bo'sh bo'lsa (xodimlar yo'q) ishlaydi; birinchi foydalanuvchi admin.
 exports.signup = async (req, res) => {
   const { name, password } = req.body || {};
-  const account = sanitizeAccount(req.body.account);
-  if (!account)              return res.status(400).json({ ok: false, error: 'Tashkilot nomi (lotin harf/raqam) kiriting' });
+  // Bitta korxona rejimi: tashkilot kiritilmasa — standart (DEFAULT_ACCOUNT)
+  const account = sanitizeAccount(req.body.account) || DEFAULT_ACCOUNT;
   if (!name || !password)    return res.status(400).json({ ok: false, error: 'Ism va parol kiritilishi shart' });
   if (String(password).length < 4) return res.status(400).json({ ok: false, error: 'Parol kamida 4 belgi bo\'lsin' });
 

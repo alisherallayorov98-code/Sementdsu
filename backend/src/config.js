@@ -34,6 +34,9 @@ module.exports = {
   ESKIZ_FROM:     (process.env.ESKIZ_FROM || '4546').trim(),
   ESKIZ_BASE:     (process.env.ESKIZ_BASE || 'https://notify.eskiz.uz/api').trim(),
   DATA_DIR,
-  DEFAULT_ACCOUNT: 'default',
+  // Bitta korxona (single-tenant): hamma shu bazaga ulanadi. Server env bilan
+  // o'zgartirsa bo'ladi (DEFAULT_ACCOUNT=...). Ilova ma'lumotlari shu nomdagi
+  // data/accounts/<nom>/db.json da saqlanadi.
+  DEFAULT_ACCOUNT: process.env.DEFAULT_ACCOUNT || 'sement',
   MAX_BODY:        '25mb',
 };
