@@ -23,8 +23,9 @@ cd "$REPO/dashboard"
 npm install
 npm run build
 
-echo ">>> [5/5] dist -> $WWW"
+echo ">>> [5/5] dist -> $WWW (eski fayllarni tozalab)"
 mkdir -p "$WWW"
+rm -rf "$WWW"/*   # eski assets/*.js to'planib qolmasligi uchun
 cp -r "$REPO/dashboard/dist/"* "$WWW/"
 
 echo ">>> DEPLOY TUGADI: $(date)"

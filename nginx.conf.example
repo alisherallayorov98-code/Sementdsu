@@ -26,11 +26,19 @@ server {
     add_header Strict-Transport-Security "max-age=31536000" always;
     client_max_body_size 25m;
 
-    # ── Frontend (statik build: dashboard/dist) ──────────────────────────────
-    root /var/www/sement/dashboard/dist;
+    # ── Frontend (statik build) ──────────────────────────────────────────────
+    # MUHIM: deploy.sh build'ni shu papkaga ko'chiradi (dashboard/dist EMAS!).
+    root /var/www/sement;
     index index.html;
     location / {
         try_files $uri $uri/ /index.html;   # SPA — barcha yo'llar index.html'ga
+    }
+
+    # index.html'ni KESHLAMASLIK — har deploy'dan keyin yangi build darhol ko'rinadi.
+    # (Hash'li assets/*.js, *.css esa abadiy keshlanadi — ular nomi o'zgaradi.)
+    location = /index.html {
+        add_header Cache-Control "no-store, must-revalidate";
+        expires 0;
     }
 
     # ── Backend API (Node, 5000-portda) ──────────────────────────────────────
