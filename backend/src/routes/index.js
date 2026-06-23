@@ -7,6 +7,7 @@ const state     = require('../controllers/state.controller');
 const botOrders = require('../controllers/botOrders.controller');
 const auditCtrl = require('../controllers/audit.controller');
 const notify    = require('../controllers/notify.controller');
+const system    = require('../controllers/system.controller');
 
 const router = express.Router();
 
@@ -25,6 +26,9 @@ router.post('/clear_bot_orders', authenticate, botOrders.clear);
 
 // ── Audit / Nazorat jurnali (FAQAT admin) ─────────────────────────────────
 router.get('/audit', authenticate, authorize('admin'), auditCtrl.list);
+
+// ── Server holati / resurslar (FAQAT admin) ───────────────────────────────
+router.get('/system', authenticate, authorize('admin'), system.status);
 
 // ── Bildirishnoma (Telegram / SMS) ─────────────────────────────────────────
 router.get('/tg_contacts', authenticate, notify.status);
