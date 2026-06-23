@@ -135,17 +135,8 @@ export function DataProvider({ children }) {
 
 
   // ── 2. Naqd pul ──────────────────────────────────────────────────────────
-  const [cashOpening, setCashOpening] = useState(() => load('cash_opening', { date: '25.04.2025', amount: 20000000 }));
-  const [cashRows, setCashRows]       = useState(() => load('cash_rows', [
-    { id: 1, amount: 5000000,  desc: 'botir aka'          },
-    { id: 2, amount: 6000000,  desc: 'alisher aka'        },
-    { id: 3, amount: 7000000,  desc: 'ganisher aka'       },
-    { id: 4, amount: 8000000,  desc: 'sharofidin'         },
-    { id: 5, amount: 500000,   desc: 'salox'              },
-    { id: 6, amount: 200000,   desc: 'qosim'              },
-    { id: 7, amount: 700000,   desc: '1-tn sement qoplik' },
-    { id: 8, amount: 250000,   desc: '500-kg sement rosqp'},
-  ]));
+  const [cashOpening, setCashOpening] = useState(() => load('cash_opening', { date: '', amount: 0 }));
+  const [cashRows, setCashRows]       = useState(() => load('cash_rows', []));
   useEffect(() => save('cash_opening', cashOpening), [cashOpening]);
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
   const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
@@ -156,12 +147,8 @@ export function DataProvider({ children }) {
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
 
   // ── 3. Bank ───────────────────────────────────────────────────────────────
-  const [bankOpening, setBankOpening] = useState(() => load('bank_opening', { date: '25.04.2025', amount: 20000000 }));
-  const [bankRows, setBankRows]       = useState(() => load('bank_rows', [
-    { id: 1, amount: 5000000, desc: 'asia'     },
-    { id: 2, amount: 6000000, desc: 'memor'    },
-    { id: 3, amount: 7000000, desc: 'anvarjon' },
-  ]));
+  const [bankOpening, setBankOpening] = useState(() => load('bank_opening', { date: '', amount: 0 }));
+  const [bankRows, setBankRows]       = useState(() => load('bank_rows', []));
   useEffect(() => save('bank_opening', bankOpening), [bankOpening]);
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
@@ -172,7 +159,7 @@ export function DataProvider({ children }) {
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
 
   // ── 4. Click ──────────────────────────────────────────────────────────────
-  const [clickOpening, setClickOpening] = useState(() => load('click_opening', { date: '25.04.2025', amount: 5000000 }));
+  const [clickOpening, setClickOpening] = useState(() => load('click_opening', { date: '', amount: 0 }));
   const [clickRows, setClickRows]       = useState(() => load('click_rows', []));
   useEffect(() => save('click_opening', clickOpening), [clickOpening]);
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
