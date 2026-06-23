@@ -3,6 +3,8 @@ import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import CustomerCard from '../components/CustomerCard';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -58,6 +60,7 @@ export default function Advances({ lang }) {
   const [form, setForm]       = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
   const [useForm, setUseForm] = useState({ id: null, amount: '', note: '' });
   const [search, setSearch]   = useState('');
+  const [range,  setRange]    = useState({ from: '', to: '' });
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
   const [history, setHistory] = useState(null);
   const [card, setCard]       = useState(null); // ochilgan mijoz kartochkasi (ismi)
@@ -90,7 +93,7 @@ export default function Advances({ lang }) {
   };
 
   // ── Filtrlash ───────────────────────────────────────────────────────────────
-  const filtered = advanceRows
+  const filtered = filterByRange(advanceRows, range)
     .filter(r => {
       const st = getStatus(r.amount, r.used);
       if (filter !== 'all' && st !== filter) return false;
@@ -150,6 +153,9 @@ export default function Advances({ lang }) {
         ))}
         <button type="submit" style={addBtn}>{L.qoshish[lang]}</button>
       </form>
+
+      {/* ── SANA ORALIG'I FILTRI ──────────────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#e65100" />
 
       {/* ── FILTER va QIDIRUV ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>

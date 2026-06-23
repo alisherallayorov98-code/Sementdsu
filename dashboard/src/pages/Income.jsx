@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -63,6 +65,7 @@ export default function Income({ lang }) {
   const [form, setForm] = useState({ type: 'naqd', amount: '', desc: '' });
   const [filterType,   setFilterType]   = useState('');
   const [filterWorker, setFilterWorker] = useState('');
+  const [range, setRange] = useState({ from: '', to: '' });
 
   // ── Kirim qo'shish ────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -150,6 +153,7 @@ export default function Income({ lang }) {
   let filtered = allRows;
   if (filterType)   filtered = filtered.filter(r => r.srcType === filterType);
   if (filterWorker) filtered = filtered.filter(r => r.worker === filterWorker);
+  filtered = filterByRange(filtered, range);
 
   // ── Jami har bir tur bo'yicha ─────────────────────────────────────────────
   const totals = {};
@@ -244,6 +248,9 @@ export default function Income({ lang }) {
           </tr>
         </tbody>
       </table>
+
+      {/* ── Sana oralig'i filtri ──────────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#006600" />
 
       {/* ── Filter paneli ─────────────────────────────────────────────── */}
       <table style={{ borderCollapse: 'collapse', marginBottom: 8 }}>

@@ -31,14 +31,20 @@ export default function CustomerSelect({
   const [modal,   setModal]   = useState(false);
   const [newCust, setNewCust] = useState({ name: '', phone: '', address: '', note: '' });
 
-  // ── Suggestion hisoblash: 2 ta harf bo'lsa filter, aks holda barchasi ─────
+  // ── Suggestion hisoblash ──────────────────────────────────────────────────
+  // Mijozlar ro'yxati ko'p bo'lishi mumkin — shuning uchun FAQAT kamida 2 ta
+  // harf yozilganda eng mos variantlar ko'rsatiladi (hammasi emas).
   const query = value.trim();
   const suggestions = query.length >= 2
     ? customers.filter(c =>
         c.name.toLowerCase().includes(query.toLowerCase()) ||
         (c.phone || '').includes(query)
-      )
-    : customers.slice(0, 8); // 8 tagacha ko'rsat
+      ).slice(0, 12)
+    : [];
+  // Yozilgan nom bazada bormi (xuddi shu nomli mijoz)?
+  const exactMatch = customers.some(c => c.name.trim().toLowerCase() === query.toLowerCase());
+  // Yangi mijoz: kamida 2 harf yozilgan va bunday nom hali yo'q
+  const isNewName = query.length >= 2 && !exactMatch;
 
   const highlight = (text, q) => {
     if (!q || q.length < 2) return text;
@@ -145,11 +151,11 @@ export default function CustomerSelect({
                 ))
               ) : (
                 <div style={{ padding: '8px 10px', color: '#aaa', fontSize: 12, fontStyle: 'italic' }}>
-                  Mijoz topilmadi
+                  {query.length < 2 ? 'Izlash uchun kamida 2 ta harf yozing…' : 'Mijoz topilmadi'}
                 </div>
               )}
 
-              {/* Divider + yangi qo'shish */}
+              {/* Divider + yangi qo'shish (yozilgan nom bilan) */}
               <div
                 onMouseDown={openModal}
                 style={{
@@ -161,9 +167,26 @@ export default function CustomerSelect({
                 onMouseEnter={e => e.currentTarget.style.background = '#c5cae9'}
                 onMouseLeave={e => e.currentTarget.style.background = '#e8eaf6'}
               >
-                <span style={{ fontSize: 16 }}>+</span> Yangi mijoz qo'shish
+                <span style={{ fontSize: 16 }}>+</span>
+                {isNewName ? <>"{query}" ni yangi mijoz sifatida saqlash</> : "Yangi mijoz qo'shish"}
               </div>
             </div>
+          )}
+
+          {/* ── Inline saqlash tugmasi (yangi nom yozilganda pastdan chiqadi) ── */}
+          {isNewName && !open && (
+            <button
+              type="button"
+              onClick={openModal}
+              style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 2, zIndex: 400,
+                padding: '4px 10px', fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                background: '#e8f5e9', color: '#1b5e20', border: '1px solid #2e7d32',
+                borderRadius: 4, whiteSpace: 'nowrap',
+              }}
+            >
+              💾 "{query}" ni saqlash
+            </button>
           )}
         </div>
 

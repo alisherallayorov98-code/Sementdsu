@@ -215,11 +215,12 @@ export function DataProvider({ children }) {
   const totalCashBalance = Number(cashOpening.amount) + _cashRowsSum + _incomeSum - _expenseSum + _soldNaqd;
 
   // ── 10. Olingan tonna ─────────────────────────────────────────────────────
+  // MUHIM: sement olish HAR DOIM yetkazib beruvchidan QARZGA olinadi.
+  // Kassadan pul YECHILMAYDI (pul kamaymaydi). Yetkazib beruvchiga to'lov
+  // keyinroq "Yetkazib beruvchi qarzlari" bo'limidan alohida kiritiladi.
   const [recvRows, setRecvRows] = useState(() => load('recv_rows', []));
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
-  // opts.cashLink=false bo'lsa kassadan chiqim YARATILMAYDI (Excel/tarixiy import uchun)
-  const addRecvRow = (entry, opts = {}) => {
-    const { cashLink = true } = opts;
+  const addRecvRow = (entry) => {
     const ts = Date.now();
     const today = new Date().toLocaleDateString('ru-RU');
     const row = {
@@ -233,22 +234,11 @@ export function DataProvider({ children }) {
       warehouseId: entry.warehouseId || defaultWhId,
     };
     setRecvRows(p => [...p, row]);
-
-    // ── INTEGRATSIYA: sement olish → tegishli kassadan chiqim ──────────────
-    const sum = Number(row.tons || 0) * Number(row.pricePerTon || 0);
-    if (cashLink && sum > 0) {
-      const tag  = `🔗 Sement olish: ${row.source || ''} (${fmtTons(row.tons)} tn)`;
-      const link = { auto: true, sourceType: 'recv', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
-      const channel = row.paymentChannel || 'naqd';
-      // Manfiy summa → kassadan chiqim
-      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 2, amount: -sum, desc: tag }]);
-      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 2, amount: -sum, desc: tag }]);
-      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 2, amount: -sum, desc: tag }]);
-    }
+    return row;
   };
   const deleteRecvRow = (id) => {
     setRecvRows(p => p.filter(r => r.id !== id));
-    // Cascade: shu yetkazmadan yaratilgan chiqim yozuvini ham o'chirish
+    // Cascade: eski versiyalarda yaratilgan auto chiqim yozuvlari bo'lsa ham o'chirish
     setCashRows(p  => p.filter(r => r.sourceId !== id));
     setBankRows(p  => p.filter(r => r.sourceId !== id));
     setClickRows(p => p.filter(r => r.sourceId !== id));
@@ -268,26 +258,76 @@ export function DataProvider({ children }) {
       pending: true, // tekshirilmagan — sariq
     }))]);
   };
-  // Tasdiqlash: maydonlarni yangilab, pending'ni olib tashlaydi va zavodga
-  // to'lovni (tegishli kassadan chiqim) yozadi.
+  // Tasdiqlash: maydonlarni yangilab, pending'ni olib tashlaydi.
+  // Kassadan pul YECHILMAYDI — bu summa yetkazib beruvchi qarzimizga qo'shiladi.
   const verifyRecvRow = (id, patch = {}) => {
     const cur = recvRows.find(r => r.id === id);
     if (!cur || !cur.pending) return;
     const m = { ...cur, ...patch, pending: false };
     setRecvRows(p => p.map(r => r.id === id ? m : r));
-    const sum = Number(m.tons || 0) * Number(m.pricePerTon || 0);
-    if (sum > 0) {
-      const today = new Date().toLocaleDateString('ru-RU');
-      const tag  = `🔗 Sement olish: ${m.source || ''} (${fmtTons(m.tons)} tn)`;
-      const link = { auto: true, sourceType: 'recv', sourceId: id, createdAt: Date.now(), worker: currentWorker, date: m.date || today };
-      const ch = m.paymentChannel || 'bank';
-      if      (ch === 'naqd')  setCashRows(p  => [...p, { ...link, id: Date.now() + 2, amount: -sum, desc: tag }]);
-      else if (ch === 'bank')  setBankRows(p  => [...p, { ...link, id: Date.now() + 2, amount: -sum, desc: tag }]);
-      else if (ch === 'click') setClickRows(p => [...p, { ...link, id: Date.now() + 2, amount: -sum, desc: tag }]);
-    }
   };
   const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
   const pendingRecvCount = recvRows.filter(r => r.pending).length;
+
+  // ── 10b. Yetkazib beruvchilar (manbaa) bazasi ─────────────────────────────
+  // Mijozlar bazasiga o'xshash — autocomplete va saqlash uchun.
+  const [suppliers, setSuppliers] = useState(() => load('suppliers', []));
+  useEffect(() => save('suppliers', suppliers), [suppliers]);
+  const addSupplier = ({ name, phone = '', note = '' }) => {
+    const nm = String(name || '').trim();
+    if (!nm) return;
+    const ts = Date.now();
+    setSuppliers(p => p.some(s => s.name.toLowerCase() === nm.toLowerCase())
+      ? p
+      : [...p, { id: ts, createdAt: ts, worker: currentWorker, name: nm, phone: String(phone).trim(), note }]);
+  };
+  const updateSupplier = (id, data) => setSuppliers(p => p.map(s => s.id === id ? { ...s, ...data } : s));
+  const deleteSupplier = (id) => setSuppliers(p => p.filter(s => s.id !== id));
+
+  // ── 10c. Yetkazib beruvchiga to'lovlar (qarzni uzish) ─────────────────────
+  // Sement olganda pul yechilmaydi (qarzga). Bu yerda zavodga to'lov qilinganda
+  // tegishli kassadan chiqim yoziladi.
+  const [supplierPayments, setSupplierPayments] = useState(() => load('supplier_payments', []));
+  useEffect(() => save('supplier_payments', supplierPayments), [supplierPayments]);
+  const paySupplier = (supplier, amount, channel = 'naqd', note = '') => {
+    const amt = Number(amount);
+    if (!supplier || amt <= 0) return;
+    const ts = Date.now();
+    const today = new Date().toLocaleDateString('ru-RU');
+    setSupplierPayments(p => [...p, {
+      id: ts, createdAt: ts, worker: currentWorker, date: today,
+      supplier, amount: amt, channel, note,
+    }]);
+    // ── INTEGRATSIYA: zavodga to'lov → tegishli kassadan chiqim ──────────────
+    const tag  = `🔗 Yetkazib beruvchiga to'lov: ${supplier}`;
+    const link = { auto: true, sourceType: 'supplier_payment', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
+    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+  };
+  const deleteSupplierPayment = (id) => {
+    setSupplierPayments(p => p.filter(x => x.id !== id));
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'supplier_payment' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
+  };
+
+  // Yetkazib beruvchilar ro'yxati (recv manbalari + saqlanganlar + to'lovlar)
+  const supplierList = [...new Set([
+    ...recvRows.map(r => r.source).filter(Boolean),
+    ...suppliers.map(s => s.name).filter(Boolean),
+    ...supplierPayments.map(p => p.supplier).filter(Boolean),
+  ])];
+  // Tasdiqlangan (pending bo'lmagan) olingan sementning umumiy summasi = qarz
+  const supplierReceivedOf = (name) => recvRows
+    .filter(r => r.source === name && !r.pending)
+    .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+  const supplierPaidOf = (name) => supplierPayments
+    .filter(p => p.supplier === name)
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const supplierDebtOf = (name) => Math.max(0, supplierReceivedOf(name) - supplierPaidOf(name));
+  const totalSupplierDebt    = supplierList.reduce((s, n) => s + supplierDebtOf(n), 0);
+  const totalSupplierReceived = supplierList.reduce((s, n) => s + supplierReceivedOf(n), 0);
+  const totalSupplierPaid     = supplierPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
 
   // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
   // Eslatma: yangi "Sotish" (salesRows) ham hisobga olinadi — pastda salesRows
@@ -789,6 +829,8 @@ export function DataProvider({ children }) {
     debt_rows:          setDebtRows,
     advance_rows:       setAdvanceRows,
     sales_rows:         setSalesRows,
+    suppliers:          setSuppliers,
+    supplier_payments:  setSupplierPayments,
     bank_income_rows:   setBankIncomeRows,
     bank_expense_rows:  setBankExpenseRows,
     click_income_rows:  setClickIncomeRows,
@@ -820,6 +862,8 @@ export function DataProvider({ children }) {
     debt_rows:          debtRows,
     advance_rows:       advanceRows,
     sales_rows:         salesRows,
+    suppliers:          suppliers,
+    supplier_payments:  supplierPayments,
     bank_income_rows:   bankIncomeRows,
     bank_expense_rows:  bankExpenseRows,
     click_income_rows:  clickIncomeRows,
@@ -872,7 +916,7 @@ export function DataProvider({ children }) {
   }, [
     appSettings, cashOpening, cashRows, bankOpening, bankRows, clickOpening, clickRows,
     cementOpening, incomeRows, expenseRows, soldRows, recvRows, debtRows, advanceRows,
-    salesRows, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
+    salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
     workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips,
   ]);
 
@@ -938,6 +982,11 @@ export function DataProvider({ children }) {
     soldRows, addSoldRow, deleteSoldRow,
     // 10. Olingan tonna
     recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow, pendingRecvCount,
+    // 10b/10c. Yetkazib beruvchilar va ularga qarz/to'lovlar
+    suppliers, addSupplier, updateSupplier, deleteSupplier,
+    supplierPayments, paySupplier, deleteSupplierPayment,
+    supplierList, supplierReceivedOf, supplierPaidOf, supplierDebtOf,
+    totalSupplierDebt, totalSupplierReceived, totalSupplierPaid,
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar

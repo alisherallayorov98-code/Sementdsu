@@ -4,6 +4,8 @@ import CustomerSelect from '../components/CustomerSelect';
 import NotifyModal from '../components/NotifyModal';
 import ExcelExport from '../components/ExcelExport';
 import CustomerCard from '../components/CustomerCard';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -85,6 +87,7 @@ export default function Debts({ lang }) {
   const [form, setForm]       = useState({ customer: '', amount: '', note: '' });
   const [payForm, setPayForm] = useState({ id: null, amount: '', note: '', channel: 'naqd' });
   const [search, setSearch]   = useState('');
+  const [range,  setRange]    = useState({ from: '', to: '' });
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
   const [history, setHistory] = useState(null);  // qaysi qarz tarixi ko'rinmoqda
   const [card, setCard]       = useState(null);  // ochilgan mijoz kartochkasi (ismi)
@@ -117,7 +120,7 @@ export default function Debts({ lang }) {
   };
 
   // ── Filtrlash ───────────────────────────────────────────────────────────────
-  const filtered = debtRows
+  const filtered = filterByRange(debtRows, range)
     .filter(r => {
       const st = getStatus(r.amount, r.paid);
       if (filter !== 'all' && st !== filter) return false;
@@ -212,6 +215,9 @@ export default function Debts({ lang }) {
         />
         <button type="submit" style={addBtn}>{L.qoshish[lang]}</button>
       </form>
+
+      {/* ── SANA ORALIG'I FILTRI ──────────────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#c62828" />
 
       {/* ── FILTER va QIDIRUV ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -19,7 +21,7 @@ const fmtTime = (ts) => {
 const EXPENSE_TYPES = [
   { value: 'naqd',     latn: 'Naqd chiqim',    cyrl: 'Нақд чиқим',     color: '#cc0000', bg: '#fff0f0' },
   { value: 'oylik',    latn: 'Xodim oyligi',   cyrl: 'Ходим ойлиги',  color: '#993300', bg: '#fff5ee' },
-  { value: 'sement',   latn: 'Sement xaridi',  cyrl: 'Семент харид',   color: '#006699', bg: '#f0f8ff' },
+  { value: 'sement',   latn: "Zavodga to'lov",  cyrl: 'Заводга тўлов',   color: '#006699', bg: '#f0f8ff' },
   { value: 'avans',    latn: 'Avans',           cyrl: 'Аванс',          color: '#cc6600', bg: '#fffbf0' },
 ];
 
@@ -50,7 +52,7 @@ export default function Expense({ lang }) {
   const {
     expenseRows, addExpenseRow, deleteExpenseRow,
     workers,
-    recvRows,
+    supplierPayments,
     advanceRows,
     currentWorker, setCurrentWorker,
   } = useData();
@@ -58,6 +60,7 @@ export default function Expense({ lang }) {
   const [form, setForm] = useState({ amount: '', desc: '' });
   const [filterType,   setFilterType]   = useState('');
   const [filterWorker, setFilterWorker] = useState('');
+  const [range, setRange] = useState({ from: '', to: '' });
 
   // ── Naqd chiqim qo'shish ─────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -88,18 +91,15 @@ export default function Expense({ lang }) {
         summa: Number(w.paid), canDelete: false,
       })),
 
-    // Sement xaridi (olingan tonna, to'langan summa)
-    ...recvRows
-      .filter(r => Number(r.pricePerTon) > 0)
-      .map(r => ({
-        id: 'rcv_' + r.id, srcType: 'sement', date: r.date,
-        createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-        worker: r.worker || '',
-        izoh: `${r.source} (${r.tons} tn × ${fmt(r.pricePerTon)}) · ${r.paymentChannel || ''}`,
-        summa: Number(r.tons || 0) * Number(r.pricePerTon || 0),
-        tonna: r.tons,
-        canDelete: false,
-      })),
+    // Zavodga (yetkazib beruvchiga) to'lov — haqiqiy pul chiqimi
+    ...supplierPayments.map(p => ({
+      id: 'sup_' + p.id, srcType: 'sement', date: p.date,
+      createdAt: p.createdAt || (p.id > 1e10 ? p.id : null),
+      worker: p.worker || '',
+      izoh: `${p.supplier} · ${({ naqd: 'Naqd', bank: 'Bank', click: 'Click' }[p.channel] || p.channel || '')}` + (p.note ? ` (${p.note})` : ''),
+      summa: Number(p.amount || 0),
+      canDelete: false,
+    })),
 
     // Avans berilgan
     ...advanceRows
@@ -129,6 +129,7 @@ export default function Expense({ lang }) {
   let filtered = allRows;
   if (filterType)   filtered = filtered.filter(r => r.srcType === filterType);
   if (filterWorker) filtered = filtered.filter(r => r.worker === filterWorker);
+  filtered = filterByRange(filtered, range);
 
   // ── Jami har bir tur bo'yicha ─────────────────────────────────────────────
   const totals = {};
@@ -220,6 +221,9 @@ export default function Expense({ lang }) {
           </tr>
         </tbody>
       </table>
+
+      {/* ── Sana oralig'i filtri ──────────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#8b0000" />
 
       {/* ── Filter paneli ──────────────────────────────────────────────── */}
       <table style={{ borderCollapse: 'collapse', marginBottom: 8 }}>

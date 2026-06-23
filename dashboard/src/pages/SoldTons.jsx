@@ -4,6 +4,8 @@ import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
 import ExcelExport from '../components/ExcelExport';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -75,6 +77,7 @@ export default function SoldTons({ lang }) {
   } = data;
 
   const [form, setForm]               = useState({ mijoz:'', tonna:'', narx:'', tolov:'naqd', izoh:'' });
+  const [range, setRange]             = useState({ from: '', to: '' });
   const [modalCustomer, setModalCustomer] = useState(null);
   const [payForm, setPayForm]             = useState({ debtId: null, amount: '' });
   const printRef = useRef();
@@ -113,10 +116,13 @@ export default function SoldTons({ lang }) {
     debtRows.filter(d => d.customer === name)
             .reduce((s, d) => s + Math.max(0, Number(d.amount) - Number(d.paid)), 0);
 
-  // ── Jami ko'rsatkichlar ───────────────────────────────────────────────────
-  const totalTons    = soldRows.reduce((s,r) => s + Number(r.tons||0), 0);
-  const totalSum     = soldRows.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
-  const totalNasiya  = soldRows.filter(r => r.paymentChannel==='nasiya')
+  // ── Sana oralig'i bo'yicha ko'rsatiladigan qatorlar ───────────────────────
+  const viewRows = filterByRange(soldRows, range);
+
+  // ── Jami ko'rsatkichlar (filtrlangan oraliq bo'yicha) ─────────────────────
+  const totalTons    = viewRows.reduce((s,r) => s + Number(r.tons||0), 0);
+  const totalSum     = viewRows.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
+  const totalNasiya  = viewRows.filter(r => r.paymentChannel==='nasiya')
                                .reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
 
   // ── Akt Sverka chop etish ─────────────────────────────────────────────────
@@ -416,6 +422,9 @@ export default function SoldTons({ lang }) {
         </tbody>
       </table>
 
+      {/* ── Sana oralig'i filtri ── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#003366" />
+
       {/* ── Excel eksport ── */}
       <div style={{ marginBottom: 10 }}>
         <ExcelExport
@@ -432,12 +441,12 @@ export default function SoldTons({ lang }) {
             { header: 'Izoh', value: r => r.izoh || '' },
             { header: 'Xodim', value: r => r.worker || '' },
           ]}
-          rows={[...soldRows].reverse()}
+          rows={[...viewRows].reverse()}
         />
       </div>
 
       {/* ── Asosiy jadval ── */}
-      {soldRows.length === 0 ? (
+      {viewRows.length === 0 ? (
         <p style={{ color:'#666', fontStyle:'italic' }}>{L.yoq[lang]}</p>
       ) : (
         <table className="data-table" style={{ width:'100%' }}>
@@ -457,14 +466,14 @@ export default function SoldTons({ lang }) {
             </tr>
           </thead>
           <tbody>
-            {[...soldRows].reverse().map((r, i) => {
+            {[...viewRows].reverse().map((r, i) => {
               const sum      = Number(r.tons||0) * Number(r.pricePerTon||0);
               const isNasiya = r.paymentChannel === 'nasiya';
               const custDebt = isNasiya ? getCustomerDebt(r.customer) : 0;
               const rowBg    = isNasiya ? '#fff5ee' : (i%2===0?'#fff':'#f9f9f9');
               return (
                 <tr key={r.id} style={{ background:rowBg }}>
-                  <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{soldRows.length - i}</td>
+                  <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{viewRows.length - i}</td>
                   <td style={{ fontSize:12 }}>{r.date}</td>
                   <td style={{ fontWeight:'bold', color:'#003366' }}>
                     {isNasiya ? (

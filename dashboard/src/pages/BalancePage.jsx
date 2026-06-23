@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange, isEmptyRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -36,6 +38,7 @@ const fromInputDate = (v) => {
 export default function BalancePage({ lang, type, title, color }) {
   const data = useData();
   const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [range, setRange] = useState({ from: '', to: '' }); // sanadan–sanagacha
 
   // Ma'lumotlarni turiga qarab ajratish
   let opening = { amount: 0, date: '' };
@@ -52,6 +55,7 @@ export default function BalancePage({ lang, type, title, color }) {
       else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Naqd)';
       else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Naqd)';
       else if (r.auto && r.sourceType === 'driver')       cat = "Haydovchi to'lovi (Naqd)";
+      else if (r.auto && r.sourceType === 'supplier_payment') cat = "Yetkazib beruvchiga to'lov (Naqd)";
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     // Asosiy harakatlar
@@ -69,6 +73,7 @@ export default function BalancePage({ lang, type, title, color }) {
       else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Bank)';
       else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Bank)';
       else if (r.auto && r.sourceType === 'driver')       cat = "Haydovchi to'lovi (Bank)";
+      else if (r.auto && r.sourceType === 'supplier_payment') cat = "Yetkazib beruvchiga to'lov (Bank)";
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     allTx.push(...data.bankIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
@@ -85,6 +90,7 @@ export default function BalancePage({ lang, type, title, color }) {
       else if (r.auto && r.sourceType === 'advance')      cat = 'Avans kirim (Click)';
       else if (r.auto && r.sourceType === 'salary')       cat = 'Oylik chiqim (Click)';
       else if (r.auto && r.sourceType === 'driver')       cat = "Haydovchi to'lovi (Click)";
+      else if (r.auto && r.sourceType === 'supplier_payment') cat = "Yetkazib beruvchiga to'lov (Click)";
       return { ...r, sign: r.amount > 0 ? +1 : -1, cat };
     }));
     allTx.push(...data.clickIncomeRows.map(r => ({ ...r, sign: +1, cat: 'Kirim' })));
@@ -93,17 +99,30 @@ export default function BalancePage({ lang, type, title, color }) {
   }
 
   const selTs = parseDate(selectedDate);
-  
-  // Tanlangan kungacha bo'lgan jami qoldiq
+  const rangeActive = !isEmptyRange(range);
+
+  // Qoldiq qaysi sanagacha hisoblanadi: oraliq faol bo'lsa — oraliq oxirigacha,
+  // aks holda tanlangan kungacha.
+  const endTs = rangeActive
+    ? (range.to ? new Date(range.to + 'T23:59:59').getTime() : Infinity)
+    : selTs;
   const balanceUpToDate = Number(opening.amount) + allTx
-    .filter(t => parseDate(t.date) <= selTs)
+    .filter(t => parseDate(t.date) <= endTs)
     .reduce((s, t) => s + (Number(t.amount) * t.sign), 0);
 
-  // Tanlangan kundagi harakatlar
-  const dayTx = allTx.filter(t => t.date === selectedDate).sort((a,b) => b.createdAt - a.createdAt);
+  // Ko'rsatiladigan harakatlar: oraliq faol bo'lsa — oraliqdagi barchasi,
+  // aks holda tanlangan kundagilar.
+  const dayTx = (rangeActive
+    ? filterByRange(allTx, range)
+    : allTx.filter(t => t.date === selectedDate)
+  ).slice().sort((a, b) => (parseDate(b.date) - parseDate(a.date)) || (b.createdAt - a.createdAt));
   const dayIn = dayTx.filter(t => t.sign > 0).reduce((s, t) => s + Number(t.amount), 0);
   const dayOut = dayTx.filter(t => t.sign < 0).reduce((s, t) => s + Number(t.amount), 0);
   const dayNet = dayIn - dayOut;
+
+  const periodLabel = rangeActive
+    ? `${range.from || '…'} — ${range.to || '…'}`
+    : selectedDate;
 
   const inp = { padding: '6px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
 
@@ -128,11 +147,14 @@ export default function BalancePage({ lang, type, title, color }) {
         </div>
       </div>
 
+      {/* ── SANA ORALIG'I (dan–gacha) ────────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color={color} label="📅 Yoki sana oralig'i (dan–gacha):" />
+
       {/* ── STATISTIKA ───────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-        
+
         <div style={{ background: '#fff', borderLeft: `6px solid ${color}`, padding: '16px 20px', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 4, fontWeight: 'bold' }}>{selectedDate} dagi kun oxiri qoldig'i</div>
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 4, fontWeight: 'bold' }}>{rangeActive ? 'Oraliq oxiridagi qoldiq' : `${selectedDate} dagi kun oxiri qoldig'i`}</div>
           <div style={{ fontSize: 24, fontWeight: 'bold', color, fontFamily: 'monospace' }}>
             {fmt(balanceUpToDate)} <span style={{ fontSize: 14, color: '#888' }}>so'm</span>
           </div>
@@ -157,15 +179,15 @@ export default function BalancePage({ lang, type, title, color }) {
       {/* ── JADVAL ───────────────────────────────────────────────────────── */}
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div style={{ background: color, color: '#fff', padding: '10px 14px', fontWeight: 'bold', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <span>📋 {selectedDate} kunidagi barcha harakatlar ({dayTx.length} ta)</span>
+          <span>📋 {rangeActive ? `${periodLabel} oralig'idagi` : `${selectedDate} kunidagi`} barcha harakatlar ({dayTx.length} ta)</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span>Sof o'zgarish: {dayNet > 0 ? '+' : ''}{fmt(dayNet)} so'm</span>
             <ExcelExport
-              filename={`${title}_${selectedDate}`}
+              filename={`${title}_${periodLabel}`}
               sheetName={title}
-              title={`${title} — ${selectedDate}`}
+              title={`${title} — ${periodLabel}`}
               columns={[
-                { header: 'Sana', value: () => selectedDate },
+                { header: 'Sana', value: (r) => r.date || selectedDate },
                 { header: 'Vaqt', value: (r) => fmtT(r.createdAt) },
                 { header: 'Kategoriya', value: (r) => r.cat },
                 { header: 'Xodim', value: (r) => r.worker || '' },
@@ -187,6 +209,7 @@ export default function BalancePage({ lang, type, title, color }) {
             <thead>
               <tr style={{ background: '#fafafa', borderBottom: '2px solid #eee' }}>
                 <th style={thS}>#</th>
+                {rangeActive && <th style={thS}>Sana</th>}
                 <th style={thS}>Vaqt</th>
                 <th style={thS}>Kategoriya</th>
                 <th style={thS}>Xodim</th>
@@ -198,6 +221,7 @@ export default function BalancePage({ lang, type, title, color }) {
               {dayTx.map((row, i) => (
                 <tr key={row.id} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ ...tdS, color: '#888', textAlign: 'center', width: 30 }}>{i + 1}</td>
+                  {rangeActive && <td style={{ ...tdS, width: 80, color: '#555' }}>{row.date}</td>}
                   <td style={{ ...tdS, width: 60, fontWeight: 'bold', color: '#555' }}>{fmtT(row.createdAt)}</td>
                   <td style={{ ...tdS, width: 140, fontWeight: 'bold', color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>{row.cat}</td>
                   <td style={{ ...tdS, width: 120 }}>{row.worker || '—'}</td>

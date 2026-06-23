@@ -3,6 +3,10 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
+import SupplierSelect from '../components/SupplierSelect';
+import CustomerSelect from '../components/CustomerSelect';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(3); };
@@ -17,18 +21,6 @@ const TOLOV    = [
   { v:'bank',  latn:'Bank',  cyrl:'Банк'  },
   { v:'click', latn:'Click', cyrl:'Клик'  },
 ];
-
-// Excel ustun nomlari (zavod shabloni)
-const EXCEL_COLS = {
-  A: 'имя клиента (manbaa)',
-  B: 'Марка цемента (marka)',
-  C: 'Номер авто (mashina №)',
-  D: 'Объём (tonna)',
-  F: 'Цена за ед. (narx)',
-  G: 'Сумма (jami)',
-  H: 'Время выезда (vaqt)',
-  I: 'Название карты (karta)',
-};
 
 const L = {
   import_btn:   { latn:'Excel yuklash',         cyrl:'Excel юклаш'          },
@@ -72,14 +64,16 @@ const L = {
 
 // ── Shablon Excel yaratish ────────────────────────────────────────────────────
 const downloadTemplate = () => {
+  // Ustunlar: A=имя, B=марка, C=номер, D=объем, E=цена, F=сумма, G=время, H=карта
+  // (Avvalgi versiyadagi ortiqcha bo'sh ustun olib tashlandi.)
   const headers = [
     'имя клиента', 'Марка цемента', 'Номер автомобиля',
-    'объем', '', 'Цена за еден', 'Сумма',
+    'объем', 'Цена за еден', 'Сумма',
     'Время выезда из завода', 'Название бумажной карты'
   ];
   const example = [
     'ZAVOD NOMI MCHJ', '42.5B-K мешание', '30953LBA',
-    50, '', 670000, 33500000,
+    50, 670000, 33500000,
     '2026-06-08 22:35:42', 'A26007338 (2)'
   ];
   const ws  = XLSX.utils.aoa_to_sheet([headers, example]);
@@ -91,11 +85,15 @@ const downloadTemplate = () => {
 export default function RecvTons({ lang }) {
   const {
     recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow,
+    addSaleRow, addSupplier,
     currentWorker, setCurrentWorker,
-    warehouses, whName, defaultWhId, currentUser,
+    warehouses, defaultWhId, currentUser,
   } = useData();
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
+  // "Birdan sotish" — tasdiqlash oynasida zavoddan to'g'ri mijozga sotish
+  const [sell, setSell] = useState({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
+  const [range, setRange] = useState({ from: '', to: '' }); // sana oralig'i filtri
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
@@ -105,7 +103,6 @@ export default function RecvTons({ lang }) {
   const [filterBrand,  setFilterBrand]  = useState('');
   const [importRows,   setImportRows]   = useState(null); // Excel preview
   const [modalSource,  setModalSource]  = useState(null); // Akt Sverka
-  const [payForm,      setPayForm]      = useState({ id: null, amount: '' });
 
   const fileRef  = useRef();
   const printRef = useRef();
@@ -114,6 +111,7 @@ export default function RecvTons({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.source || !form.tons) return;
+    addSupplier({ name: form.source }); // yangi manbaani bazaga saqlab qo'yamiz
     addRecvRow({
       source: form.source, brand: form.brand,
       vehicleNo: form.vehicleNo, tons: form.tons,
@@ -137,12 +135,14 @@ export default function RecvTons({ lang }) {
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-      // 1-qator sarlavha, 2-qatordan boshlab ma'lumot
+      // 1-qator sarlavha, 2-qatordan boshlab ma'lumot.
+      // Ustunlar (ortiqcha bo'sh ustun olib tashlangan yangi shablon):
+      // A=imya(0) B=marka(1) C=avto(2) D=hajm(3) E=narx(4) F=summa(5) G=vaqt(6) H=karta(7)
       const rows = [];
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        const tons = Number(row[3]);          // D ustun
-        const price = Number(row[5]);         // F ustun
+        const tons = Number(row[3]);          // D ustun (hajm)
+        const price = Number(row[4]);         // E ustun (narx)
         if (!tons) continue;                  // bo'sh qatorni o'tkazib yuborish
         rows.push({
           source:     String(row[0] || '').trim(),
@@ -150,9 +150,9 @@ export default function RecvTons({ lang }) {
           vehicleNo:  String(row[2] || '').trim(),
           tons,
           pricePerTon: price || 0,
-          summa:      Number(row[6]) || (tons * price),
-          factoryTime: row[7] ? String(row[7]).trim() : '',
-          cardName:   String(row[8] || '').trim(),
+          summa:      Number(row[5]) || (tons * price),
+          factoryTime: row[6] ? String(row[6]).trim() : '',
+          cardName:   String(row[7] || '').trim(),
           paymentChannel: 'naqd',
           izoh: '',
         });
@@ -170,6 +170,42 @@ export default function RecvTons({ lang }) {
     setImportRows(null);
   };
 
+  // ── Tasdiqlash (+ ixtiyoriy birdan sotish) ───────────────────────────────
+  const openVerify = (r) => {
+    setVerifyRow({ ...r });
+    setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
+  };
+  const closeVerify = () => { setVerifyRow(null); setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' }); };
+  const confirmVerify = () => {
+    if (!verifyRow.source) { alert('Zavod nomini kiriting'); return; }
+    const tons = Number(verifyRow.tons) || 0;
+    if (sell.on && (!sell.customer || !sell.pricePerTon)) {
+      alert('Birdan sotish uchun mijoz va sotish narxini kiriting.');
+      return;
+    }
+    // Yangi manbaani bazaga saqlash
+    addSupplier({ name: verifyRow.source });
+    // 1) Tasdiqlash → yetkazib beruvchiga qarz yoziladi (kassadan pul yechilmaydi)
+    verifyRecvRow(verifyRow.id, {
+      source: verifyRow.source, brand: verifyRow.brand,
+      tons, pricePerTon: Number(verifyRow.pricePerTon) || 0,
+      paymentChannel: verifyRow.paymentChannel,
+      warehouseId: verifyRow.warehouseId || myWh,
+    });
+    // 2) Birdan sotish → zavoddan to'g'ri mijozga (sklad orqali o'tmaydi)
+    if (sell.on) {
+      addSaleRow({
+        customer: sell.customer,
+        tons,
+        pricePerTon: Number(sell.pricePerTon) || 0,
+        paymentChannel: sell.paymentChannel,
+        warehouseId: verifyRow.warehouseId || myWh,
+        note: `Zavoddan to'g'ridan-to'g'ri (${verifyRow.source})`,
+      });
+    }
+    closeVerify();
+  };
+
   // ── Filtrlar ──────────────────────────────────────────────────────────────
   const sourceList = [...new Set(recvRows.map(r => r.source).filter(Boolean))];
   const brandList  = [...new Set(recvRows.map(r => r.brand).filter(Boolean))];
@@ -177,6 +213,7 @@ export default function RecvTons({ lang }) {
   let filtered = recvRows;
   if (filterSource) filtered = filtered.filter(r => r.source === filterSource);
   if (filterBrand)  filtered = filtered.filter(r => r.brand  === filterBrand);
+  filtered = filterByRange(filtered, range); // sanadan–sanagacha
 
   const totalTons = filtered.reduce((s,r) => s + Number(r.tons||0), 0);
   const totalSum  = filtered.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
@@ -422,7 +459,7 @@ export default function RecvTons({ lang }) {
           ✏️ Qo'lda qo'shish (kengaytirish uchun bosing)
         </summary>
         <form onSubmit={handleAdd} style={{ display:'flex', gap:5, marginTop:8, alignItems:'center', flexWrap:'wrap' }}>
-          <input placeholder={L.manbaa[lang]}  value={form.source}    onChange={e=>setForm({...form,source:e.target.value})}    style={{ ...inp, width:140 }} required />
+          <SupplierSelect value={form.source} onChange={val=>setForm({...form,source:val})} placeholder={L.manbaa[lang]} width={140} accentColor="#00695c" required />
           <input placeholder={L.marka[lang]}   value={form.brand}     onChange={e=>setForm({...form,brand:e.target.value})}     style={{ ...inp, width:130 }} />
           <input placeholder={L.mashina[lang]} value={form.vehicleNo} onChange={e=>setForm({...form,vehicleNo:e.target.value})} style={{ ...inp, width:100 }} />
           <input type="number" placeholder={L.tonna[lang]} value={form.tons} onChange={e=>setForm({...form,tons:e.target.value})} style={{ ...inp, width:90 }} required />
@@ -468,6 +505,9 @@ export default function RecvTons({ lang }) {
           </tr>
         </tbody>
       </table>
+
+      {/* ── Sana oralig'i filtri ── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#003366" />
 
       {/* ── Filter paneli ── */}
       <table style={{ borderCollapse:'collapse', marginBottom:8 }}>
@@ -567,7 +607,7 @@ export default function RecvTons({ lang }) {
                     <td style={{ whiteSpace:'nowrap' }}>
                       {r.pending && (
                         <button
-                          onClick={() => setVerifyRow({ ...r })}
+                          onClick={() => openVerify(r)}
                           title="Tekshirib tasdiqlash"
                           style={{ fontSize:11, cursor:'pointer', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
                         >✓ Tekshirish</button>
@@ -597,8 +637,8 @@ export default function RecvTons({ lang }) {
 
       {/* ── TEKSHIRISH (TASDIQLASH) MODALI ─────────────────────────────────── */}
       {verifyRow && createPortal(
-        <div onClick={() => setVerifyRow(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:460, fontFamily:'Tahoma, sans-serif' }}>
+        <div onClick={closeVerify} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:16, overflowY:'auto' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:480, marginTop:20, fontFamily:'Tahoma, sans-serif' }}>
             <div style={{ background:'#e65100', color:'#fff', padding:'12px 16px', borderRadius:'8px 8px 0 0', fontWeight:'bold' }}>
               ✓ Yetkazmani tekshirib tasdiqlash
             </div>
@@ -612,15 +652,8 @@ export default function RecvTons({ lang }) {
               </Field>
               <div style={{ display:'flex', gap:10 }}>
                 <Field label="Tonna *"><input type="number" value={verifyRow.tons} onChange={e => setVerifyRow({ ...verifyRow, tons: e.target.value })} style={vInp} /></Field>
-                <Field label="Narx (1 tn)"><input type="number" value={verifyRow.pricePerTon} onChange={e => setVerifyRow({ ...verifyRow, pricePerTon: e.target.value })} style={vInp} /></Field>
+                <Field label="Olish narxi (1 tn)"><input type="number" value={verifyRow.pricePerTon} onChange={e => setVerifyRow({ ...verifyRow, pricePerTon: e.target.value })} style={vInp} /></Field>
               </div>
-              <Field label="To'lov turi (zavodga)">
-                <select value={verifyRow.paymentChannel} onChange={e => setVerifyRow({ ...verifyRow, paymentChannel: e.target.value })} style={vInp}>
-                  <option value="bank">🏦 Bank (o'tkazma)</option>
-                  <option value="naqd">💵 Naqd</option>
-                  <option value="click">📱 Click</option>
-                </select>
-              </Field>
               {warehouses.length > 1 && (
                 <Field label="Sklad">
                   <select value={verifyRow.warehouseId || myWh} onChange={e => setVerifyRow({ ...verifyRow, warehouseId: e.target.value })} style={vInp}>
@@ -628,13 +661,43 @@ export default function RecvTons({ lang }) {
                   </select>
                 </Field>
               )}
-              <div style={{ fontSize:12, color:'#1b5e20', background:'#e8f5e9', padding:8, borderRadius:4 }}>
-                Tasdiqlangach: <b>{fmt(Number(verifyRow.tons||0)*Number(verifyRow.pricePerTon||0))} so'm</b> tegishli kassadan (zavodga to'lov) chiqim qilinadi.
+              <div style={{ fontSize:12, color:'#004d40', background:'#e0f2f1', padding:8, borderRadius:4 }}>
+                Tasdiqlangach: <b>{fmt(Number(verifyRow.tons||0)*Number(verifyRow.pricePerTon||0))} so'm</b> yetkazib beruvchiga <b>qarz</b> sifatida yoziladi. Kassadan pul yechilmaydi — to'lovni keyin "Yetkazib beruvchi qarzi" bo'limidan kiritasiz.
               </div>
+
+              {/* ── Birdan sotish (zavoddan to'g'ri mijozga) ── */}
+              <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:'bold', color:'#01579b', cursor:'pointer', background:'#e1f5fe', padding:'8px 10px', borderRadius:6 }}>
+                <input type="checkbox" checked={sell.on} onChange={e => setSell({ ...sell, on: e.target.checked })} />
+                🛒 Birdan mijozga sotish (zavoddan to'g'ri ketdi)
+              </label>
+              {sell.on && (
+                <div style={{ display:'flex', flexDirection:'column', gap:10, border:'1px solid #b3e5fc', borderRadius:6, padding:10, background:'#f5fbff' }}>
+                  <Field label="Mijoz *">
+                    <CustomerSelect value={sell.customer} onChange={val => setSell({ ...sell, customer: val })} placeholder="Mijoz (izlash...)" width={'100%'} accentColor="#01579b" />
+                  </Field>
+                  <div style={{ display:'flex', gap:10 }}>
+                    <Field label="Sotish narxi (1 tn) *"><input type="number" value={sell.pricePerTon} onChange={e => setSell({ ...sell, pricePerTon: e.target.value })} style={vInp} placeholder="Masalan: 720000" /></Field>
+                    <Field label="To'lov turi">
+                      <select value={sell.paymentChannel} onChange={e => setSell({ ...sell, paymentChannel: e.target.value })} style={vInp}>
+                        <option value="naqd">💵 Naqd</option>
+                        <option value="bank">🏦 Bank</option>
+                        <option value="click">📱 Click</option>
+                        <option value="nasiya">⚠️ Nasiya (Qarz)</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <div style={{ fontSize:12, color:'#01579b', background:'#e1f5fe', padding:8, borderRadius:4 }}>
+                    Sotuv summasi: <b>{fmt(Number(verifyRow.tons||0)*Number(sell.pricePerTon||0))} so'm</b> — "{sell.customer || '...'}" ga sotiladi.
+                  </div>
+                </div>
+              )}
+
               <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                <button onClick={() => { if(!verifyRow.source){ alert('Zavod nomini kiriting'); return; } verifyRecvRow(verifyRow.id, { source: verifyRow.source, brand: verifyRow.brand, tons: Number(verifyRow.tons)||0, pricePerTon: Number(verifyRow.pricePerTon)||0, paymentChannel: verifyRow.paymentChannel, warehouseId: verifyRow.warehouseId || myWh }); setVerifyRow(null); }}
-                  style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>✓ Tasdiqlash</button>
-                <button onClick={() => setVerifyRow(null)} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
+                <button onClick={confirmVerify}
+                  style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>
+                  {sell.on ? '✓ Tasdiqlab sotish' : '✓ Tasdiqlash'}
+                </button>
+                <button onClick={closeVerify} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
               </div>
             </div>
           </div>

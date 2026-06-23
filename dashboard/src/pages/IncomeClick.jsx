@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -97,6 +99,7 @@ export default function IncomeClick({ lang }) {
   const [expFilterDate,   setExpFilterDate]    = useState('');
   const [expShowAll,      setExpShowAll]       = useState(true);
   const [expFilterWorker, setExpFilterWorker]  = useState('');
+  const [range, setRange] = useState({ from: '', to: '' });
 
   // Ochilish tahrirlash
   const [editOpening, setEditOpening] = useState(false);
@@ -138,8 +141,8 @@ export default function IncomeClick({ lang }) {
   const sortedInc = sortRows(clickIncomeRows);
   const sortedExp = sortRows(clickExpenseRows);
 
-  const filteredInc = applyFilter(sortedInc, incShowAll, incFilterDate, incFilterWorker);
-  const filteredExp = applyFilter(sortedExp, expShowAll, expFilterDate, expFilterWorker);
+  const filteredInc = filterByRange(applyFilter(sortedInc, incShowAll, incFilterDate, incFilterWorker), range);
+  const filteredExp = filterByRange(applyFilter(sortedExp, expShowAll, expFilterDate, expFilterWorker), range);
 
   const incWorkers = [...new Set(sortedInc.map(r => r.worker).filter(Boolean))];
   const expWorkers = [...new Set(sortedExp.map(r => r.worker).filter(Boolean))];
@@ -198,6 +201,9 @@ export default function IncomeClick({ lang }) {
             style={{ ...inp, background: '#ffcccc', border: '1px solid #c00', cursor: 'pointer' }}>✕</button>
         </div>
       )}
+
+      {/* ── UMUMIY SANA ORALIG'I FILTRI ───────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color="#6a1b9a" />
 
       {/* ── TAB TUGMALARI ─────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #ccc', marginBottom: 0 }}>

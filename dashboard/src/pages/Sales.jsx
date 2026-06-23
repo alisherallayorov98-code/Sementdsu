@@ -6,6 +6,8 @@ import { customerSummary } from '../lib/customerSummary';
 import NotifyModal from '../components/NotifyModal';
 import ExcelExport from '../components/ExcelExport';
 import CustomerCard from '../components/CustomerCard';
+import DateRangeFilter from '../components/DateRangeFilter';
+import { filterByRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -29,6 +31,7 @@ export default function Sales({ lang }) {
   const whBalance = cementBalanceOf(activeWh);
   const custAdvance = form.customer ? advanceBalanceOf(form.customer) : 0;
   const [search, setSearch] = useState('');
+  const [range, setRange] = useState({ from: '', to: '' });
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
   const [card, setCard] = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
@@ -90,7 +93,10 @@ export default function Sales({ lang }) {
 
   // Filter
   const sorted = [...salesRows].sort((a,b) => b.createdAt - a.createdAt);
-  const filtered = sorted.filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()) || (r.note||'').toLowerCase().includes(search.toLowerCase()));
+  const filtered = filterByRange(
+    sorted.filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()) || (r.note||'').toLowerCase().includes(search.toLowerCase())),
+    range
+  );
 
   const inp = { padding: '6px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
 
@@ -203,6 +209,9 @@ export default function Sales({ lang }) {
           </div>
         )}
       </div>
+
+      {/* ── SANA ORALIG'I FILTRI ──────────────────────────────────────────── */}
+      <DateRangeFilter value={range} onChange={setRange} color={ACCENT} />
 
       {/* ── QIDIRUV VA JADVAL ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
