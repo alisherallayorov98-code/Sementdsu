@@ -65,10 +65,10 @@ export default function Dashboard() {
 
       {/* Asosiy qoldiqlar */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" onClick={() => navigate('/cash_bal')} />
-        <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" onClick={() => navigate('/bank_bal')} />
-        <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" onClick={() => navigate('/click_bal')} />
-        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  onClick={() => navigate('/cement_bal')} />
+        <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" onClick={() => navigate('/gen_info?tab=cash')} />
+        <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" onClick={() => navigate('/gen_info?tab=bank')} />
+        <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" onClick={() => navigate('/gen_info?tab=click')} />
+        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  onClick={() => navigate('/gen_info?tab=cement')} />
         <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" onClick={() => navigate('/debts')} />
         <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
       </div>

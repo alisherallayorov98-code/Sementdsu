@@ -14,11 +14,7 @@ import Monitoring    from './pages/Monitoring';
 import Distribution  from './pages/Distribution';
 import MapPage       from './pages/MapPage';
 
-import CashBal       from './pages/CashBal';
-import BankBal       from './pages/BankBal';
-import ClickBal      from './pages/ClickBal';
-import CementBal     from './pages/CementBal';
-import DailyWork     from './pages/DailyWork';
+import UmumiyMalumot from './pages/UmumiyMalumot';
 import Income        from './pages/Income';
 import Expense       from './pages/Expense';
 import SoldTons      from './pages/SoldTons';
@@ -38,11 +34,7 @@ import DayBalance    from './pages/DayBalance';
 // ─── Menyu ro'yxati ──────────────────────────────────────────────────────────
 const FULL_MENU = [
   { path: '/',               latn: "🏠 Bosh sahifa",        cyrl: "🏠 Бош саҳифа",        roles: ['admin', 'sotuvchi', 'omborchi'] },
-  { path: '/cash_bal',       latn: "Naqd pul qoldig'i",     cyrl: "Нақд пул қолдиғи",     roles: ['admin', 'sotuvchi'] },
-  { path: '/bank_bal',       latn: "Bank qoldig'i",         cyrl: "Банк қолдиғи",         roles: ['admin', 'sotuvchi'] },
-  { path: '/click_bal',      latn: "Click qoldig'i",        cyrl: "Клик қолдиғи",         roles: ['admin', 'sotuvchi'] },
-  { path: '/cement_bal',     latn: "Sement qoldig'i",       cyrl: "Цемент қолдиғи",       roles: ['admin', 'omborchi', 'sotuvchi'] },
-  { path: '/daily_work',     latn: "Kunlik ish",            cyrl: "Кунлик иш",            roles: ['admin'] },
+  { path: '/gen_info',       latn: "📊 Umumiy ma'lumot",     cyrl: "📊 Умумий маълумот",    roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/income',         latn: "Kirim (Naqd)",          cyrl: "Кирим (Нақд)",         roles: ['admin', 'sotuvchi'] },
   { path: '/expense',        latn: "Chiqim (Naqd)",         cyrl: "Чиқим (Нақд)",         roles: ['admin', 'sotuvchi'] },
   { path: '/sold_tons',      latn: "Sotilgan tonna (Eski)", cyrl: "Сотилган тонна (Эски)",roles: ['admin'] },
@@ -67,13 +59,8 @@ const FULL_MENU = [
   { path: '/settings',       latn: "Sozlamalar (Admin)",    cyrl: "Созламалар (Админ)",   roles: ['admin'] },
 ];
 
-// "Umumiy ma'lumot" — ochiladigan guruh: qoldiqlar + kunlik ish shu yerga yig'iladi.
-const GROUP_LABEL = { latn: "Umumiy ma'lumot", cyrl: "Умумий маълумот" };
-const GROUP_PATHS = ['/cash_bal', '/bank_bal', '/click_bal', '/cement_bal', '/daily_work'];
-
 function App() {
   const [lang, setLang] = useState('latn');
-  const [groupOpen, setGroupOpen] = useState(false); // "Umumiy ma'lumot" guruhi ochiqmi
   const location = useLocation();
   const { currentUser, token, logout, appSettings, backendOnline } = useData();
 
@@ -129,53 +116,11 @@ function App() {
         <div className="sidebar">
           <div className="menu-header">Bo'limlar</div>
           <ul className="menu-list">
-            {(() => {
-              const boshItem    = myMenu.find(m => m.path === '/');
-              const childItems  = GROUP_PATHS.map(p => myMenu.find(m => m.path === p)).filter(Boolean);
-              const otherItems  = myMenu.filter(m => m.path !== '/' && !GROUP_PATHS.includes(m.path));
-              const groupActive = GROUP_PATHS.includes(location.pathname);
-              const displayOpen = groupOpen || groupActive; // joriy sahifa guruhda bo'lsa — ochiq
-              return (
-                <>
-                  {/* 1. Bosh sahifa */}
-                  {boshItem && (
-                    <li className={location.pathname === '/' ? 'active' : ''}>
-                      <NavLink to="/" end>1. {boshItem[lang]}</NavLink>
-                    </li>
-                  )}
-
-                  {/* 2. Umumiy ma'lumot — ochiladigan guruh */}
-                  {childItems.length > 0 && (
-                    <li style={{ borderBottom: '1px solid #f0f1f3' }}>
-                      <button
-                        type="button"
-                        onClick={() => setGroupOpen(o => !o)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold' }}
-                      >
-                        <span>2. 📊 {GROUP_LABEL[lang]}</span>
-                        <span style={{ fontSize: 11, color: '#888' }}>{displayOpen ? '▾' : '▸'}</span>
-                      </button>
-                      {displayOpen && (
-                        <ul className="menu-list" style={{ background: '#fafbfc', borderTop: '1px solid #f0f1f3' }}>
-                          {childItems.map(item => (
-                            <li key={item.path} className={location.pathname === item.path ? 'active' : ''}>
-                              <NavLink to={item.path} style={{ paddingLeft: 26, fontSize: 12.5 }}>– {item[lang]}</NavLink>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  )}
-
-                  {/* 3.. qolgan bo'limlar */}
-                  {otherItems.map((item, idx) => (
-                    <li key={item.path} className={location.pathname === item.path ? 'active' : ''}>
-                      <NavLink to={item.path}>{idx + 3}. {item[lang]}</NavLink>
-                    </li>
-                  ))}
-                </>
-              );
-            })()}
+            {myMenu.map((item, idx) => (
+              <li key={item.path} className={location.pathname === item.path ? 'active' : ''}>
+                <NavLink to={item.path} end={item.path === '/'}>{idx + 1}. {item[lang]}</NavLink>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -185,11 +130,7 @@ function App() {
           <div className="content-body">
             <Routes>
               <Route path="/"               element={<Dashboard />} />
-              <Route path="/cash_bal"       element={<CashBal        lang={lang} />} />
-              <Route path="/bank_bal"       element={<BankBal        lang={lang} />} />
-              <Route path="/click_bal"      element={<ClickBal       lang={lang} />} />
-              <Route path="/cement_bal"     element={<CementBal      lang={lang} />} />
-              <Route path="/daily_work"     element={<DailyWork      lang={lang} />} />
+              <Route path="/gen_info"       element={<UmumiyMalumot  lang={lang} />} />
               <Route path="/income"         element={<Income         lang={lang} />} />
               <Route path="/expense"        element={<Expense        lang={lang} />} />
               <Route path="/sold_tons"      element={<SoldTons       lang={lang} />} />
