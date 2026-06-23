@@ -65,12 +65,12 @@ export default function Dashboard() {
 
       {/* Asosiy qoldiqlar */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" color="#2e7d32" bg="#e8f5e9" onClick={() => navigate('/cash_bal')} />
-        <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" color="#1565c0" bg="#e3f2fd" onClick={() => navigate('/bank_bal')} />
-        <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" color="#6a1b9a" bg="#f3e5f5" onClick={() => navigate('/click_bal')} />
-        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  color={totalCementBalance >= 0 ? '#5d4037' : '#c62828'} bg="#efebe9" onClick={() => navigate('/cement_bal')} />
-        <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" color="#c62828" bg="#ffebee" onClick={() => navigate('/debts')} />
-        <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} color="#ef6c00" bg="#fff3e0" onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
+        <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" onClick={() => navigate('/cash_bal')} />
+        <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" onClick={() => navigate('/bank_bal')} />
+        <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" onClick={() => navigate('/click_bal')} />
+        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  onClick={() => navigate('/cement_bal')} />
+        <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" onClick={() => navigate('/debts')} />
+        <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
       </div>
 
       {/* 🟡 Tekshirilmagan (import qilingan) yozuvlar */}
@@ -116,8 +116,8 @@ export default function Dashboard() {
         <Panel title="📅 Bugun">
           <Line label="Sotuv (tonna)" value={`${fmtT(tonsOf(todaySales))} tn`} />
           <Line label="Sotuv (summa)" value={`${fmt(sumOf(todaySales))} so'm`} strong />
-          <Line label="Naqd kirim"    value={`${fmt(todayIncome)} so'm`} color="#2e7d32" />
-          <Line label="Naqd chiqim"   value={`${fmt(todayExpense)} so'm`} color="#c62828" />
+          <Line label="Naqd kirim"    value={`${fmt(todayIncome)} so'm`} />
+          <Line label="Naqd chiqim"   value={`${fmt(todayExpense)} so'm`} />
         </Panel>
 
         <Panel title="🗓 Shu oy">
@@ -130,7 +130,7 @@ export default function Dashboard() {
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         {/* Eng katta qarzdorlar */}
         <div style={{ flex: 1, minWidth: 320 }}>
-          <div style={{ background: '#c62828', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13, borderRadius: '4px 4px 0 0' }}>
+          <div style={{ background: '#003366', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13, borderRadius: '4px 4px 0 0' }}>
             Eng katta qarzdorlar
           </div>
           {topDebtors.length === 0 ? (
@@ -151,7 +151,7 @@ export default function Dashboard() {
 
         {/* Kutilayotgan zakazlar */}
         <div style={{ flex: 1, minWidth: 320 }}>
-          <div style={{ background: '#ef6c00', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13, borderRadius: '4px 4px 0 0' }}>
+          <div style={{ background: '#003366', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13, borderRadius: '4px 4px 0 0' }}>
             Kutilayotgan zakazlar
           </div>
           {pending.length === 0 ? (
@@ -177,10 +177,12 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ label, value, unit, color, bg, onClick, blink }) {
+// Bir xil klassik ko'rinish: hamma kartochka bitta korporativ ko'k (#003366) + neytral kulrang
+function Stat({ label, value, unit, onClick, blink }) {
+  const color = '#003366';
   return (
     <div onClick={onClick} style={{
-      flex: 1, minWidth: 175, padding: '12px 16px', background: bg, borderLeft: `5px solid ${color}`,
+      flex: 1, minWidth: 175, padding: '12px 16px', background: '#f0f0f0', borderLeft: `5px solid ${color}`,
       borderRadius: 5, cursor: 'pointer', boxShadow: blink ? `0 0 0 2px ${color}` : 'none',
     }}>
       <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>{label}</div>
@@ -194,7 +196,7 @@ function Stat({ label, value, unit, color, bg, onClick, blink }) {
 function Panel({ title, children }) {
   return (
     <div style={{ flex: 1, minWidth: 280, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
-      <div style={{ background: '#37474f', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13 }}>{title}</div>
+      <div style={{ background: '#003366', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13 }}>{title}</div>
       <div style={{ padding: '8px 12px' }}>{children}</div>
     </div>
   );
