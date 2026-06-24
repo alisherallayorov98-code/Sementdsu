@@ -88,13 +88,14 @@ export default function RecvTons({ lang }) {
     recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow,
     addSaleRow, addSupplier,
     currentWorker, setCurrentWorker,
-    warehouses, defaultWhId, currentUser,
+    warehouses, defaultWhId, currentUser, appSettings,
   } = useData();
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
   // "Birdan sotish" — tasdiqlash oynasida zavoddan to'g'ri mijozga sotish
   const [sell, setSell] = useState({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
   const [range, setRange] = useState({ from: '', to: '' }); // sana oralig'i filtri
+  const [selected, setSelected] = useState(new Set()); // ommaviy tanlash
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
@@ -222,9 +223,25 @@ export default function RecvTons({ lang }) {
 
   const totalTons = filtered.reduce((s,r) => s + Number(r.tons||0), 0);
   const totalSum  = filtered.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
-  useEffect(() => { setPage(1); }, [filterSource, filterBrand, range.from, range.to]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [filterSource, filterBrand, range.from, range.to]);
   const reversedFiltered = [...filtered].reverse();
   const paged = reversedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const allPageSelected = paged.length > 0 && paged.every(r => selected.has(r.id));
+  const toggleAllPage = () => {
+    if (allPageSelected) {
+      setSelected(prev => { const s = new Set(prev); paged.forEach(r => s.delete(r.id)); return s; });
+    } else {
+      setSelected(prev => { const s = new Set(prev); paged.forEach(r => s.add(r.id)); return s; });
+    }
+  };
+  const handleBulkDelete = () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`${selected.size} ta yozuv o'chirilsinmi? Bu amalni qaytarib bo'lmaydi.`)) return;
+    selected.forEach(id => deleteRecvRow(id));
+    setSelected(new Set());
+  };
 
   // ── Akt Sverka chop etish ─────────────────────────────────────────────────
   const handlePrint = () => {
@@ -568,10 +585,37 @@ export default function RecvTons({ lang }) {
         <p style={{ color:'#666', fontStyle:'italic' }}>{L.yoq[lang]}</p>
       ) : (
         <>
+        {/* ── Ommaviy o'chirish paneli ── */}
+        {appSettings?.allowBulkDelete && (
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6, padding:'6px 10px', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:6 }}>
+            <span style={{ fontSize:12, color:'#e65100', fontWeight:'bold' }}>
+              ☑ Ommaviy o'chirish rejimi:
+            </span>
+            {selected.size > 0 ? (
+              <button onClick={handleBulkDelete}
+                style={{ fontSize:12, cursor:'pointer', background:'#c62828', color:'#fff', border:'none', borderRadius:4, padding:'4px 14px', fontWeight:'bold' }}>
+                🗑 {selected.size} ta yozuvni o'chirish
+              </button>
+            ) : (
+              <span style={{ fontSize:11, color:'#888' }}>Qatorlarni belgilang (chap ustun)</span>
+            )}
+            {selected.size > 0 && (
+              <button onClick={() => setSelected(new Set())}
+                style={{ fontSize:11, cursor:'pointer', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:4, padding:'3px 10px' }}>
+                Bekor qilish
+              </button>
+            )}
+          </div>
+        )}
         <div style={{ overflowX:'auto' }}>
           <table className="data-table" style={{ width:'100%', minWidth:1000 }}>
             <thead>
               <tr>
+                {appSettings?.allowBulkDelete && (
+                  <th style={{ width:30, textAlign:'center' }}>
+                    <input type="checkbox" checked={allPageSelected} onChange={toggleAllPage} title="Sahifadagi hammasini belgilash" />
+                  </th>
+                )}
                 <th style={{ width:30 }}>#</th>
                 <th style={{ width:85 }}>{L.sana[lang]}</th>
                 <th style={{ width:160 }}>{L.manbaa[lang]}</th>
@@ -591,8 +635,14 @@ export default function RecvTons({ lang }) {
               {paged.map((r, i) => {
                 const s = Number(r.tons||0) * Number(r.pricePerTon||0);
                 const absIdx = (page - 1) * PAGE_SIZE + i;
+                const isSelected = selected.has(r.id);
                 return (
-                  <tr key={r.id} style={{ background: r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
+                  <tr key={r.id} style={{ background: isSelected ? '#fff3e0' : r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
+                    {appSettings?.allowBulkDelete && (
+                      <td style={{ textAlign:'center' }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)} />
+                      </td>
+                    )}
                     <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>
                       {r.pending ? <span title="Tekshirilmagan" style={{ color:'#e65100' }}>⚠</span> : filtered.length-absIdx}
                     </td>
@@ -631,6 +681,7 @@ export default function RecvTons({ lang }) {
                 );
               })}
               <tr style={{ background:'#ffff00', fontWeight:'bold' }}>
+                {appSettings?.allowBulkDelete && <td></td>}
                 <td colSpan={5} style={{ textAlign:'right' }}>{L.jami_lbl[lang]}</td>
                 <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtT(totalTons)} tn</td>
                 <td></td>

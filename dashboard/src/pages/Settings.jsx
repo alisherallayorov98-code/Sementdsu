@@ -388,6 +388,10 @@ export default function Settings({ lang }) {
                   <input type="checkbox" checked={appF.autoPrintReceipt !== false} onChange={e => setAppF({...appF, autoPrintReceipt: e.target.checked})} />
                   <span><b>Sotuvdan keyin chek avtomatik chiqsin</b><br/><span style={{ fontSize: 11, color: '#777' }}>Kassa sotuvida har bir sotuvdan so'ng chek darrov chop etiladi (majburiy rejim).</span></span>
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#444', cursor: 'pointer', background: '#fff', border: '1px solid #ffcdd2', borderRadius: 6, padding: '8px 10px' }}>
+                  <input type="checkbox" checked={!!appF.allowBulkDelete} onChange={e => setAppF({...appF, allowBulkDelete: e.target.checked})} />
+                  <span><b>Ommaviy o'chirishga ruxsat (Olingan tonna)</b><br/><span style={{ fontSize: 11, color: '#777' }}>Yoqilganda "Olingan tonna" sahifasida bir nechta yozuvni belgilab o'chirish tugmasi paydo bo'ladi.</span></span>
+                </label>
               </div>
             </div>
 
