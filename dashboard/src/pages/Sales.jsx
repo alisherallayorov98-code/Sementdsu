@@ -11,12 +11,9 @@ import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
-const fmtT = (ts) => {
-  if (!ts || ts < 1e10) return '—';
-  const d = new Date(ts);
-  return [String(d.getHours()).padStart(2,'0'), String(d.getMinutes()).padStart(2,'0')].join(':');
-};
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const isoToLocal = (iso) => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}.${m}.${y}`; };
 
 const ACCENT = '#01579b'; // Dark blue for Sales
 const BG     = '#e1f5fe';
@@ -27,7 +24,7 @@ export default function Sales({ lang }) {
           warehouses, defaultWhId, cementBalanceOf, whName, advanceBalanceOf } = data;
   const isKassir = currentUser?.role === 'kassir';
   const myWh = currentUser?.warehouseId || defaultWhId;
-  const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: '' });
+  const [form, setForm] = useState({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: '', date: todayISO() });
   const activeWh = form.warehouseId || myWh;
   const whBalance = cementBalanceOf(activeWh);
   const custAdvance = form.customer ? advanceBalanceOf(form.customer) : 0;
@@ -72,8 +69,8 @@ export default function Sales({ lang }) {
       }
     }
 
-    const created = addSaleRow({ ...form, warehouseId: activeWh, worker: currentWorker });
-    setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: form.warehouseId });
+    const created = addSaleRow({ ...form, date: isoToLocal(form.date), warehouseId: activeWh, worker: currentWorker });
+    setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: form.warehouseId, date: todayISO() });
     // ── Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi ───────────
     // Optom (admin/sotuvchi) uchun avtomatik chiqmaydi — ular qo'lda 🧾 bosadi.
     if (created && isKassir && appSettings?.autoPrintReceipt !== false) {
@@ -197,6 +194,10 @@ export default function Sales({ lang }) {
               </div>
             )}
           </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#c62828', marginBottom: 4 }}>📅 Sotuv sanasi *</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={{ ...inp, width: 150 }} required />
+          </div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>Izoh / Mashina raqami</label>
             <input type="text" placeholder="Ixtiyoriy" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
@@ -262,9 +263,11 @@ export default function Sales({ lang }) {
               return (
                 <tr key={r.id} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ ...tdS, color: '#888', textAlign: 'center', width: 30 }}>{i + 1}</td>
-                  <td style={{ ...tdS, width: 80, color: '#555' }}>
+                  <td style={{ ...tdS, width: 100, color: '#555' }}>
                     <div>{r.date}</div>
-                    <div style={{ fontSize: 10, fontWeight: 'bold' }}>{fmtT(r.createdAt)}</div>
+                    {r.factoryTime
+                      ? <div style={{ fontSize: 10, fontWeight: 'bold', color: '#e65100' }} title="Zavod vaqti">{r.factoryTime}</div>
+                      : null}
                   </td>
                   <td style={{ ...tdS, width: 220 }}>
                     <div onClick={() => setCard(r.customer)} title="Mijoz ma'lumotlarini ochish"

@@ -207,6 +207,7 @@ export default function RecvTons({ lang }) {
         warehouseId: verifyRow.warehouseId || myWh,
         vehicleNo,
         date: verifyRow.date,
+        factoryTime: verifyRow.factoryTime || '',
         note: [vehicleNo && `Mashina: ${vehicleNo}`, `Zavod: ${verifyRow.source}`].filter(Boolean).join(' | '),
       });
     }

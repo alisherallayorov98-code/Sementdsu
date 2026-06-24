@@ -461,13 +461,13 @@ export default function Debts({ lang }) {
               const isOpen = expanded.has(g.customer);
               return (
                 <>
-                {/* ── Guruh (mijoz) satri ── */}
+                {/* ── Guruh (mijoz) satri — bosib ochiladi ── */}
                 <tr key={g.customer} style={{ background: ss.bg, cursor: 'pointer' }} onClick={() => toggleExpand(g.customer)}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
                   <td>
                     <span style={{ fontWeight: 'bold', color: '#003366', fontSize: 14 }}>{g.customer}</span>
-                    <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{g.rows.length} ta sotuv</span>
-                    <span style={{ marginLeft: 6, fontSize: 13 }}>{isOpen ? '▲' : '▼'}</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{g.rows.length} ta</span>
+                    <span style={{ marginLeft: 6, fontSize: 12, color: '#888' }}>{isOpen ? '▲' : '▼'}</span>
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(g.totalAmount)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(g.totalPaid)}</td>
@@ -477,28 +477,7 @@ export default function Debts({ lang }) {
                       {ss.label[lang]}
                     </span>
                   </td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {remaining > 0 && (
-                        <button onClick={() => setQuick({ customer: g.customer, amount: String(remaining), channel: 'naqd' })}
-                          style={{ fontSize: 11, cursor: 'pointer', padding: '3px 8px', background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 3, fontWeight: 'bold' }}>
-                          💰 {L.tolash[lang]}
-                        </button>
-                      )}
-                      {remaining > 0 && (
-                        <button onClick={() => openReminder(g.rows[0])}
-                          title="Qarz eslatmasini yuborish"
-                          style={{ fontSize: 11, cursor: 'pointer', padding: '3px 7px', background: '#e8f5e9', border: '1px solid #2e7d32', borderRadius: 3, color: '#2e7d32' }}>
-                          ✉️
-                        </button>
-                      )}
-                      <button onClick={() => setCard(g.customer)}
-                        title="Mijoz kartasini ochish"
-                        style={{ fontSize: 11, cursor: 'pointer', padding: '3px 7px', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 3, color: '#1565c0' }}>
-                        👤
-                      </button>
-                    </div>
-                  </td>
+                  <td></td>
                 </tr>
 
                 {/* ── Kengaytirilgan: alohida qarz satrlari ── */}
