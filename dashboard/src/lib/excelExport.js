@@ -53,3 +53,66 @@ export function exportToExcel({ filename, sheetName = 'Hisobot', columns, rows, 
   const name = (filename || 'hisobot').replace(/\.xlsx$/i, '');
   XLSX.writeFile(wb, `${name}_${todayStamp()}.xlsx`);
 }
+
+// ── Mijoz Akt Sverka — ko'p varaqli ─────────────────────────────────────────
+export function exportAktSverka(customerName, { sales, debts, summary }) {
+  const wb = XLSX.utils.book_new();
+  const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+
+  // 1-varaq: Umumiy ma'lumot
+  const infoAoa = [
+    [`AKT-SVERKA: ${customerName}`],
+    [`Sana: ${new Date().toLocaleDateString('ru-RU')}`],
+    [],
+    ['Ko\'rsatkich', 'Qiymat'],
+    ['Jami xarid (so\'m)', summary.totalXarid],
+    ['Jami tonna', summary.totalTon],
+    ['Jami qarz', summary.qolganQarz],
+    ['Jami avans', summary.qolganAvans],
+  ];
+  const wsInfo = XLSX.utils.aoa_to_sheet(infoAoa);
+  wsInfo['!cols'] = [{ wch: 25 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'Umumiy');
+
+  // 2-varaq: Xaridlar
+  const salesAoa = [
+    [`Xaridlar: ${customerName}`],
+    [],
+    ['Sana', 'Tonna', 'Narx (1tn)', 'Jami summa', 'To\'lov turi', 'Izoh'],
+    ...sales.map(r => [
+      r.date,
+      Number(r.tons || 0),
+      Number(r.pricePerTon || 0),
+      Number(r.tons || 0) * Number(r.pricePerTon || 0),
+      r.paymentChannel || '',
+      r.note || '',
+    ]),
+    [],
+    ['JAMI', sales.reduce((s,r)=>s+Number(r.tons||0),0), '', sales.reduce((s,r)=>s+Number(r.tons||0)*Number(r.pricePerTon||0),0), '', ''],
+  ];
+  const wsSales = XLSX.utils.aoa_to_sheet(salesAoa);
+  wsSales['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 35 }];
+  XLSX.utils.book_append_sheet(wb, wsSales, 'Xaridlar');
+
+  // 3-varaq: Qarzlar
+  const debtsAoa = [
+    [`Qarzlar: ${customerName}`],
+    [],
+    ['Sana', 'Qarz summasi', 'To\'landi', 'Qoldiq', 'Izoh'],
+    ...debts.map(r => [
+      r.date,
+      Number(r.amount || 0),
+      Number(r.paid || 0),
+      Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)),
+      r.note || '',
+    ]),
+    [],
+    ['JAMI', debts.reduce((s,r)=>s+Number(r.amount||0),0), debts.reduce((s,r)=>s+Number(r.paid||0),0), debts.reduce((s,r)=>s+Math.max(0,Number(r.amount||0)-Number(r.paid||0)),0), ''],
+  ];
+  const wsDebts = XLSX.utils.aoa_to_sheet(debtsAoa);
+  wsDebts['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsDebts, 'Qarzlar');
+
+  XLSX.writeFile(wb, `AktSverka_${customerName}_${todayStamp()}.xlsx`);
+}

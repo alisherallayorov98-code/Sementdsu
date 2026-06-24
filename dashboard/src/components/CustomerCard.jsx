@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
+import { exportAktSverka } from '../lib/excelExport';
 import NotifyModal from './NotifyModal';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -57,49 +58,58 @@ export default function CustomerCard({ name, onClose }) {
         onClick={e => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 8, width: '100%', maxWidth: 760, boxShadow: '0 8px 30px rgba(0,0,0,0.3)', fontFamily: 'Tahoma, Arial, sans-serif' }}
       >
-        {/* Sarlavha */}
-        <div style={{ background: '#003366', color: '#fff', padding: '12px 18px', borderRadius: '8px 8px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 'bold' }}>
-              👤 {name}
-              {cust && (
-                <button
-                  onClick={() => setMonitor(cust.id, !cust.monitored)}
-                  title={cust.monitored ? 'Nazoratdan olib tashlash' : "Nazoratga qo'shish"}
-                  style={{ marginLeft: 10, cursor: 'pointer', background: cust.monitored ? '#ef6c00' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12 }}>
-                  🔔 {cust.monitored ? 'Nazoratda' : 'Nazoratga'}
+        {/* ── Sarlavha (ixcham) ── */}
+        <div style={{ background: '#003366', color: '#fff', padding: '10px 14px', borderRadius: '8px 8px 0 0' }}>
+          {/* 1-qator: Ism + badge + tugmalar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 16, fontWeight: 'bold' }}>👤 {name}</span>
+            {cust && (
+              <button onClick={() => setMonitor(cust.id, !cust.monitored)}
+                style={{ cursor: 'pointer', background: cust.monitored ? '#ef6c00' : 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', borderRadius: 10, padding: '2px 8px', fontSize: 11 }}>
+                🔔 {cust.monitored ? 'Nazoratda' : 'Nazoratga'}
+              </button>
+            )}
+            {tgLinked
+              ? <span style={{ background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>📱 Telegram ulangan</span>
+              : deepLink && <span style={{ background: 'rgba(255,136,0,0.85)', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>⚠️ Ulanmagan</span>
+            }
+            {/* Tugmalar — o'ngga surish */}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, summary: s })}
+                title="Akt Sverka — Excel yuklab olish"
+                style={{ background: '#1d6f42', border: 'none', color: '#fff', fontSize: 12, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                📊 Akt Sverka
+              </button>
+              {cust?.phone && (
+                <button onClick={() => setNotify(true)}
+                  style={{ background: '#2e7d32', border: 'none', color: '#fff', fontSize: 12, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>
+                  ✉️ Xabar
                 </button>
               )}
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
-              {cust?.phone ? `📞 ${cust.phone}` : 'Telefon yo\'q'}{cust?.address ? `  •  📍 ${cust.address}` : ''}
-              {tgLinked
-                ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>
-                    📱 Telegram ulangan
-                  </span>
-                : deepLink && (
-                    <span style={{ marginLeft: 8, background: 'rgba(255,136,0,0.85)', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>
-                      ⚠️ Telegram ulanmagan
-                    </span>
-                  )}
-            </div>
-            <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {loc
-                ? <a href={`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lon}`} target="_blank" rel="noreferrer"
-                    style={{ background: '#1565c0', color: '#fff', padding: '3px 10px', borderRadius: 12, textDecoration: 'none', fontWeight: 'bold' }}>📍 Xaritada ochish</a>
-                : <span style={{ opacity: 0.8 }}>📍 Joylashuv belgilanmagan</span>}
-              {cust && <button onClick={setMyLocation} title="Shu qurilmaning joriy joylashuvini saqlash"
-                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 12, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>
-                {loc ? '🔄 Joylashuvni yangilash' : '➕ Joylashuvni belgilash'}
-              </button>}
+              <button onClick={onClose}
+                style={{ background: 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', fontSize: 18, width: 28, height: 28, borderRadius: 14, cursor: 'pointer', lineHeight: 1 }}>
+                ✕
+              </button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {cust?.phone && (
-              <button onClick={() => setNotify(true)} title="Xabar yuborish (Telegram/SMS)"
-                style={{ background: '#2e7d32', border: 'none', color: '#fff', fontSize: 12, padding: '0 12px', borderRadius: 16, cursor: 'pointer', fontWeight: 'bold' }}>✉️ Xabar</button>
+          {/* 2-qator: Kontakt + joylashuv */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap', fontSize: 12, opacity: 0.9 }}>
+            {cust?.phone && <span>📞 {cust.phone}</span>}
+            {cust?.address && <span>• 📍 {cust.address}</span>}
+            {loc
+              ? <a href={`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lon}`} target="_blank" rel="noreferrer"
+                  style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', padding: '2px 8px', borderRadius: 8, textDecoration: 'none', fontSize: 11 }}>
+                  🗺 Xaritada
+                </a>
+              : <span style={{ opacity: 0.7 }}>📍 Joylashuv yo'q</span>
+            }
+            {cust && (
+              <button onClick={setMyLocation}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>
+                {loc ? '🔄 Yangilash' : '➕ Belgilash'}
+              </button>
             )}
-            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 20, width: 32, height: 32, borderRadius: 16, cursor: 'pointer' }}>✕</button>
           </div>
         </div>
 
