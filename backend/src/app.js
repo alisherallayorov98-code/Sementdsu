@@ -12,6 +12,7 @@ const routes = require('./routes');
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);               // nginx reverse proxy orqasi
 
   app.use(helmet);                          // xavfsiz HTTP sarlavhalari
   app.use(corsMw);                          // CORS allowlist
