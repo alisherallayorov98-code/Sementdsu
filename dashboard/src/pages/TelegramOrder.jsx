@@ -152,6 +152,8 @@ export default function TelegramOrder({ lang }) {
           columns={[
             { header: 'Sana', value: o => o.date },
             { header: 'Mijoz', value: o => o.customer },
+            { header: 'Marka', value: o => o.brand || '' },
+            { header: 'Tur', value: o => o.tur || '' },
             { header: 'Tonna', value: o => Number(o.tons || 0) },
             { header: 'Xodim', value: o => o.worker || '' },
             { header: 'Izoh', value: o => o.note || '' },
@@ -170,9 +172,11 @@ export default function TelegramOrder({ lang }) {
               <th style={{ width: 30 }}>#</th>
               <th style={{ width: 85 }}>Sana</th>
               <th style={{ width: 60 }}>Vaqt</th>
-              <th style={{ minWidth: 160 }}>Mijoz</th>
-              <th style={{ textAlign: 'right', width: 90 }}>Tonna</th>
-              <th style={{ width: 140 }}>Xodim</th>
+              <th style={{ minWidth: 140 }}>Mijoz</th>
+              <th style={{ width: 90 }}>Marka</th>
+              <th style={{ width: 80 }}>Tur</th>
+              <th style={{ textAlign: 'right', width: 80 }}>Tonna</th>
+              <th style={{ width: 100 }}>Xodim</th>
               <th>Izoh</th>
               <th style={{ width: 150 }}>Holati</th>
               <th style={{ width: 40 }}></th>
@@ -188,6 +192,12 @@ export default function TelegramOrder({ lang }) {
                   <td style={{ fontSize: 12 }}>{o.date}</td>
                   <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', color: '#555' }}>{fmtT(o.createdAt)}</td>
                   <td style={{ fontWeight: 'bold', color: '#1565c0' }}>{o.customer}</td>
+                  <td style={{ fontSize: 12, color: '#006699', fontWeight: 'bold' }}>{o.brand || '—'}</td>
+                  <td style={{ fontSize: 12 }}>
+                    {o.tur
+                      ? <span style={{ background: o.tur.includes('Qoplik') ? '#e3f2fd' : '#f3e5f5', padding: '1px 6px', borderRadius: 10, fontSize: 11 }}>{o.tur}</span>
+                      : '—'}
+                  </td>
                   <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14 }}>{fmtTons(o.tons)}</td>
                   <td style={{ fontSize: 12, color: '#555' }}>{o.worker || '—'}</td>
                   <td style={{ fontSize: 12 }}>{o.note || '—'}</td>
