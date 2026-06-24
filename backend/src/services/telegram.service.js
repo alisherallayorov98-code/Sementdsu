@@ -93,12 +93,27 @@ function start() {
   // ── Kontakt ulashilganda ──────────────────────────────────────────────────
   bot.on('contact', (msg) => {
     try {
-      const phone = msg.contact.phone_number;
-      const name  = [msg.contact.first_name, msg.contact.last_name].filter(Boolean).join(' ');
-      db.upsertTgContact(DEFAULT_ACCOUNT, { phone, chatId: msg.chat.id, name });
-      bot.sendMessage(msg.chat.id,
-        `✅ Rahmat, *${name}*! Raqamingiz ulandi (${phone}).\n\nEndi har bir sotuvdan keyin chek va hisobot shu yerga keladi.`,
-        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
+      const tgPhone = msg.contact.phone_number;
+      const name    = [msg.contact.first_name, msg.contact.last_name].filter(Boolean).join(' ');
+      const chatId  = msg.chat.id;
+
+      // Telegram raqamini vaqtincha saqlab, biznes raqamini so'raymiz
+      states[chatId] = { step: 'confirm_phone', tgPhone, name };
+
+      bot.sendMessage(chatId,
+        `✅ Rahmat, *${name}*!\n\n` +
+        `Telegram raqamingiz: *${tgPhone}*\n\n` +
+        `Do'konimizda siz qaysi raqam bilan yozilgansiz?\n` +
+        `• Agar *xuddi shu raqam* bo'lsa — "✅ Shu raqam" tugmasini bosing\n` +
+        `• Agar *boshqa (ish) raqam* bo'lsa — uni yozing (masalan: 901234567)`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '✅ Shu raqamni ulash', callback_data: `linkphone:${tgPhone}` },
+            ]],
+          },
+        });
     } catch (e) {
       console.error('[Telegram] contact xatosi:', e.message);
     }
@@ -121,6 +136,18 @@ function start() {
     }
     if (data === 'menu:ulash') {
       bot.sendMessage(chatId, 'Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
+      return;
+    }
+
+    // ── "Shu raqamni ulash" tugmasi ──────────────────────────────────────
+    if (data.startsWith('linkphone:')) {
+      const phone = data.replace('linkphone:', '');
+      const name  = state?.name || '';
+      db.upsertTgContact(DEFAULT_ACCOUNT, { phone, chatId, name });
+      states[chatId] = null;
+      bot.sendMessage(chatId,
+        `✅ *Ulandi!* Raqam: ${phone}\n\nEndi har bir sotuvdan keyin xabar keladi.`,
+        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
       return;
     }
 
@@ -157,6 +184,21 @@ function start() {
     if (!state) {
       bot.sendMessage(chatId,
         '📦 Buyurtma berish: /zakaz\n📱 Raqam ulash: /ulash');
+      return;
+    }
+
+    // ── Step: biznes raqamni tasdiqlash ──────────────────────────────────
+    if (state.step === 'confirm_phone') {
+      const bizPhone = text.replace(/\D/g, '');
+      if (bizPhone.length < 7) {
+        bot.sendMessage(chatId, "⚠️ Raqam noto'g'ri. Iltimos, to'liq raqamni yozing (masalan: 901234567):");
+        return;
+      }
+      db.upsertTgContact(DEFAULT_ACCOUNT, { phone: bizPhone, chatId, name: state.name });
+      states[chatId] = null;
+      bot.sendMessage(chatId,
+        `✅ *Ulandi!* Biznes raqam: ${bizPhone}\n\nEndi har bir sotuvdan keyin xabar keladi.`,
+        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
       return;
     }
 
