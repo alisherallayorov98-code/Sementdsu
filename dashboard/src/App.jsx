@@ -30,6 +30,7 @@ import TelegramOrder from './pages/TelegramOrder';
 import OverallReport from './pages/OverallReport';
 import Customers     from './pages/Customers';
 import DayBalance    from './pages/DayBalance';
+import Kassir       from './pages/Kassir';
 
 // ─── Menyu ro'yxati ──────────────────────────────────────────────────────────
 const FULL_MENU = [
@@ -43,6 +44,7 @@ const FULL_MENU = [
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
   { path: '/advances',       latn: "Avanslar",              cyrl: "Аванслар",             roles: ['admin'] },
   { path: '/sales',          latn: "Sotish",                cyrl: "Сотиш",                roles: ['admin', 'sotuvchi'] },
+  { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
   { path: '/distribution',   latn: "🚛 Yuk taqsimlash",      cyrl: "🚛 Юк тақсимлаш",       roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/income_bank',    latn: "Kirim/Chiqim (Bank)",   cyrl: "Кирим/Чиқим (Банк)",   roles: ['admin', 'sotuvchi'] },
   { path: '/income_click',   latn: "Kirim/Chiqim (Click)",  cyrl: "Кирим/Чиқим (Клик)",   roles: ['admin', 'sotuvchi'] },
@@ -139,6 +141,7 @@ function App() {
               <Route path="/debts"          element={<Debts          lang={lang} />} />
               <Route path="/advances"       element={<Advances       lang={lang} />} />
               <Route path="/sales"          element={<Sales          lang={lang} />} />
+              <Route path="/kassir"         element={<Kassir         lang={lang} />} />
               <Route path="/distribution"   element={<Distribution />} />
               <Route path="/income_bank"    element={<IncomeBank     lang={lang} />} />
               <Route path="/income_click"   element={<IncomeClick    lang={lang} />} />
