@@ -15,7 +15,7 @@ const isRunning = () => running;
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const CH  = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click', nasiya: '⚠️ Nasiya (qarz)', avans: '🅰️ Avans' };
 
-const BRANDS = ['32.5H', '42.5B-K', '42.5N', '52.5'];
+const BRANDS = ['450 marka', '550 marka'];
 const TURLAR = ['📦 Qoplik', '🌫 Rasipnoy'];
 
 const shareKeyboard = {
@@ -31,9 +31,7 @@ function brandKeyboard() {
   return {
     reply_markup: {
       inline_keyboard: [
-        BRANDS.slice(0, 2).map(b => ({ text: b, callback_data: `brand:${b}` })),
-        BRANDS.slice(2).map(b => ({ text: b, callback_data: `brand:${b}` })),
-        [{ text: '🔤 Boshqa (yozib kiriting)', callback_data: 'brand:other' }],
+        BRANDS.map(b => ({ text: b, callback_data: `brand:${b}` })),
       ],
     },
   };
@@ -187,16 +185,11 @@ function start() {
 
     if (data.startsWith('brand:') && state.step === 'brand') {
       const val = data.replace('brand:', '');
-      if (val === 'other') {
-        state.step = 'brand_text';
-        bot.sendMessage(chatId, 'Sement markasini yozing (masalan: 32.5B):');
-      } else {
-        state.brand = val;
-        state.step  = 'tur';
-        bot.sendMessage(chatId,
-          `✅ Marka: *${val}*\n\nQanday holda kerak?`,
-          { parse_mode: 'Markdown', ...turKeyboard() });
-      }
+      state.brand = val;
+      state.step  = 'tur';
+      bot.sendMessage(chatId,
+        `✅ Marka: *${val}*\n\nQanday holda kerak?`,
+        { parse_mode: 'Markdown', ...turKeyboard() });
     } else if (data.startsWith('tur:') && state.step === 'tur') {
       state.tur  = data.replace('tur:', '');
       state.step = 'tons';
@@ -241,14 +234,6 @@ function start() {
       bot.sendMessage(chatId,
         `👤 *${state.customer}*\n\nSement markasini tanlang:`,
         { parse_mode: 'Markdown', ...brandKeyboard() });
-
-    // ── Step: brand qo'lda yozilgan ──────────────────────────────────────
-    } else if (state.step === 'brand_text') {
-      state.brand = text.trim();
-      state.step  = 'tur';
-      bot.sendMessage(chatId,
-        `✅ Marka: *${state.brand}*\n\nQanday holda kerak?`,
-        { parse_mode: 'Markdown', ...turKeyboard() });
 
     // ── Step: tonna ─────────────────────────────────────────────────────
     } else if (state.step === 'tons') {
