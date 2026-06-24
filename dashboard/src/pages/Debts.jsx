@@ -94,11 +94,6 @@ export default function Debts({ lang }) {
   const PAGE_SIZE = 100;
   const [history, setHistory] = useState(null);
   const [card, setCard]       = useState(null);
-  const [expanded, setExpanded] = useState(new Set());
-
-  const toggleExpand = (customer) => setExpanded(prev => {
-    const s = new Set(prev); s.has(customer) ? s.delete(customer) : s.add(customer); return s;
-  });
 
   // ── Forma submit ────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -451,22 +446,14 @@ export default function Debts({ lang }) {
           <tbody>
             {pagedGroups.map((g, i) => {
               const remaining = g.totalAmount - g.totalPaid;
-              const st  = remaining <= 0 ? 'full' : g.totalPaid > 0 ? 'partial' : 'none';
-              const ss  = STATUS_STYLE[st];
-              const isOpen = expanded.has(g.customer);
+              const st = remaining <= 0 ? 'full' : g.totalPaid > 0 ? 'partial' : 'none';
+              const ss = STATUS_STYLE[st];
               return (
-                <>
-                {/* ── Guruh (mijoz) satri — bosib ochiladi ── */}
-                <tr key={g.customer} style={{ background: ss.bg, cursor: 'pointer' }} onClick={() => toggleExpand(g.customer)}>
+                <tr key={g.customer} style={{ background: ss.bg, cursor: 'pointer' }} onClick={() => setCard(g.customer)}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
                   <td>
-                    <span
-                      style={{ fontWeight: 'bold', color: '#1565c0', fontSize: 14, textDecoration: 'underline', cursor: 'pointer' }}
-                      title="Mijoz kartochkasini ochish"
-                      onClick={e => { e.stopPropagation(); setCard(g.customer); }}
-                    >{g.customer}</span>
+                    <span style={{ fontWeight: 'bold', color: '#1565c0', fontSize: 14, textDecoration: 'underline' }}>{g.customer}</span>
                     <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{g.rows.length} ta</span>
-                    <span style={{ marginLeft: 6, fontSize: 12, color: '#888' }}>{isOpen ? '▲' : '▼'}</span>
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(g.totalAmount)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(g.totalPaid)}</td>
@@ -478,45 +465,6 @@ export default function Debts({ lang }) {
                   </td>
                   <td></td>
                 </tr>
-
-                {/* ── Kengaytirilgan: alohida qarz satrlari ── */}
-                {isOpen && g.rows.map(r => {
-                  const rem = Math.max(0, Number(r.amount) - Number(r.paid));
-                  return (
-                    <tr key={r.id} style={{ background: '#fafafa', borderLeft: '4px solid #90caf9' }}>
-                      <td></td>
-                      <td style={{ paddingLeft: 24, fontSize: 12, color: '#555' }}>
-                        <span style={{ color: '#888', marginRight: 8 }}>{r.date}</span>
-                        {r.note || '—'}
-                      </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12 }}>{fmt(r.amount)}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontSize: 12 }}>{fmt(r.paid)}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: rem > 0 ? '#c62828' : '#888', fontSize: 12 }}>{fmt(rem)}</td>
-                      <td></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {rem > 0 && (
-                            <button onClick={() => handlePayOpen(r.id)}
-                              style={{ fontSize: 11, cursor: 'pointer', padding: '2px 6px', background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 3 }}>
-                              💰
-                            </button>
-                          )}
-                          {(r.payments || []).length > 0 && (
-                            <button onClick={() => setHistory(r.id)}
-                              style={{ fontSize: 11, cursor: 'pointer', padding: '2px 6px', background: '#e3f2fd', border: '1px solid #1976d2', borderRadius: 3, color: '#1565c0' }}>
-                              📋
-                            </button>
-                          )}
-                          <button onClick={() => handleDelete(r.id)}
-                            style={{ fontSize: 11, cursor: 'pointer', padding: '2px 6px', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828' }}>
-                            ✕
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                </>
               );
             })}
 
