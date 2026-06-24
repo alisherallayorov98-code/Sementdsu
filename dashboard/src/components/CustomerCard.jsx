@@ -3,7 +3,7 @@
 // qoldiq qarz, qoldiq avans, jami xarid (tonna/summa), sotuvlar, qarz to'lovlari,
 // telegram zakazlari. Modal oyna ko'rinishida.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
@@ -37,7 +37,9 @@ export default function CustomerCard({ name, onClose }) {
     );
   };
 
-  const [notify, setNotify] = useState(false);
+  const [notify,  setNotify]  = useState(false);
+  const [showAkt, setShowAkt] = useState(false);
+  const aktRef = useRef();
   const defaultMsg = s.qolganQarz > 0
     ? `Hurmatli ${name}! Sizning qoldiq qarzingiz: ${fmt(s.qolganQarz)} so'm. To'lov uchun rahmat.`
     : `Hurmatli ${name}!`;
@@ -76,8 +78,8 @@ export default function CustomerCard({ name, onClose }) {
             {/* Tugmalar — o'ngga surish */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
-                onClick={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, summary: s })}
-                title="Akt Sverka — Excel yuklab olish"
+                onClick={() => setShowAkt(true)}
+                title="Akt Sverka — ko'rish va yuklab olish"
                 style={{ background: '#1d6f42', border: 'none', color: '#fff', fontSize: 12, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                 📊 Akt Sverka
               </button>
@@ -114,6 +116,13 @@ export default function CustomerCard({ name, onClose }) {
         </div>
 
         {notify && <NotifyModal name={name} phone={cust?.phone || ''} defaultText={defaultMsg} onClose={() => setNotify(false)} />}
+        {showAkt && (
+          <AktSverkaModal
+            name={name} s={s} aktRef={aktRef}
+            onClose={() => setShowAkt(false)}
+            onExcel={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, summary: s })}
+          />
+        )}
 
         {/* Telegram havola — ulashish (faqat ulanmagan bo'lsa) */}
         {!tgLinked && deepLink && (
@@ -244,6 +253,172 @@ export default function CustomerCard({ name, onClose }) {
     </div>
   );
 }
+
+// ── Akt Sverka modali ────────────────────────────────────────────────────────
+function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
+  const today = new Date().toLocaleDateString('ru-RU');
+  const salesSorted  = [...s.sales].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const debtsSorted  = [...s.debts].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const totalSaleTon = salesSorted.reduce((acc, r) => acc + Number(r.tons || 0), 0);
+  const totalSaleSum = salesSorted.reduce((acc, r) => acc + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+  const totalDebt    = debtsSorted.reduce((acc, r) => acc + Number(r.amount || 0), 0);
+  const totalPaid    = debtsSorted.reduce((acc, r) => acc + Number(r.paid || 0), 0);
+  const totalLeft    = debtsSorted.reduce((acc, r) => acc + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+
+  const handlePrint = () => {
+    const win = window.open('', '_blank');
+    win.document.write(`<html><head><title>Akt Sverka - ${name}</title>
+      <style>
+        body { font-family: Times New Roman, serif; margin: 30px; color: #000; font-size: 12px; }
+        h2 { text-align: center; text-transform: uppercase; margin-bottom: 4px; }
+        .sub { text-align: center; font-size: 12px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+        th, td { border: 1px solid #000; padding: 4px 6px; font-size: 11px; }
+        th { background: #f0f0f0; font-weight: bold; }
+        .total-row { background: #ffff00; font-weight: bold; }
+        .sign { display: flex; justify-content: space-between; margin-top: 50px; }
+        @media print { button { display: none; } }
+      </style></head><body>${aktRef.current.innerHTML}</body></html>`);
+    win.document.close();
+    win.print();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', border: '2px solid #003366', width: '95%', maxWidth: 900, marginTop: 10, boxShadow: '4px 4px 20px rgba(0,0,0,0.4)' }}>
+        {/* Header */}
+        <div style={{ background: '#003366', color: '#fff', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b style={{ fontSize: 14 }}>📋 Akt Sverka: {name}</b>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handlePrint} style={aktBtn('#006600')}>🖨 Chop etish</button>
+            <button onClick={onExcel}    style={aktBtn('#1d6f42')}>📥 Excel yuklab olish</button>
+            <button onClick={onClose}   style={aktBtn('#c62828')}>✕ Yopish</button>
+          </div>
+        </div>
+
+        {/* Chop etiladigan qism */}
+        <div ref={aktRef} style={{ padding: '20px 24px', fontFamily: 'Times New Roman, serif' }}>
+          <h2 style={{ textAlign: 'center', textTransform: 'uppercase', marginBottom: 4 }}>Akt-Sverka</h2>
+          <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 4 }}>Tashkilot: <b>SEMENT KORXONA</b></div>
+          <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 16 }}>
+            Mijoz: <b>{name}</b> &nbsp;|&nbsp; Tuzilgan: <b>{today}</b>
+          </div>
+
+          {/* Umumiy raqamlar */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, border: '1px solid #000' }}>
+            <thead>
+              <tr style={{ background: '#f0f0f0' }}>
+                <th style={aTh}>Jami xarid (so'm)</th>
+                <th style={aTh}>Jami tonna</th>
+                <th style={aTh}>Jami qarz</th>
+                <th style={aTh}>To'landi</th>
+                <th style={{ ...aTh, color: '#c00' }}>Qoldiq qarz</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ ...aTd, fontWeight: 'bold' }}>{fmt(totalSaleSum)}</td>
+                <td style={aTd}>{fmtT(totalSaleTon)} tn</td>
+                <td style={aTd}>{fmt(totalDebt)}</td>
+                <td style={{ ...aTd, color: '#006600' }}>{fmt(totalPaid)}</td>
+                <td style={{ ...aTd, fontWeight: 'bold', color: '#c00' }}>{fmt(totalLeft)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Xaridlar jadvali */}
+          <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>Xaridlar / Sotuvlar ({salesSorted.length} ta)</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+            <thead>
+              <tr style={{ background: '#f0f0f0' }}>
+                <th style={aTh}>#</th>
+                <th style={aTh}>Sana</th>
+                <th style={aTh}>Tonna</th>
+                <th style={{ ...aTh, textAlign: 'right' }}>Narx (1 tn)</th>
+                <th style={{ ...aTh, textAlign: 'right' }}>Jami summa</th>
+                <th style={aTh}>To'lov turi</th>
+                <th style={aTh}>Mashina №</th>
+                <th style={aTh}>Izoh</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesSorted.map((r, i) => (
+                <tr key={r.id} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
+                  <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
+                  <td style={aTd}>{r.date}</td>
+                  <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(r.tons)}</td>
+                  <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.pricePerTon)}</td>
+                  <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
+                  <td style={aTd}>{r.paymentChannel || '—'}</td>
+                  <td style={aTd}>{r.vehicleNo || '—'}</td>
+                  <td style={aTd}>{r.note || '—'}</td>
+                </tr>
+              ))}
+              <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
+                <td colSpan={2} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
+                <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(totalSaleTon)} tn</td>
+                <td style={aTd}></td>
+                <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalSaleSum)}</td>
+                <td colSpan={3} style={aTd}></td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Qarzlar jadvali */}
+          {debtsSorted.length > 0 && (
+            <>
+              <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>Qarzlar ({debtsSorted.length} ta)</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+                <thead>
+                  <tr style={{ background: '#f0f0f0' }}>
+                    <th style={aTh}>#</th>
+                    <th style={aTh}>Sana</th>
+                    <th style={{ ...aTh, textAlign: 'right' }}>Qarz summasi</th>
+                    <th style={{ ...aTh, textAlign: 'right', color: '#006600' }}>To'landi</th>
+                    <th style={{ ...aTh, textAlign: 'right', color: '#c00' }}>Qoldiq</th>
+                    <th style={aTh}>Izoh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {debtsSorted.map((r, i) => {
+                    const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
+                    return (
+                      <tr key={r.id} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
+                        <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
+                        <td style={aTd}>{r.date}</td>
+                        <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
+                        <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>
+                        <td style={{ ...aTd, textAlign: 'right', fontWeight: qoldiq > 0 ? 'bold' : 'normal', color: qoldiq > 0 ? '#c00' : '#888' }}>{fmt(qoldiq)}</td>
+                        <td style={aTd}>{r.note || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
+                    <td colSpan={2} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
+                    <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalDebt)}</td>
+                    <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(totalPaid)}</td>
+                    <td style={{ ...aTd, textAlign: 'right', color: '#c00' }}>{fmt(totalLeft)}</td>
+                    <td style={aTd}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/* Imzo qatorlari */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, fontSize: 12 }}>
+            <span>Mas'ul: _______________</span>
+            <span>Mijoz: _______________</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const aktBtn = (bg) => ({ padding: '5px 14px', background: bg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold', fontSize: 12 });
+const aTh = { border: '1px solid #000', padding: '4px 6px', fontSize: 11, fontWeight: 'bold', background: '#f0f0f0' };
+const aTd = { border: '1px solid #ccc', padding: '3px 6px', fontSize: 11 };
 
 function Section({ title, children }) {
   return (
