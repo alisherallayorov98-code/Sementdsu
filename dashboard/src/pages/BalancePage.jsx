@@ -35,10 +35,58 @@ const fromInputDate = (v) => {
   return `${d}.${m}.${y}`;
 };
 
+const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+
+function SourceDetail({ row, data }) {
+  const { salesRows, debtRows, recvRows, advanceRows, incomeRows, expenseRows, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows } = data;
+
+  if (!row.auto) {
+    return (
+      <div style={{ padding: '8px 12px', background: '#fff8e1', fontSize: 12, color: '#555' }}>
+        ✏️ <b>Qo'lda kiritilgan yozuv</b> — avtomatik manba yo'q.
+        {row.desc && <span style={{ marginLeft: 8 }}>Izoh: <b>{typeof row.desc === 'object' ? row.desc.latn : row.desc}</b></span>}
+      </div>
+    );
+  }
+
+  const sid = row.sourceId;
+  let detail = null;
+
+  if (row.sourceType === 'sale') {
+    const s = salesRows.find(r => r.id === sid);
+    if (s) detail = <>📦 <b>Sotuv:</b> {s.customer} — {fmtTons(s.tons)} tn × {fmt(s.pricePerTon)} = <b>{fmt(Number(s.tons)*Number(s.pricePerTon))} so'm</b> | Sana: {s.date} | To'lov: {s.paymentChannel} {s.note ? `| ${s.note}` : ''}</>;
+  } else if (row.sourceType === 'debt_payment') {
+    const d = debtRows.find(r => r.id === sid || (r.payments||[]).some(p => p.id === sid));
+    if (d) {
+      const p = (d.payments||[]).find(p => p.id === sid);
+      detail = <>💰 <b>Qarz to'lovi:</b> {d.customer} — Umumiy qarz: {fmt(d.amount)} so'm{p ? ` | To'lovi: ${fmt(p.amount)} so'm (${p.date})` : ''}</>;
+    }
+  } else if (row.sourceType === 'recv') {
+    const r = recvRows.find(r => r.id === sid);
+    if (r) detail = <>🏭 <b>Sement olish:</b> {r.source} — {fmtTons(r.tons)} tn | Mashina: {r.vehicleNo||'—'} | Sana: {r.date}</>;
+  } else if (row.sourceType === 'advance') {
+    const a = advanceRows.find(r => r.id === sid);
+    if (a) detail = <>🅰️ <b>Avans:</b> {a.customer} — {fmt(a.amount)} so'm | Sana: {a.date}</>;
+  } else if (row.sourceType === 'salary') {
+    detail = <>👷 <b>Oylik to'lovi</b>{row.desc ? `: ${typeof row.desc === 'object' ? row.desc.latn : row.desc}` : ''}</>;
+  } else if (row.sourceType === 'supplier_payment') {
+    detail = <>🏢 <b>Yetkazib beruvchiga to'lov</b>{row.desc ? `: ${typeof row.desc === 'object' ? row.desc.latn : row.desc}` : ''}</>;
+  } else if (row.sourceType === 'driver') {
+    detail = <>🚗 <b>Haydovchi to'lovi</b>{row.desc ? `: ${typeof row.desc === 'object' ? row.desc.latn : row.desc}` : ''}</>;
+  }
+
+  return (
+    <div style={{ padding: '8px 16px', background: '#e8f4fd', fontSize: 12, color: '#333', borderLeft: '4px solid #1565c0' }}>
+      {detail || <span style={{ color: '#888' }}>Manba yozuvi topilmadi (o'chirilgan bo'lishi mumkin). sourceType: {row.sourceType}</span>}
+    </div>
+  );
+}
+
 export default function BalancePage({ lang, type, title, color }) {
   const data = useData();
   const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [range, setRange] = useState({ from: '', to: '' }); // sanadan–sanagacha
+  const [range, setRange] = useState({ from: '', to: '' });
+  const [expandedId, setExpandedId] = useState(null);
 
   // Ma'lumotlarni turiga qarab ajratish
   let opening = { amount: 0, date: '' };
@@ -218,19 +266,36 @@ export default function BalancePage({ lang, type, title, color }) {
               </tr>
             </thead>
             <tbody>
-              {dayTx.map((row, i) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                  <td style={{ ...tdS, color: '#888', textAlign: 'center', width: 30 }}>{i + 1}</td>
-                  {rangeActive && <td style={{ ...tdS, width: 80, color: '#555' }}>{row.date}</td>}
-                  <td style={{ ...tdS, width: 60, fontWeight: 'bold', color: '#555' }}>{fmtT(row.createdAt)}</td>
-                  <td style={{ ...tdS, width: 140, fontWeight: 'bold', color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>{row.cat}</td>
-                  <td style={{ ...tdS, width: 120 }}>{row.worker || '—'}</td>
-                  <td style={tdS}>{typeof row.desc === 'object' ? row.desc[lang] : (row.desc || '—')}</td>
-                  <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14, color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>
-                    {row.sign > 0 ? '+' : '-'}{fmt(Math.abs(row.amount))}
-                  </td>
-                </tr>
-              ))}
+              {dayTx.map((row, i) => {
+                const isOpen = expandedId === row.id;
+                return (
+                  <>
+                  <tr key={row.id}
+                    onClick={() => setExpandedId(isOpen ? null : row.id)}
+                    style={{ borderBottom: isOpen ? 'none' : '1px solid #eee', background: isOpen ? '#e3f2fd' : (i % 2 === 0 ? '#fff' : '#fafafa'), cursor: 'pointer' }}
+                    title="Bosib manbasini ko'ring">
+                    <td style={{ ...tdS, color: '#888', textAlign: 'center', width: 30 }}>
+                      <span style={{ fontSize: 10 }}>{isOpen ? '▼' : '▶'}</span> {i + 1}
+                    </td>
+                    {rangeActive && <td style={{ ...tdS, width: 80, color: '#555' }}>{row.date}</td>}
+                    <td style={{ ...tdS, width: 60, fontWeight: 'bold', color: '#555' }}>{fmtT(row.createdAt)}</td>
+                    <td style={{ ...tdS, width: 140, fontWeight: 'bold', color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>{row.cat}</td>
+                    <td style={{ ...tdS, width: 120 }}>{row.worker || '—'}</td>
+                    <td style={tdS}>{typeof row.desc === 'object' ? row.desc[lang] : (row.desc || '—')}</td>
+                    <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14, color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>
+                      {row.sign > 0 ? '+' : '-'}{fmt(Math.abs(row.amount))}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr key={row.id + '_detail'} style={{ borderBottom: '1px solid #eee' }}>
+                      <td colSpan={rangeActive ? 7 : 6} style={{ padding: 0 }}>
+                        <SourceDetail row={row} data={data} />
+                      </td>
+                    </tr>
+                  )}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         )}
