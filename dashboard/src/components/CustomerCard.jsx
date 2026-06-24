@@ -18,7 +18,7 @@ export default function CustomerCard({ name, onClose }) {
   const cust = customers.find(c => c.name === name);
   const s = customerSummary(name, data);
   const act = cust?.monitored ? activityStatus(s, cust, Number(appSettings?.monitorDays) || 14) : null;
-  const tgLinked = cust?.phone ? !!tgChatIdFor(cust.phone) : false;
+  const tgLinked = !!(cust?.telegramChatId) || (cust?.phone ? !!tgChatIdFor(cust.phone) : false);
   // Effektiv joylashuv: qo'lda belgilangan ustun, bo'lmasa botdan
   const loc = (cust?.lat != null && cust?.lon != null)
     ? { lat: cust.lat, lon: cust.lon }
@@ -35,6 +35,8 @@ export default function CustomerCard({ name, onClose }) {
   };
 
   const [notify, setNotify] = useState(false);
+  const [tgInput, setTgInput] = useState(false);
+  const [tgIdVal, setTgIdVal] = useState('');
   const defaultMsg = s.qolganQarz > 0
     ? `Hurmatli ${name}! Sizning qoldiq qarzingiz: ${fmt(s.qolganQarz)} so'm. To'lov uchun rahmat.`
     : `Hurmatli ${name}!`;
@@ -71,9 +73,18 @@ export default function CustomerCard({ name, onClose }) {
             </div>
             <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
               {cust?.phone ? `📞 ${cust.phone}` : 'Telefon yo\'q'}{cust?.address ? `  •  📍 ${cust.address}` : ''}
-              {cust?.phone && (tgLinked
-                ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>📱 Telegram ulangan</span>
-                : <span style={{ marginLeft: 8, background: 'rgba(255,255,255,0.25)', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>Telegram ulanmagan</span>)}
+              {tgLinked
+                ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
+                    onClick={() => { setTgIdVal(cust.telegramChatId || ''); setTgInput(true); }}
+                    title="Telegram ID ni o'zgartirish">
+                    📱 Telegram ulangan ✎
+                  </span>
+                : <span
+                    onClick={() => { setTgIdVal(''); setTgInput(true); }}
+                    style={{ marginLeft: 8, background: 'rgba(255,165,0,0.5)', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
+                    title="Telegram ID kiritish">
+                    🔗 Telegram ulash
+                  </span>}
             </div>
             <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {loc
@@ -96,6 +107,45 @@ export default function CustomerCard({ name, onClose }) {
         </div>
 
         {notify && <NotifyModal name={name} phone={cust?.phone || ''} defaultText={defaultMsg} onClose={() => setNotify(false)} />}
+
+        {/* Telegram ID ulash modali */}
+        {tgInput && (
+          <div style={{ background:'#fff3cd', border:'1px solid #ffc107', padding:'12px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ fontSize:13, fontWeight:'bold', color:'#856404' }}>🆔 Telegram ID ulash</div>
+            <div style={{ fontSize:12, color:'#555' }}>
+              Mijozdan <b>@sementchiuzbot</b> ga kirib <b>/myid</b> buyrug'ini yuborishini so'rang — bot unga raqam ko'rsatadi. O'sha raqamni shu yerga kiriting:
+            </div>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <input
+                type="text" placeholder="Masalan: 123456789"
+                value={tgIdVal} onChange={e => setTgIdVal(e.target.value)}
+                style={{ padding:'6px 10px', fontSize:14, border:'1px solid #ccc', borderRadius:4, width:200, fontFamily:'monospace' }}
+                autoFocus
+              />
+              <button
+                onClick={() => {
+                  const id = tgIdVal.trim();
+                  if (!id) return;
+                  updateCustomer(cust.id, { telegramChatId: id });
+                  setTgInput(false);
+                }}
+                style={{ padding:'6px 14px', background:'#2e7d32', color:'#fff', border:'none', borderRadius:4, cursor:'pointer', fontWeight:'bold' }}>
+                ✓ Saqlash
+              </button>
+              {cust?.telegramChatId && (
+                <button
+                  onClick={() => { updateCustomer(cust.id, { telegramChatId: '' }); setTgInput(false); }}
+                  style={{ padding:'6px 10px', background:'#ffebee', color:'#c62828', border:'1px solid #ef9a9a', borderRadius:4, cursor:'pointer' }}>
+                  ✕ O'chirish
+                </button>
+              )}
+              <button onClick={() => setTgInput(false)}
+                style={{ padding:'6px 10px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:4, cursor:'pointer' }}>
+                Bekor
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Nazorat holati (faqat nazoratdagi mijoz uchun) */}
         {act && (

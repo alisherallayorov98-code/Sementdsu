@@ -69,7 +69,7 @@ function start() {
         reply_markup: {
           inline_keyboard: [
             [{ text: '📦 Sement buyurtma berish', callback_data: 'menu:zakaz' }],
-            [{ text: '📱 Raqamni ulash (xabar va chek olish)', callback_data: 'menu:ulash' }],
+            [{ text: '🆔 Mening ID raqamim (/myid)', callback_data: 'menu:myid' }],
           ],
         },
       });
@@ -79,6 +79,13 @@ function start() {
   bot.onText(/\/ulash/, (msg) => {
     bot.sendMessage(msg.chat.id,
       'Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
+  });
+
+  // ── /myid — mijoz o'z chatId sini bilishi uchun ──────────────────────────
+  bot.onText(/\/myid/, (msg) => {
+    bot.sendMessage(msg.chat.id,
+      `🆔 *Sizning Telegram ID:*\n\n\`${msg.chat.id}\`\n\nBu raqamni sotuvchiga bering — u sizning kartangizga kiritadi, shundan keyin har bir xarid haqida xabar olasiz.`,
+      { parse_mode: 'Markdown' });
   });
 
   // ── /zakaz ────────────────────────────────────────────────────────────────
@@ -136,6 +143,12 @@ function start() {
     }
     if (data === 'menu:ulash') {
       bot.sendMessage(chatId, 'Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
+      return;
+    }
+    if (data === 'menu:myid') {
+      bot.sendMessage(chatId,
+        `🆔 *Sizning Telegram ID:*\n\n\`${chatId}\`\n\nBu raqamni sotuvchiga bering — u sizning kartangizga kiritadi, shundan keyin har bir xarid haqida xabar olasiz.`,
+        { parse_mode: 'Markdown' });
       return;
     }
 
@@ -277,9 +290,9 @@ async function sendMessage(chatId, text) {
 }
 
 // ── Savdo xabari — har sotuvda avtomatik ──────────────────────────────────
-async function notifySale(acc, { phone, customer, tons, pricePerTon, paymentChannel, note, totalDebt, date }) {
+async function notifySale(acc, { chatId: directChatId, phone, customer, tons, pricePerTon, paymentChannel, note, totalDebt, date }) {
   if (!running || !bot) return { ok: false, error: 'Bot ishlamayapti' };
-  const chatId = db.findChatId(acc, phone);
+  const chatId = directChatId || db.findChatId(acc, phone);
   if (!chatId) return { ok: false, error: 'chatId yo\'q' };
 
   const sum = Number(tons || 0) * Number(pricePerTon || 0);

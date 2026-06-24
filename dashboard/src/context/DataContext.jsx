@@ -553,15 +553,18 @@ export function DataProvider({ children }) {
     setSalesRows(p => [...p, sale]);
 
     // ── Mijozga Telegram xabari (fire-and-forget) ────────────────────────────
-    const custPhone = (customers.find(c => c.name === sale.customer) || {}).phone || '';
-    if (custPhone) {
+    const cust = customers.find(c => c.name === sale.customer);
+    const directChatId = cust?.telegramChatId || null;
+    const custPhone    = cust?.phone || '';
+    if (directChatId || custPhone) {
       const existingDebt = debtRows
         .filter(r => r.customer === sale.customer)
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
       const newDebt = (sale.paymentChannel === 'nasiya') ? sum : 0;
       const totalDebt = existingDebt + newDebt;
       api.notifySale({
-        phone: custPhone,
+        chatId: directChatId,   // to'g'ridan-to'g'ri (telefon shart emas)
+        phone: custPhone,       // zaxira: telefon orqali qidirish
         customer: sale.customer,
         tons: sale.tons,
         pricePerTon: sale.pricePerTon,
@@ -569,7 +572,7 @@ export function DataProvider({ children }) {
         note: sale.note || '',
         totalDebt,
         date: sale.date,
-      }).catch(() => {}); // xatolik savdoga ta'sir qilmasin
+      }).catch(() => {});
     }
 
     return sale; // chek chiqarish uchun
