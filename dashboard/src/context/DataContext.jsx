@@ -218,7 +218,10 @@ export function DataProvider({ children }) {
   // MUHIM: sement olish HAR DOIM yetkazib beruvchidan QARZGA olinadi.
   // Kassadan pul YECHILMAYDI (pul kamaymaydi). Yetkazib beruvchiga to'lov
   // keyinroq "Yetkazib beruvchi qarzlari" bo'limidan alohida kiritiladi.
-  const [recvRows, setRecvRows] = useState(() => load('recv_rows', []));
+  const [recvRows, setRecvRows] = useState(() => {
+    const ftToDate = (ft) => { const d = new Date((ft || '').replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU'); };
+    return load('recv_rows', []).map(r => r.factoryTime ? { ...r, date: ftToDate(r.factoryTime) || r.date } : r);
+  });
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
   const addRecvRow = (entry) => {
     const ts = Date.now();
