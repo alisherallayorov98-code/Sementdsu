@@ -206,7 +206,7 @@ export default function RecvTons({ lang }) {
         paymentChannel: sell.paymentChannel,
         warehouseId: verifyRow.warehouseId || myWh,
         vehicleNo,
-        date: verifyRow.date,
+        date: verifyRow.factoryTime || verifyRow.date,
         factoryTime: verifyRow.factoryTime || '',
         note: [vehicleNo && `Mashina: ${vehicleNo}`, `Zavod: ${verifyRow.source}`].filter(Boolean).join(' | '),
       });
