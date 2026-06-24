@@ -58,10 +58,29 @@ function start() {
   bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
   const states = {}; // chatId → { step, customer, brand, tur, tons, note }
 
-  // ── /start ────────────────────────────────────────────────────────────────
-  bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
+  // ── /start [linkCode] ─────────────────────────────────────────────────────
+  bot.onText(/\/start(.*)/, (msg, match) => {
+    const chatId   = msg.chat.id;
+    const linkCode = (match[1] || '').trim();
     states[chatId] = null;
+
+    // Deep link orqali ulash: /start ABC12345
+    if (linkCode) {
+      const customer = db.linkCustomer(DEFAULT_ACCOUNT, linkCode, chatId);
+      if (customer) {
+        bot.sendMessage(chatId,
+          `✅ *Muvaffaqiyatli ulandi!*\n\n👤 ${customer.name}\n\nEndi siz uchun har bir xarid qilinganda avtomatik xabar keladi.`,
+          { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
+        return;
+      } else {
+        bot.sendMessage(chatId,
+          `⚠️ Havola noto'g'ri yoki muddati o'tgan. Sotuvchidan yangi havola so'rang.`,
+          { parse_mode: 'Markdown' });
+        return;
+      }
+    }
+
+    // Oddiy /start — menyu
     bot.sendMessage(chatId,
       '🏗 *Sement do\'koni botiga xush kelibsiz!*\n\nQuyidagi tugmalardan birini tanlang:',
       {

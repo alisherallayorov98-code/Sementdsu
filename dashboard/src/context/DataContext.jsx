@@ -736,11 +736,13 @@ export function DataProvider({ children }) {
   // ── Mijozlar bazasi ───────────────────────────────────────────────────────
   const [customers, setCustomers] = useState(() => load('customers', []));
   useEffect(() => save('customers', customers), [customers]);
+  const genLinkCode = () => Math.random().toString(36).slice(2, 10).toUpperCase();
   const addCustomer = ({ name, address, phone, note = '' }) => {
     const ts = Date.now();
     setCustomers(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
       name: name.trim(), address: address.trim(), phone: phone.trim(), note,
+      linkCode: genLinkCode(),
     }]);
   };
   const updateCustomer = (id, data) => setCustomers(p => p.map(c => c.id === id ? { ...c, ...data } : c));

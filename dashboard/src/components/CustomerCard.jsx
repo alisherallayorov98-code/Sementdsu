@@ -18,7 +18,9 @@ export default function CustomerCard({ name, onClose }) {
   const cust = customers.find(c => c.name === name);
   const s = customerSummary(name, data);
   const act = cust?.monitored ? activityStatus(s, cust, Number(appSettings?.monitorDays) || 14) : null;
-  const tgLinked = !!(cust?.telegramChatId) || (cust?.phone ? !!tgChatIdFor(cust.phone) : false);
+  const tgLinked   = !!(cust?.telegramChatId) || (cust?.phone ? !!tgChatIdFor(cust.phone) : false);
+  const botName    = 'sementchiuzbot';
+  const deepLink   = cust?.linkCode ? `https://t.me/${botName}?start=${cust.linkCode}` : null;
   // Effektiv joylashuv: qo'lda belgilangan ustun, bo'lmasa botdan
   const loc = (cust?.lat != null && cust?.lon != null)
     ? { lat: cust.lat, lon: cust.lon }
@@ -79,12 +81,22 @@ export default function CustomerCard({ name, onClose }) {
                     title="Telegram ID ni o'zgartirish">
                     📱 Telegram ulangan ✎
                   </span>
-                : <span
-                    onClick={() => { setTgIdVal(''); setTgInput(true); }}
-                    style={{ marginLeft: 8, background: 'rgba(255,165,0,0.5)', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
-                    title="Telegram ID kiritish">
-                    🔗 Telegram ulash
-                  </span>}
+                : <>
+                    {deepLink && (
+                      <span
+                        onClick={() => { navigator.clipboard.writeText(deepLink); alert('Havola nusxalandi! Mijozga yuboring.'); }}
+                        style={{ marginLeft: 8, background: 'rgba(0,136,204,0.7)', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
+                        title="Telegram havola — bosib nusxalang, mijozga yuboring">
+                        🔗 Havola nusxalash
+                      </span>
+                    )}
+                    <span
+                      onClick={() => { setTgIdVal(''); setTgInput(true); }}
+                      style={{ marginLeft: 4, background: 'rgba(255,255,255,0.2)', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
+                      title="Telegram ID qo'lda kiritish">
+                      ✎ ID kiritish
+                    </span>
+                  </>}
             </div>
             <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {loc

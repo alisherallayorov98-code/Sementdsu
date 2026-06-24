@@ -149,5 +149,16 @@ module.exports = {
     return c ? c.chatId : null;
   },
   normPhone,
+  // Deep link orqali mijozni chatId ga ulash
+  linkCustomer(acc, linkCode, chatId) {
+    const db   = load(acc);
+    const custs = db.state.customers || [];
+    const idx  = custs.findIndex(c => c.linkCode === linkCode);
+    if (idx === -1) return null; // linkCode topilmadi
+    custs[idx] = { ...custs[idx], telegramChatId: String(chatId) };
+    db.state.customers = custs;
+    persist(acc);
+    return custs[idx];
+  },
   info(acc)            { const db = load(acc); return { updatedAt: db.updatedAt, botOrdersPending: db.botOrders.length }; },
 };
