@@ -261,19 +261,14 @@ export default function Debts({ lang }) {
         ))}
         <span style={{ marginLeft: 6, color: '#888', fontSize: 11 }}>({filtered.length} ta)</span>
         <ExcelExport
-          filename="Qarzlar"
-          sheetName="Qarzlar"
-          title="Qarzlar hisoboti"
+          filename="Qarzdorlar"
+          sheetName="Qarzdorlar"
+          title="Qarzdorlar ro'yxati"
           columns={[
-            { header: 'Sana', value: r => r.date },
-            { header: 'Mijoz', value: r => r.customer },
-            { header: 'Qarz summasi', value: r => Number(r.amount || 0) },
-            { header: "To'landi", value: r => Number(r.paid || 0) },
-            { header: 'Qolgan qarz', value: r => Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)) },
-            { header: 'Holat', value: r => STATUS_STYLE[getStatus(r.amount, r.paid)].label.latn },
-            { header: 'Izoh', value: r => r.note || '' },
+            { header: 'Mijoz', value: g => g.customer },
+            { header: 'Qolgan qarz (so\'m)', value: g => Math.max(0, g.totalAmount - g.totalPaid) },
           ]}
-          rows={filtered}
+          rows={groupList.filter(g => g.totalAmount - g.totalPaid > 0)}
         />
       </div>
 
