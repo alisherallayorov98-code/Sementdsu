@@ -37,8 +37,6 @@ export default function CustomerCard({ name, onClose }) {
   };
 
   const [notify, setNotify] = useState(false);
-  const [tgInput, setTgInput] = useState(false);
-  const [tgIdVal, setTgIdVal] = useState('');
   const defaultMsg = s.qolganQarz > 0
     ? `Hurmatli ${name}! Sizning qoldiq qarzingiz: ${fmt(s.qolganQarz)} so'm. To'lov uchun rahmat.`
     : `Hurmatli ${name}!`;
@@ -76,27 +74,14 @@ export default function CustomerCard({ name, onClose }) {
             <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
               {cust?.phone ? `📞 ${cust.phone}` : 'Telefon yo\'q'}{cust?.address ? `  •  📍 ${cust.address}` : ''}
               {tgLinked
-                ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
-                    onClick={() => { setTgIdVal(cust.telegramChatId || ''); setTgInput(true); }}
-                    title="Telegram ID ni o'zgartirish">
-                    📱 Telegram ulangan ✎
+                ? <span style={{ marginLeft: 8, background: '#2e7d32', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>
+                    📱 Telegram ulangan
                   </span>
-                : <>
-                    {deepLink && (
-                      <span
-                        onClick={() => { navigator.clipboard.writeText(deepLink); alert('Havola nusxalandi! Mijozga yuboring.'); }}
-                        style={{ marginLeft: 8, background: 'rgba(0,136,204,0.7)', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
-                        title="Telegram havola — bosib nusxalang, mijozga yuboring">
-                        🔗 Havola nusxalash
-                      </span>
-                    )}
-                    <span
-                      onClick={() => { setTgIdVal(''); setTgInput(true); }}
-                      style={{ marginLeft: 4, background: 'rgba(255,255,255,0.2)', padding: '1px 7px', borderRadius: 8, fontSize: 10, cursor:'pointer' }}
-                      title="Telegram ID qo'lda kiritish">
-                      ✎ ID kiritish
+                : deepLink && (
+                    <span style={{ marginLeft: 8, background: 'rgba(255,136,0,0.85)', padding: '1px 7px', borderRadius: 8, fontSize: 10 }}>
+                      ⚠️ Telegram ulanmagan
                     </span>
-                  </>}
+                  )}
             </div>
             <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {loc
@@ -120,42 +105,24 @@ export default function CustomerCard({ name, onClose }) {
 
         {notify && <NotifyModal name={name} phone={cust?.phone || ''} defaultText={defaultMsg} onClose={() => setNotify(false)} />}
 
-        {/* Telegram ID ulash modali */}
-        {tgInput && (
-          <div style={{ background:'#fff3cd', border:'1px solid #ffc107', padding:'12px 16px', display:'flex', flexDirection:'column', gap:8 }}>
-            <div style={{ fontSize:13, fontWeight:'bold', color:'#856404' }}>🆔 Telegram ID ulash</div>
-            <div style={{ fontSize:12, color:'#555' }}>
-              Mijozdan <b>@sementchiuzbot</b> ga kirib <b>/myid</b> buyrug'ini yuborishini so'rang — bot unga raqam ko'rsatadi. O'sha raqamni shu yerga kiriting:
-            </div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <input
-                type="text" placeholder="Masalan: 123456789"
-                value={tgIdVal} onChange={e => setTgIdVal(e.target.value)}
-                style={{ padding:'6px 10px', fontSize:14, border:'1px solid #ccc', borderRadius:4, width:200, fontFamily:'monospace' }}
-                autoFocus
-              />
-              <button
-                onClick={() => {
-                  const id = tgIdVal.trim();
-                  if (!id) return;
-                  updateCustomer(cust.id, { telegramChatId: id });
-                  setTgInput(false);
-                }}
-                style={{ padding:'6px 14px', background:'#2e7d32', color:'#fff', border:'none', borderRadius:4, cursor:'pointer', fontWeight:'bold' }}>
-                ✓ Saqlash
-              </button>
-              {cust?.telegramChatId && (
-                <button
-                  onClick={() => { updateCustomer(cust.id, { telegramChatId: '' }); setTgInput(false); }}
-                  style={{ padding:'6px 10px', background:'#ffebee', color:'#c62828', border:'1px solid #ef9a9a', borderRadius:4, cursor:'pointer' }}>
-                  ✕ O'chirish
-                </button>
-              )}
-              <button onClick={() => setTgInput(false)}
-                style={{ padding:'6px 10px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:4, cursor:'pointer' }}>
-                Bekor
-              </button>
-            </div>
+        {/* Telegram havola — ulashish (faqat ulanmagan bo'lsa) */}
+        {!tgLinked && deepLink && (
+          <div style={{ background:'#e3f2fd', borderBottom:'1px solid #90caf9', padding:'10px 18px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            <span style={{ fontSize:13, color:'#0d47a1', fontWeight:'bold' }}>📲 Mijozni botga ulash:</span>
+            <code style={{ fontSize:12, background:'#fff', padding:'3px 8px', borderRadius:4, border:'1px solid #90caf9', color:'#333', userSelect:'all' }}>
+              {deepLink}
+            </code>
+            <button
+              onClick={() => { navigator.clipboard.writeText(deepLink); alert('✅ Havola nusxalandi!'); }}
+              style={{ padding:'5px 14px', background:'#1565c0', color:'#fff', border:'none', borderRadius:4, cursor:'pointer', fontWeight:'bold', fontSize:12 }}>
+              📋 Nusxa olish
+            </button>
+            <a
+              href={`https://t.me/share/url?url=${encodeURIComponent(deepLink)}&text=${encodeURIComponent('Sement do\'koni botidan xaridlaringizni kuzatish uchun havola:')}`}
+              target="_blank" rel="noreferrer"
+              style={{ padding:'5px 14px', background:'#0088cc', color:'#fff', borderRadius:4, textDecoration:'none', fontWeight:'bold', fontSize:12 }}>
+              ✈️ Telegram orqali yuborish
+            </a>
           </div>
         )}
 
