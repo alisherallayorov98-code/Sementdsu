@@ -10,12 +10,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 require('dotenv').config();
 
-const createApp = require('./src/app');
-const telegram  = require('./src/services/telegram.service');
+const createApp      = require('./src/app');
+const telegram       = require('./src/services/telegram.service');
+const debtReminder   = require('./src/services/debtReminder.service');
 const { PORT, NODE_ENV } = require('./src/config');
 
 const app = createApp();
-telegram.start();
+const bot = telegram.start();
+if (bot) debtReminder.start(bot);
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Backend ${PORT}-portda ishlamoqda  (${NODE_ENV})`);

@@ -299,6 +299,7 @@ function start() {
 
   running = true;
   console.log('✅ Telegram Bot ishga tushdi! (@sementchiuzbot)');
+  return bot;
 }
 
 // ── Tashqaridan xabar yuborish ────────────────────────────────────────────────
@@ -368,4 +369,5 @@ async function notifyOrderDone(chatId, { customer, tons, brand, tur, note }) {
   }
 }
 
-module.exports = { start, isRunning, sendMessage, notifySale, notifyOrderDone };
+const getBot = () => bot;
+module.exports = { start, isRunning, getBot, sendMessage, notifySale, notifyOrderDone };
