@@ -63,11 +63,16 @@ function start() {
     const chatId = msg.chat.id;
     states[chatId] = null;
     bot.sendMessage(chatId,
-      '🏗 *Sement do\'koni botiga xush kelibsiz!*\n\n' +
-      '📦 /zakaz — Sement buyurtma berish\n' +
-      '📱 /ulash — Raqamni ulash (xabar va chek olish uchun)\n\n' +
-      'Raqamingizni ulasangiz, har bir sotuvdan keyin avtomatik xabar keladi.',
-      { parse_mode: 'Markdown' });
+      '🏗 *Sement do\'koni botiga xush kelibsiz!*\n\nQuyidagi tugmalardan birini tanlang:',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📦 Sement buyurtma berish', callback_data: 'menu:zakaz' }],
+            [{ text: '📱 Raqamni ulash (xabar va chek olish)', callback_data: 'menu:ulash' }],
+          ],
+        },
+      });
   });
 
   // ── /ulash ────────────────────────────────────────────────────────────────
@@ -105,6 +110,19 @@ function start() {
     const data   = q.data;
     const state  = states[chatId];
     bot.answerCallbackQuery(q.id);
+
+    // ── Bosh menyu tugmalari ─────────────────────────────────────────────
+    if (data === 'menu:zakaz') {
+      states[chatId] = { step: 'name' };
+      bot.sendMessage(chatId,
+        '📋 *Yangi zakaz*\n\nIsmingiz yoki korxona nomingizni yozing:',
+        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
+      return;
+    }
+    if (data === 'menu:ulash') {
+      bot.sendMessage(chatId, 'Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
+      return;
+    }
 
     if (!state) return;
 
