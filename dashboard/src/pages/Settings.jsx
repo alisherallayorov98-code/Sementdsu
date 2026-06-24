@@ -312,6 +312,7 @@ export default function Settings({ lang }) {
                   <th style={{ padding: 12 }}>Sklad</th>
                   <th style={{ padding: 12 }}>Parol</th>
                   <th style={{ padding: 12 }}>Lavozim</th>
+                  <th style={{ padding: 12 }}>Telegram</th>
                   <th style={{ padding: 12 }}>Boshqarish</th>
                 </tr>
               </thead>
@@ -337,6 +338,29 @@ export default function Settings({ lang }) {
                       <PasswordCell workerId={w.id} onSave={(newPwd) => updateWorker(w.id, { password: newPwd })} />
                     </td>
                     <td style={{ padding: 12, fontSize: 13, color: '#555' }}>{w.position || '—'}</td>
+                    <td style={{ padding: '8px 12px', minWidth: 160 }}>
+                      {w.linkCode ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {w.telegramChatId
+                              ? <span style={{ fontSize: 11, background: '#e8f5e9', color: '#2e7d32', padding: '1px 6px', borderRadius: 10, border: '1px solid #a5d6a7' }}>✓ Ulangan</span>
+                              : <span style={{ fontSize: 11, background: '#fff3e0', color: '#e65100', padding: '1px 6px', borderRadius: 10, border: '1px solid #ffcc80' }}>Ulanmagan</span>
+                            }
+                          </div>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(`https://t.me/sementchiuzbot?start=${w.linkCode}`); alert('Havola nusxalandi!'); }}
+                            style={{ fontSize: 11, padding: '2px 8px', cursor: 'pointer', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 4, color: '#0d47a1' }}>
+                            🔗 Havola nusxalash
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => updateWorker(w.id, { linkCode: Math.random().toString(36).slice(2,10).toUpperCase() })}
+                          style={{ fontSize: 11, padding: '3px 10px', cursor: 'pointer', background: '#f3e5f5', border: '1px solid #ce93d8', borderRadius: 4, color: '#6a1b9a' }}>
+                          + Havola yaratish
+                        </button>
+                      )}
+                    </td>
                     <td style={{ padding: 12 }}>
                       <button onClick={() => { if(window.confirm("Rostdan ham o'chirasizmi?")) deleteWorker(w.id) }} style={{ background: '#ffebee', color: '#c62828', border: '1px solid #ef9a9a', borderRadius: 4, cursor: 'pointer', padding: '4px 8px' }}>
                         O'chirish
