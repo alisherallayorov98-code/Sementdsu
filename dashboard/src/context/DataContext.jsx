@@ -912,6 +912,12 @@ export function DataProvider({ children }) {
       try {
         const remote = await api.getState();
         if (!cancelled && remote && typeof remote === 'object' && Object.keys(remote).length) {
+          // Eskidan qolgan customers/workers uchun linkCode avtomatik berish
+          const lc = () => Math.random().toString(36).slice(2, 10).toUpperCase();
+          if (Array.isArray(remote.customers))
+            remote.customers = remote.customers.map(c => c.linkCode ? c : { ...c, linkCode: lc() });
+          if (Array.isArray(remote.workers))
+            remote.workers = remote.workers.map(w => w.linkCode ? w : { ...w, linkCode: lc() });
           for (const [key, setter] of Object.entries(STATE_SETTERS)) {
             if (remote[key] !== undefined) setter(remote[key]);
           }
