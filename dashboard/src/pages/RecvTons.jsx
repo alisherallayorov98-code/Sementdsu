@@ -197,13 +197,15 @@ export default function RecvTons({ lang }) {
     });
     // 2) Birdan sotish → zavoddan to'g'ri mijozga (sklad orqali o'tmaydi)
     if (sell.on) {
+      const vehicleNo = verifyRow.vehicleNo || '';
       addSaleRow({
         customer: sell.customer,
         tons,
         pricePerTon: Number(sell.pricePerTon) || 0,
         paymentChannel: sell.paymentChannel,
         warehouseId: verifyRow.warehouseId || myWh,
-        note: `Zavoddan to'g'ridan-to'g'ri (${verifyRow.source})`,
+        vehicleNo,
+        note: [vehicleNo && `Mashina: ${vehicleNo}`, `Zavod: ${verifyRow.source}`].filter(Boolean).join(' | '),
       });
     }
     closeVerify();
