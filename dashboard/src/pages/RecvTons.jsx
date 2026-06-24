@@ -586,36 +586,30 @@ export default function RecvTons({ lang }) {
       ) : (
         <>
         {/* ── Ommaviy o'chirish paneli ── */}
-        {appSettings?.allowBulkDelete && (
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6, padding:'6px 10px', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:6 }}>
-            <span style={{ fontSize:12, color:'#e65100', fontWeight:'bold' }}>
-              ☑ Ommaviy o'chirish rejimi:
-            </span>
-            {selected.size > 0 ? (
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6, padding:'6px 10px', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:6 }}>
+          <span style={{ fontSize:12, color:'#e65100', fontWeight:'bold' }}>☑ Ommaviy o'chirish:</span>
+          {selected.size > 0 ? (
+            <>
               <button onClick={handleBulkDelete}
                 style={{ fontSize:12, cursor:'pointer', background:'#c62828', color:'#fff', border:'none', borderRadius:4, padding:'4px 14px', fontWeight:'bold' }}>
                 🗑 {selected.size} ta yozuvni o'chirish
               </button>
-            ) : (
-              <span style={{ fontSize:11, color:'#888' }}>Qatorlarni belgilang (chap ustun)</span>
-            )}
-            {selected.size > 0 && (
               <button onClick={() => setSelected(new Set())}
                 style={{ fontSize:11, cursor:'pointer', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:4, padding:'3px 10px' }}>
                 Bekor qilish
               </button>
-            )}
-          </div>
-        )}
+            </>
+          ) : (
+            <span style={{ fontSize:11, color:'#888' }}>Qatorlarni belgilang (chap ustun)</span>
+          )}
+        </div>
         <div style={{ overflowX:'auto' }}>
           <table className="data-table" style={{ width:'100%', minWidth:1000 }}>
             <thead>
               <tr>
-                {appSettings?.allowBulkDelete && (
-                  <th style={{ width:30, textAlign:'center' }}>
-                    <input type="checkbox" checked={allPageSelected} onChange={toggleAllPage} title="Sahifadagi hammasini belgilash" />
-                  </th>
-                )}
+                <th style={{ width:30, textAlign:'center' }}>
+                  <input type="checkbox" checked={allPageSelected} onChange={toggleAllPage} title="Sahifadagi hammasini belgilash" />
+                </th>
                 <th style={{ width:30 }}>#</th>
                 <th style={{ width:85 }}>{L.sana[lang]}</th>
                 <th style={{ width:160 }}>{L.manbaa[lang]}</th>
@@ -638,11 +632,9 @@ export default function RecvTons({ lang }) {
                 const isSelected = selected.has(r.id);
                 return (
                   <tr key={r.id} style={{ background: isSelected ? '#fff3e0' : r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
-                    {appSettings?.allowBulkDelete && (
-                      <td style={{ textAlign:'center' }}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)} />
-                      </td>
-                    )}
+                    <td style={{ textAlign:'center' }}>
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)} />
+                    </td>
                     <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>
                       {r.pending ? <span title="Tekshirilmagan" style={{ color:'#e65100' }}>⚠</span> : filtered.length-absIdx}
                     </td>
