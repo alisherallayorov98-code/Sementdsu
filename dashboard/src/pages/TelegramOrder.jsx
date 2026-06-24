@@ -19,7 +19,7 @@ const BG     = '#e1f5fe';
 export default function TelegramOrder({ lang }) {
   const {
     tgOrders, addTgOrder, setTgStatus, deleteTgOrder,
-    currentWorker,
+    currentWorker, workers,
   } = useData();
 
   const [form, setForm] = useState({ customer: '', tons: '', note: '' });
@@ -120,7 +120,7 @@ export default function TelegramOrder({ lang }) {
         <select value={worker} onChange={e => setWorker(e.target.value)}
           style={{ ...inp, color: worker ? ACCENT : '#999', fontWeight: worker ? 'bold' : 'normal' }}>
           <option value="">— tanlang —</option>
-          {['Botir aka', 'Alisher aka', 'Ganisher aka', 'Sharofidin', 'Saloh', 'Qosim', 'Anvarjon'].map(x => <option key={x} value={x}>{x}</option>)}
+          {(workers || []).map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
         </select>
 
         <button type="submit" style={{ padding: '6px 20px', cursor: 'pointer', background: ACCENT, color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', marginLeft: 'auto' }}>
