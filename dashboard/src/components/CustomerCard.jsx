@@ -258,12 +258,15 @@ export default function CustomerCard({ name, onClose }) {
 function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
   const today = new Date().toLocaleDateString('ru-RU');
   const salesSorted  = [...s.sales].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const debtsSorted  = [...s.debts].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const totalSaleTon = salesSorted.reduce((acc, r) => acc + Number(r.tons || 0), 0);
   const totalSaleSum = salesSorted.reduce((acc, r) => acc + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-  const totalDebt    = debtsSorted.reduce((acc, r) => acc + Number(r.amount || 0), 0);
-  const totalPaid    = debtsSorted.reduce((acc, r) => acc + Number(r.paid || 0), 0);
-  const totalLeft    = debtsSorted.reduce((acc, r) => acc + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+  const totalLeft    = s.debts.reduce((acc, r) => acc + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+
+  // Barcha to'lovlar (debt.payments[]) — mijoz haqiqatda bergan pullar
+  const allPayments = s.debts
+    .flatMap(d => (d.payments || []).map(p => ({ ...p, debtNote: d.note })))
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const totalPayments = allPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
 
   const handlePrint = () => {
     const win = window.open('', '_blank');
@@ -310,8 +313,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
               <tr style={{ background: '#f0f0f0' }}>
                 <th style={aTh}>Jami xarid (so'm)</th>
                 <th style={aTh}>Jami tonna</th>
-                <th style={aTh}>Jami qarz</th>
-                <th style={aTh}>To'landi</th>
+                <th style={{ ...aTh, color: '#006600' }}>Jami to'landi</th>
                 <th style={{ ...aTh, color: '#c00' }}>Qoldiq qarz</th>
               </tr>
             </thead>
@@ -319,8 +321,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
               <tr>
                 <td style={{ ...aTd, fontWeight: 'bold' }}>{fmt(totalSaleSum)}</td>
                 <td style={aTd}>{fmtT(totalSaleTon)} tn</td>
-                <td style={aTd}>{fmt(totalDebt)}</td>
-                <td style={{ ...aTd, color: '#006600' }}>{fmt(totalPaid)}</td>
+                <td style={{ ...aTd, color: '#006600', fontWeight: 'bold' }}>{fmt(totalPayments)}</td>
                 <td style={{ ...aTd, fontWeight: 'bold', color: '#c00' }}>{fmt(totalLeft)}</td>
               </tr>
             </tbody>
@@ -332,26 +333,24 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
             <thead>
               <tr style={{ background: '#f0f0f0' }}>
                 <th style={aTh}>#</th>
-                <th style={aTh}>Sana</th>
-                <th style={aTh}>Tonna</th>
+                <th style={aTh}>Vaqt (zavod)</th>
+                <th style={{ ...aTh, textAlign: 'right' }}>Tonna</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Narx (1 tn)</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Jami summa</th>
                 <th style={aTh}>To'lov turi</th>
                 <th style={aTh}>Mashina №</th>
-                <th style={aTh}>Izoh</th>
               </tr>
             </thead>
             <tbody>
               {salesSorted.map((r, i) => (
                 <tr key={r.id} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
                   <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
-                  <td style={aTd}>{r.date}</td>
+                  <td style={{ ...aTd, fontSize: 10 }}>{r.factoryTime || r.date}</td>
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(r.tons)}</td>
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.pricePerTon)}</td>
                   <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
                   <td style={aTd}>{r.paymentChannel || '—'}</td>
                   <td style={aTd}>{r.vehicleNo || '—'}</td>
-                  <td style={aTd}>{r.note || '—'}</td>
                 </tr>
               ))}
               <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
@@ -359,46 +358,41 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                 <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(totalSaleTon)} tn</td>
                 <td style={aTd}></td>
                 <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalSaleSum)}</td>
-                <td colSpan={3} style={aTd}></td>
+                <td colSpan={2} style={aTd}></td>
               </tr>
             </tbody>
           </table>
 
-          {/* Qarzlar jadvali */}
-          {debtsSorted.length > 0 && (
+          {/* To'lovlar jadvali — mijoz haqiqatda bergan pullar */}
+          {allPayments.length > 0 && (
             <>
-              <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>Qarzlar ({debtsSorted.length} ta)</div>
+              <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>Mijoz to'lovlari ({allPayments.length} ta)</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
                 <thead>
                   <tr style={{ background: '#f0f0f0' }}>
                     <th style={aTh}>#</th>
                     <th style={aTh}>Sana</th>
-                    <th style={{ ...aTh, textAlign: 'right' }}>Qarz summasi</th>
-                    <th style={{ ...aTh, textAlign: 'right', color: '#006600' }}>To'landi</th>
-                    <th style={{ ...aTh, textAlign: 'right', color: '#c00' }}>Qoldiq</th>
+                    <th style={{ ...aTh, textAlign: 'right', color: '#006600' }}>To'lov summasi</th>
+                    <th style={aTh}>Kanal</th>
                     <th style={aTh}>Izoh</th>
+                    <th style={aTh}>Xodim</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {debtsSorted.map((r, i) => {
-                    const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
-                    return (
-                      <tr key={r.id} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
-                        <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
-                        <td style={aTd}>{r.date}</td>
-                        <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
-                        <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>
-                        <td style={{ ...aTd, textAlign: 'right', fontWeight: qoldiq > 0 ? 'bold' : 'normal', color: qoldiq > 0 ? '#c00' : '#888' }}>{fmt(qoldiq)}</td>
-                        <td style={aTd}>{r.note || '—'}</td>
-                      </tr>
-                    );
-                  })}
+                  {allPayments.map((p, i) => (
+                    <tr key={p.id || i} style={{ background: i % 2 === 0 ? '#f0fff0' : '#fff' }}>
+                      <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
+                      <td style={aTd}>{p.date}</td>
+                      <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold', color: '#006600' }}>{fmt(p.amount)}</td>
+                      <td style={aTd}>{{ naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[p.channel] || p.channel || '—'}</td>
+                      <td style={aTd}>{p.note || '—'}</td>
+                      <td style={aTd}>{p.worker || '—'}</td>
+                    </tr>
+                  ))}
                   <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
                     <td colSpan={2} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
-                    <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalDebt)}</td>
-                    <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(totalPaid)}</td>
-                    <td style={{ ...aTd, textAlign: 'right', color: '#c00' }}>{fmt(totalLeft)}</td>
-                    <td style={aTd}></td>
+                    <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(totalPayments)}</td>
+                    <td colSpan={3} style={aTd}></td>
                   </tr>
                 </tbody>
               </table>
