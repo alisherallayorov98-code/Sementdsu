@@ -223,8 +223,9 @@ export function DataProvider({ children }) {
   const addRecvRow = (entry) => {
     const ts = Date.now();
     const today = new Date().toLocaleDateString('ru-RU');
+    const ftDate = (() => { const d = new Date((entry.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU'); })();
     const row = {
-      id: ts, createdAt: ts, worker: currentWorker, date: today,
+      id: ts, createdAt: ts, worker: currentWorker, date: ftDate || today,
       source: entry.source || '', brand: entry.brand || '',
       vehicleNo: entry.vehicleNo || '', tons: entry.tons || 0,
       pricePerTon: entry.pricePerTon || 0,
@@ -249,7 +250,7 @@ export function DataProvider({ children }) {
     const base = Date.now();
     setRecvRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
-      date: r.date || new Date().toLocaleDateString('ru-RU'),
+      date: r.date || (() => { const d = new Date((r.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? new Date().toLocaleDateString('ru-RU') : d.toLocaleDateString('ru-RU'); })(),
       source: r.source || '', brand: r.brand || '', vehicleNo: r.vehicleNo || '',
       tons: Number(r.tons) || 0, pricePerTon: Number(r.pricePerTon) || 0,
       paymentChannel: r.paymentChannel || 'bank',

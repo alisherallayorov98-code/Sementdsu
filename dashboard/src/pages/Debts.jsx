@@ -460,7 +460,11 @@ export default function Debts({ lang }) {
                 <tr key={g.customer} style={{ background: ss.bg, cursor: 'pointer' }} onClick={() => toggleExpand(g.customer)}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
                   <td>
-                    <span style={{ fontWeight: 'bold', color: '#003366', fontSize: 14 }}>{g.customer}</span>
+                    <span
+                      style={{ fontWeight: 'bold', color: '#1565c0', fontSize: 14, textDecoration: 'underline', cursor: 'pointer' }}
+                      title="Mijoz kartochkasini ochish"
+                      onClick={e => { e.stopPropagation(); setCard(g.customer); }}
+                    >{g.customer}</span>
                     <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{g.rows.length} ta</span>
                     <span style={{ marginLeft: 6, fontSize: 12, color: '#888' }}>{isOpen ? '▲' : '▼'}</span>
                   </td>
