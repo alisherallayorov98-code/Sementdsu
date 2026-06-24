@@ -683,6 +683,7 @@ export function DataProvider({ children }) {
       role:     opts.role     || 'sotuvchi', // admin, kassir, sotuvchi, omborchi
       password: opts.password || '1234',     // Standart parol
       warehouseId: opts.warehouseId || null, // biriktirilgan sklad
+      linkCode: genLinkCode(),
     }]);
   };
 

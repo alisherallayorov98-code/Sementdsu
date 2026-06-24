@@ -151,14 +151,30 @@ module.exports = {
   normPhone,
   // Deep link orqali mijozni chatId ga ulash
   linkCustomer(acc, linkCode, chatId) {
-    const db   = load(acc);
+    const db    = load(acc);
     const custs = db.state.customers || [];
-    const idx  = custs.findIndex(c => c.linkCode === linkCode);
-    if (idx === -1) return null; // linkCode topilmadi
+    const idx   = custs.findIndex(c => c.linkCode === linkCode);
+    if (idx === -1) return null;
     custs[idx] = { ...custs[idx], telegramChatId: String(chatId) };
     db.state.customers = custs;
     persist(acc);
     return custs[idx];
+  },
+  // Deep link orqali xodimni chatId ga ulash
+  linkWorker(acc, linkCode, chatId) {
+    const db      = load(acc);
+    const workers = db.state.workers || [];
+    const idx     = workers.findIndex(w => w.linkCode === linkCode);
+    if (idx === -1) return null;
+    workers[idx] = { ...workers[idx], telegramChatId: String(chatId) };
+    db.state.workers = workers;
+    persist(acc);
+    return workers[idx];
+  },
+  // chatId bo'yicha xodimni topish
+  getWorkerByChatId(acc, chatId) {
+    const workers = (load(acc).state.workers || []);
+    return workers.find(w => w.telegramChatId === String(chatId)) || null;
   },
   info(acc)            { const db = load(acc); return { updatedAt: db.updatedAt, botOrdersPending: db.botOrders.length }; },
 };
