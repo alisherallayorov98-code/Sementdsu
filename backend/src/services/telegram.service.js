@@ -26,9 +26,6 @@ const mainKeyboard = {
     keyboard: [
       [
         { text: '🛒 Sement buyurtma berish' },
-        { text: '🆔 Mening ID raqamim' },
-      ],
-      [
         { text: '🔗 Bot bilan ulash' },
       ],
     ],
@@ -107,13 +104,6 @@ function start() {
 
     sendMenu(chatId,
       '🏗 *Sement do\'koni botiga xush kelibsiz!*\n\nQuyidagi tugmalardan birini tanlang:');
-  });
-
-  // ── /myid ─────────────────────────────────────────────────────────────────
-  bot.onText(/\/myid/, (msg) => {
-    bot.sendMessage(msg.chat.id,
-      `🆔 *Sizning Telegram ID:*\n\n\`${msg.chat.id}\`\n\nBu raqamni sotuvchiga bering.`,
-      { parse_mode: 'Markdown', ...mainKeyboard });
   });
 
   // ── /zakaz ────────────────────────────────────────────────────────────────
@@ -211,13 +201,6 @@ function start() {
     if (text === '🛒 Sement buyurtma berish') {
       states[chatId] = null;
       startOrder(chatId);
-      return;
-    }
-    if (text === '🆔 Mening ID raqamim') {
-      states[chatId] = null;
-      bot.sendMessage(chatId,
-        `🆔 *Sizning Telegram ID:*\n\n\`${chatId}\`\n\nBu raqamni sotuvchiga bering.`,
-        { parse_mode: 'Markdown', ...mainKeyboard });
       return;
     }
     if (text === '🔗 Bot bilan ulash') {
