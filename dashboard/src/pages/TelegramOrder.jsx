@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
@@ -43,6 +44,19 @@ export default function TelegramOrder({ lang }) {
   const handleStatusChange = (id, newStatus) => {
     if (newStatus === 'bekor' && !window.confirm("Haqiqatan ham bekor qilasizmi?")) return;
     setTgStatus(id, newStatus);
+    if (newStatus === 'bajarildi') {
+      const order = tgOrders.find(o => o.id === id);
+      if (order?.chatId) {
+        api.notifyOrderDone({
+          chatId: order.chatId,
+          customer: order.customer,
+          tons: order.tons,
+          brand: order.brand,
+          tur: order.tur,
+          note: order.note,
+        }).catch(() => {});
+      }
+    }
   };
 
   // ── Hisobot ───────────────────────────────────────────────────────────────
@@ -176,6 +190,7 @@ export default function TelegramOrder({ lang }) {
               <th style={{ width: 90 }}>Marka</th>
               <th style={{ width: 80 }}>Tur</th>
               <th style={{ textAlign: 'right', width: 80 }}>Tonna</th>
+              <th style={{ width: 70 }}>Manba</th>
               <th style={{ width: 100 }}>Xodim</th>
               <th>Izoh</th>
               <th style={{ width: 150 }}>Holati</th>
@@ -199,6 +214,14 @@ export default function TelegramOrder({ lang }) {
                       : '—'}
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14 }}>{fmtTons(o.tons)}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {o.source === 'customer'
+                      ? <span title="Mijoz bot orqali" style={{ fontSize: 15 }}>🤖</span>
+                      : o.source === 'seller'
+                        ? <span title="Sotuvchi bot orqali" style={{ fontSize: 15 }}>👷</span>
+                        : <span title="Qo'lda kiritilgan" style={{ fontSize: 15 }}>✍️</span>
+                    }
+                  </td>
                   <td style={{ fontSize: 12, color: '#555' }}>{o.worker || '—'}</td>
                   <td style={{ fontSize: 12 }}>{o.note || '—'}</td>
                   <td>
@@ -225,7 +248,7 @@ export default function TelegramOrder({ lang }) {
             <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
               <td colSpan={4} style={{ textAlign: 'right', paddingRight: 8 }}>JAMI KO'RINAYOTGAN TONNA</td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 15 }}>{fmtTons(filteredTotalTons)}</td>
-              <td colSpan={4}></td>
+              <td colSpan={5}></td>
             </tr>
           </tbody>
         </table>

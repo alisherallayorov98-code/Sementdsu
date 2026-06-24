@@ -58,12 +58,23 @@ exports.send = async (req, res) => {
 };
 
 // POST /api/notify_sale — savdo qilinganda mijozga avtomatik xabar
-// { phone, customer, tons, pricePerTon, paymentChannel, note, totalDebt, date }
 exports.notifySale = async (req, res) => {
   const acc = req.user.account;
   const data = req.body || {};
   try {
     const result = await tg.notifySale(acc, data);
+    res.json(result);
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+};
+
+// POST /api/notify_order_done — zakaz bajarilganda mijozga xabar
+// { chatId, customer, tons, brand, tur, note }
+exports.notifyOrderDone = async (req, res) => {
+  const { chatId, customer, tons, brand, tur, note } = req.body || {};
+  try {
+    const result = await tg.notifyOrderDone(chatId, { customer, tons, brand, tur, note });
     res.json(result);
   } catch (e) {
     res.json({ ok: false, error: e.message });

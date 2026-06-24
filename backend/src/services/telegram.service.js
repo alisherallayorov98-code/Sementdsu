@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Telegram bot xizmati.
-//  - Zakaz berish: /zakaz → ism → marka (inline) → tur (inline) → tonna → izoh
-//  - Raqam ulash: /ulash → kontakt yuborish
-//  - Avtomatik xabar: notifySale() — savdo qilinganda mijozga chiqadi
+//  - Persistent Reply Keyboard (doimiy pastki tugmalar)
+//  - Zakaz berish oqimi: inline keyboard (marka/tur tanlovi)
+//  - Raqam ulash: kontakt yuborish
+//  - notifySale()     — sotuvda avtomatik xabar
+//  - notifyOrderDone() — zakaz bajarilganda mijozga xabar
 // ─────────────────────────────────────────────────────────────────────────────
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('../db');
@@ -18,12 +20,32 @@ const CH  = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click', nasiya:
 const BRANDS = ['450 marka', '550 marka'];
 const TURLAR = ['📦 Qoplik', '🌫 Rasipnoy'];
 
+// ── Doimiy pastki keyboard (Reply Keyboard) ───────────────────────────────────
+const mainKeyboard = {
+  reply_markup: {
+    keyboard: [
+      [
+        { text: '🛒 Sement buyurtma berish' },
+        { text: '🆔 Mening ID raqamim' },
+      ],
+      [
+        { text: '🔗 Bot bilan ulash' },
+      ],
+    ],
+    resize_keyboard: true,
+    persistent: true,
+  },
+};
+
+// Kontakt ulashish klaviaturasi (vaqtinchalik, bir marta)
 const shareKeyboard = {
   reply_markup: {
     keyboard: [
       [{ text: '📱 Raqamni ulashish', request_contact: true }],
+      [{ text: '⬅️ Orqaga' }],
     ],
-    resize_keyboard: true, one_time_keyboard: true,
+    resize_keyboard: true,
+    one_time_keyboard: true,
   },
 };
 
@@ -47,6 +69,10 @@ function turKeyboard() {
   };
 }
 
+function sendMenu(chatId, text) {
+  return bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...mainKeyboard });
+}
+
 function start() {
   if (!TELEGRAM_TOKEN || TELEGRAM_TOKEN.length < 10) {
     console.log('ℹ️  TELEGRAM_BOT_TOKEN kiritilmagan. Bot ishlamaydi (qolgan qism normal ishlaydi).');
@@ -54,7 +80,7 @@ function start() {
   }
 
   bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-  const states = {}; // chatId → { step, customer, brand, tur, tons, note }
+  const states = {}; // chatId → { step, customer, brand, tur, tons, note, workerName }
 
   // ── /start [linkCode] ─────────────────────────────────────────────────────
   bot.onText(/\/start(.*)/, (msg, match) => {
@@ -62,56 +88,56 @@ function start() {
     const linkCode = (match[1] || '').trim();
     states[chatId] = null;
 
-    // Deep link orqali ulash: /start ABC12345
     if (linkCode) {
-      const customer = db.linkCustomer(DEFAULT_ACCOUNT, linkCode, chatId);
-      if (customer) {
-        bot.sendMessage(chatId,
-          `✅ *Muvaffaqiyatli ulandi!*\n\n👤 ${customer.name}\n\nEndi siz uchun har bir xarid qilinganda avtomatik xabar keladi.`,
-          { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
-        return;
-      } else {
-        bot.sendMessage(chatId,
-          `⚠️ Havola noto'g'ri yoki muddati o'tgan. Sotuvchidan yangi havola so'rang.`,
-          { parse_mode: 'Markdown' });
+      const worker = db.linkWorker(DEFAULT_ACCOUNT, linkCode, chatId);
+      if (worker) {
+        sendMenu(chatId,
+          `✅ *Sotuvchi sifatida ulandi!*\n\n👷 ${worker.name}\n\nEndi buyurtmalarni bot orqali bera olasiz.`);
         return;
       }
+      const customer = db.linkCustomer(DEFAULT_ACCOUNT, linkCode, chatId);
+      if (customer) {
+        sendMenu(chatId,
+          `✅ *Muvaffaqiyatli ulandi!*\n\n👤 ${customer.name}\n\nEndi har bir xarid haqida avtomatik xabar olasiz.`);
+        return;
+      }
+      sendMenu(chatId, `⚠️ Havola noto'g'ri yoki muddati o'tgan. Yangi havola so'rang.`);
+      return;
     }
 
-    // Oddiy /start — menyu
-    bot.sendMessage(chatId,
-      '🏗 *Sement do\'koni botiga xush kelibsiz!*\n\nQuyidagi tugmalardan birini tanlang:',
-      {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📦 Sement buyurtma berish', callback_data: 'menu:zakaz' }],
-            [{ text: '🆔 Mening ID raqamim (/myid)', callback_data: 'menu:myid' }],
-          ],
-        },
-      });
+    sendMenu(chatId,
+      '🏗 *Sement do\'koni botiga xush kelibsiz!*\n\nQuyidagi tugmalardan birini tanlang:');
   });
+
+  // ── /myid ─────────────────────────────────────────────────────────────────
+  bot.onText(/\/myid/, (msg) => {
+    bot.sendMessage(msg.chat.id,
+      `🆔 *Sizning Telegram ID:*\n\n\`${msg.chat.id}\`\n\nBu raqamni sotuvchiga bering.`,
+      { parse_mode: 'Markdown', ...mainKeyboard });
+  });
+
+  // ── /zakaz ────────────────────────────────────────────────────────────────
+  bot.onText(/\/zakaz/, (msg) => startOrder(msg.chat.id));
+
+  function startOrder(chatId) {
+    const worker = db.getWorkerByChatId(DEFAULT_ACCOUNT, chatId);
+    if (worker) {
+      states[chatId] = { step: 'worker_customer', workerName: worker.name };
+      bot.sendMessage(chatId,
+        `📋 *Yangi zakaz* (${worker.name})\n\nMijoz ismi yoki korxona nomini yozing:`,
+        { parse_mode: 'Markdown' });
+    } else {
+      states[chatId] = { step: 'name', chatId };
+      bot.sendMessage(chatId,
+        '📋 *Yangi zakaz*\n\nIsmingiz yoki korxona nomingizni yozing:',
+        { parse_mode: 'Markdown' });
+    }
+  }
 
   // ── /ulash ────────────────────────────────────────────────────────────────
   bot.onText(/\/ulash/, (msg) => {
     bot.sendMessage(msg.chat.id,
-      'Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
-  });
-
-  // ── /myid — mijoz o'z chatId sini bilishi uchun ──────────────────────────
-  bot.onText(/\/myid/, (msg) => {
-    bot.sendMessage(msg.chat.id,
-      `🆔 *Sizning Telegram ID:*\n\n\`${msg.chat.id}\`\n\nBu raqamni sotuvchiga bering — u sizning kartangizga kiritadi, shundan keyin har bir xarid haqida xabar olasiz.`,
-      { parse_mode: 'Markdown' });
-  });
-
-  // ── /zakaz ────────────────────────────────────────────────────────────────
-  bot.onText(/\/zakaz/, (msg) => {
-    const chatId = msg.chat.id;
-    states[chatId] = { step: 'name' };
-    bot.sendMessage(chatId,
-      '📋 *Yangi zakaz*\n\nIsmingiz yoki korxona nomingizni yozing:',
-      { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
+      '📱 Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
   });
 
   // ── Kontakt ulashilganda ──────────────────────────────────────────────────
@@ -121,7 +147,6 @@ function start() {
       const name    = [msg.contact.first_name, msg.contact.last_name].filter(Boolean).join(' ');
       const chatId  = msg.chat.id;
 
-      // Telegram raqamini vaqtincha saqlab, biznes raqamini so'raymiz
       states[chatId] = { step: 'confirm_phone', tgPhone, name };
 
       bot.sendMessage(chatId,
@@ -150,45 +175,22 @@ function start() {
     const state  = states[chatId];
     bot.answerCallbackQuery(q.id);
 
-    // ── Bosh menyu tugmalari ─────────────────────────────────────────────
-    if (data === 'menu:zakaz') {
-      states[chatId] = { step: 'name' };
-      bot.sendMessage(chatId,
-        '📋 *Yangi zakaz*\n\nIsmingiz yoki korxona nomingizni yozing:',
-        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
-      return;
-    }
-    if (data === 'menu:ulash') {
-      bot.sendMessage(chatId, 'Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
-      return;
-    }
-    if (data === 'menu:myid') {
-      bot.sendMessage(chatId,
-        `🆔 *Sizning Telegram ID:*\n\n\`${chatId}\`\n\nBu raqamni sotuvchiga bering — u sizning kartangizga kiritadi, shundan keyin har bir xarid haqida xabar olasiz.`,
-        { parse_mode: 'Markdown' });
-      return;
-    }
-
-    // ── "Shu raqamni ulash" tugmasi ──────────────────────────────────────
     if (data.startsWith('linkphone:')) {
       const phone = data.replace('linkphone:', '');
       const name  = state?.name || '';
       db.upsertTgContact(DEFAULT_ACCOUNT, { phone, chatId, name });
       states[chatId] = null;
-      bot.sendMessage(chatId,
-        `✅ *Ulandi!* Raqam: ${phone}\n\nEndi har bir sotuvdan keyin xabar keladi.`,
-        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
+      sendMenu(chatId, `✅ *Ulandi!* Raqam: ${phone}\n\nEndi har bir sotuvdan keyin xabar keladi.`);
       return;
     }
 
     if (!state) return;
 
     if (data.startsWith('brand:') && state.step === 'brand') {
-      const val = data.replace('brand:', '');
-      state.brand = val;
+      state.brand = data.replace('brand:', '');
       state.step  = 'tur';
       bot.sendMessage(chatId,
-        `✅ Marka: *${val}*\n\nQanday holda kerak?`,
+        `✅ Marka: *${state.brand}*\n\nQanday holda kerak?`,
         { parse_mode: 'Markdown', ...turKeyboard() });
     } else if (data.startsWith('tur:') && state.step === 'tur') {
       state.tur  = data.replace('tur:', '');
@@ -199,43 +201,75 @@ function start() {
     }
   });
 
-  // ── Matnli xabarlar (zakaz oqimi) ────────────────────────────────────────
+  // ── Matnli xabarlar ───────────────────────────────────────────────────────
   bot.on('message', (msg) => {
     const chatId = msg.chat.id;
-    const text   = msg.text;
+    const text   = (msg.text || '').trim();
     if (!text || text.startsWith('/') || msg.contact) return;
 
-    const state = states[chatId];
-    if (!state) {
+    // ── Doimiy tugmalar ────────────────────────────────────────────────────
+    if (text === '🛒 Sement buyurtma berish') {
+      states[chatId] = null;
+      startOrder(chatId);
+      return;
+    }
+    if (text === '🆔 Mening ID raqamim') {
+      states[chatId] = null;
       bot.sendMessage(chatId,
-        '📦 Buyurtma berish: /zakaz\n📱 Raqam ulash: /ulash');
+        `🆔 *Sizning Telegram ID:*\n\n\`${chatId}\`\n\nBu raqamni sotuvchiga bering.`,
+        { parse_mode: 'Markdown', ...mainKeyboard });
+      return;
+    }
+    if (text === '🔗 Bot bilan ulash') {
+      states[chatId] = null;
+      bot.sendMessage(chatId,
+        '📱 Raqamingizni ulash uchun quyidagi tugmani bosing:', shareKeyboard);
+      return;
+    }
+    if (text === '⬅️ Orqaga') {
+      states[chatId] = null;
+      sendMenu(chatId, 'Asosiy menyu:');
       return;
     }
 
-    // ── Step: biznes raqamni tasdiqlash ──────────────────────────────────
+    const state = states[chatId];
+    if (!state) {
+      sendMenu(chatId, 'Tugmalardan birini tanlang 👇');
+      return;
+    }
+
+    // ── Step: xodim rejimi — mijoz ismi ──────────────────────────────────
+    if (state.step === 'worker_customer') {
+      state.customer = text;
+      state.step     = 'brand';
+      bot.sendMessage(chatId,
+        `👤 Mijoz: *${state.customer}*\n\nSement markasini tanlang:`,
+        { parse_mode: 'Markdown', ...brandKeyboard() });
+      return;
+    }
+
+    // ── Step: biznes raqam ────────────────────────────────────────────────
     if (state.step === 'confirm_phone') {
       const bizPhone = text.replace(/\D/g, '');
       if (bizPhone.length < 7) {
-        bot.sendMessage(chatId, "⚠️ Raqam noto'g'ri. Iltimos, to'liq raqamni yozing (masalan: 901234567):");
+        bot.sendMessage(chatId, "⚠️ Raqam noto'g'ri. To'liq raqamni yozing (masalan: 901234567):");
         return;
       }
       db.upsertTgContact(DEFAULT_ACCOUNT, { phone: bizPhone, chatId, name: state.name });
       states[chatId] = null;
-      bot.sendMessage(chatId,
-        `✅ *Ulandi!* Biznes raqam: ${bizPhone}\n\nEndi har bir sotuvdan keyin xabar keladi.`,
-        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } });
+      sendMenu(chatId, `✅ *Ulandi!* Biznes raqam: ${bizPhone}\n\nEndi har bir sotuvdan keyin xabar keladi.`);
       return;
     }
 
-    // ── Step: ism ──────────────────────────────────────────────────────────
+    // ── Step: mijoz ismi ──────────────────────────────────────────────────
     if (state.step === 'name') {
-      state.customer = text.trim();
+      state.customer = text;
       state.step     = 'brand';
       bot.sendMessage(chatId,
         `👤 *${state.customer}*\n\nSement markasini tanlang:`,
         { parse_mode: 'Markdown', ...brandKeyboard() });
 
-    // ── Step: tonna ─────────────────────────────────────────────────────
+    // ── Step: tonna ────────────────────────────────────────────────────
     } else if (state.step === 'tons') {
       const tons = parseFloat(String(text).replace(',', '.'));
       if (isNaN(tons) || tons <= 0) {
@@ -245,14 +279,15 @@ function start() {
       state.tons = tons;
       state.step = 'note';
       bot.sendMessage(chatId,
-        `✅ Tonna: *${tons} tn*\n\nManzil yoki qo'shimcha izoh yozing (masalan: "Toshkent, Yunusobod 5-kv"):`,
+        `✅ Tonna: *${tons} tn*\n\nManzil yoki qo'shimcha izoh yozing\n_(yo'q bo'lsa — tire " - " yozing)_:`,
         { parse_mode: 'Markdown' });
 
-    // ── Step: izoh → zakaz saqlash ───────────────────────────────────────
+    // ── Step: izoh → saqlash ──────────────────────────────────────────
     } else if (state.step === 'note') {
-      state.note = text.trim();
-      const handle = msg.from.username ? '@' + msg.from.username : (msg.from.first_name || 'telegram');
-      const orderNote = [state.tur, state.note, `(${handle})`].filter(Boolean).join(' | ');
+      state.note = text === '-' ? '' : text;
+      const handle     = msg.from.username ? '@' + msg.from.username : (msg.from.first_name || 'telegram');
+      const workerName = state.workerName || null;
+      const orderNote  = [state.tur, state.note, workerName ? null : `(${handle})`].filter(Boolean).join(' | ');
 
       db.addBotOrder(DEFAULT_ACCOUNT, {
         id: Date.now(), createdAt: Date.now(),
@@ -262,19 +297,17 @@ function start() {
         brand: state.brand,
         tur: state.tur,
         note: orderNote,
-        status: 'kutilmoqda', worker: 'Telegram Bot',
+        status: 'kutilmoqda',
+        worker: workerName || 'Telegram Bot',
+        source: workerName ? 'seller' : 'customer',
+        chatId: String(chatId),
       });
 
-      bot.sendMessage(chatId,
-        `✅ *Buyurtmangiz qabul qilindi!*\n\n` +
-        `👤 Mijoz: ${state.customer}\n` +
-        `🏷 Marka: ${state.brand}\n` +
-        `📦 Tur: ${state.tur}\n` +
-        `⚖️ Tonna: ${state.tons} tn\n` +
-        `📍 Izoh: ${state.note}\n\n` +
-        `Tez orada siz bilan bog'lanamiz! ☎️`,
-        { parse_mode: 'Markdown' });
+      const confirmText = workerName
+        ? `✅ *Zakaz kiritildi!*\n\n👷 Sotuvchi: ${workerName}\n👤 Mijoz: ${state.customer}\n🏷 Marka: ${state.brand}\n📦 Tur: ${state.tur}\n⚖️ Tonna: ${state.tons} tn\n📍 Izoh: ${state.note || '—'}`
+        : `✅ *Buyurtmangiz qabul qilindi!*\n\n👤 Mijoz: ${state.customer}\n🏷 Marka: ${state.brand}\n📦 Tur: ${state.tur}\n⚖️ Tonna: ${state.tons} tn\n📍 Izoh: ${state.note || '—'}\n\nTez orada siz bilan bog'lanamiz! ☎️`;
 
+      sendMenu(chatId, confirmText);
       delete states[chatId];
     }
   });
@@ -285,15 +318,15 @@ function start() {
   console.log('✅ Telegram Bot ishga tushdi! (@sementchiuzbot)');
 }
 
-// ── Tashqaridan xabar yuborish ──────────────────────────────────────────────
+// ── Tashqaridan xabar yuborish ────────────────────────────────────────────────
 async function sendMessage(chatId, text) {
   if (!running || !bot) throw new Error('Telegram bot ishlamayapti.');
-  if (!chatId) throw new Error('chatId yo\'q (mijoz raqamini ulamagan).');
+  if (!chatId) throw new Error('chatId yo\'q.');
   await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
   return true;
 }
 
-// ── Savdo xabari — har sotuvda avtomatik ──────────────────────────────────
+// ── Savdo xabari ─────────────────────────────────────────────────────────────
 async function notifySale(acc, { chatId: directChatId, phone, customer, tons, pricePerTon, paymentChannel, note, totalDebt, date }) {
   if (!running || !bot) return { ok: false, error: 'Bot ishlamayapti' };
   const chatId = directChatId || db.findChatId(acc, phone);
@@ -328,4 +361,28 @@ async function notifySale(acc, { chatId: directChatId, phone, customer, tons, pr
   }
 }
 
-module.exports = { start, isRunning, sendMessage, notifySale };
+// ── Zakaz bajarildi xabari ────────────────────────────────────────────────────
+async function notifyOrderDone(chatId, { customer, tons, brand, tur, note }) {
+  if (!running || !bot) return { ok: false, error: 'Bot ishlamayapti' };
+  if (!chatId) return { ok: false, error: 'chatId yo\'q' };
+
+  const lines = [
+    `✅ *Zakazingiz bajarildi!*`,
+    ``,
+    `👤 Mijoz: *${customer}*`,
+    `🏷 Marka: ${brand || '—'}`,
+    `📦 Tur: ${tur || '—'}`,
+    `⚖️ Tonna: *${tons} tn*`,
+  ];
+  if (note) lines.push(`📝 Izoh: ${note}`);
+  lines.push(`\nRahmat! 🙏`);
+
+  try {
+    await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'Markdown' });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+module.exports = { start, isRunning, sendMessage, notifySale, notifyOrderDone };
