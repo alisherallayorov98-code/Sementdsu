@@ -535,7 +535,7 @@ export function DataProvider({ children }) {
     // (auto:true, sourceId) va faqat shu savdo o'chirilganda o'chiriladi.
     const sum = Number(sale.tons || 0) * Number(sale.pricePerTon || 0);
     if (sum > 0) {
-      const tag  = `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)`;
+      const tag  = `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)${sale.vehicleNo ? ` | 🚛 ${sale.vehicleNo}` : ''}`;
       const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date };
       const channel = sale.paymentChannel || 'naqd';
       if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);

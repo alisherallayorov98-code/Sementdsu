@@ -89,11 +89,16 @@ export default function Debts({ lang }) {
   const [payForm, setPayForm] = useState({ id: null, amount: '', note: '', channel: 'naqd' });
   const [search, setSearch]   = useState('');
   const [range,  setRange]    = useState({ from: '', to: '' });
-  const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
+  const [filter, setFilter]   = useState('all');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
-  const [history, setHistory] = useState(null);  // qaysi qarz tarixi ko'rinmoqda
-  const [card, setCard]       = useState(null);  // ochilgan mijoz kartochkasi (ismi)
+  const [history, setHistory] = useState(null);
+  const [card, setCard]       = useState(null);
+  const [expanded, setExpanded] = useState(new Set());
+
+  const toggleExpand = (customer) => setExpanded(prev => {
+    const s = new Set(prev); s.has(customer) ? s.delete(customer) : s.add(customer); return s;
+  });
 
   // ── Forma submit ────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
@@ -122,19 +127,30 @@ export default function Debts({ lang }) {
     }
   };
 
-  // ── Filtrlash ───────────────────────────────────────────────────────────────
-  const filtered = filterByRange(debtRows, range)
-    .filter(r => {
-      const st = getStatus(r.amount, r.paid);
-      if (filter !== 'all' && st !== filter) return false;
-      if (search && !r.customer.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    })
-    .slice()
-    .reverse(); // yangi yozuvlar tepada
+  // ── Guruhlash (mijoz bo'yicha) ──────────────────────────────────────────────
+  const allRows = filterByRange(debtRows, range)
+    .filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()))
+    .slice().reverse();
+
+  const groupMap = {};
+  allRows.forEach(r => {
+    if (!groupMap[r.customer]) groupMap[r.customer] = { customer: r.customer, rows: [], totalAmount: 0, totalPaid: 0 };
+    groupMap[r.customer].rows.push(r);
+    groupMap[r.customer].totalAmount += Number(r.amount || 0);
+    groupMap[r.customer].totalPaid  += Number(r.paid  || 0);
+  });
+
+  const groupList = Object.values(groupMap).filter(g => {
+    const rem = g.totalAmount - g.totalPaid;
+    const st  = rem <= 0 ? 'full' : g.totalPaid > 0 ? 'partial' : 'none';
+    return filter === 'all' || st === filter;
+  }).sort((a, b) => (b.totalAmount - b.totalPaid) - (a.totalAmount - a.totalPaid));
+
+  // Excel uchun flat list
+  const filtered = allRows;
 
   useEffect(() => { setPage(1); }, [search, filter, range.from, range.to]);
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pagedGroups = groupList.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -420,99 +436,123 @@ export default function Debts({ lang }) {
         </div>
       )}
 
-      {/* ── ASOSIY JADVAL ────────────────────────────────────────────────── */}
-      {filtered.length === 0 ? (
+      {/* ── ASOSIY JADVAL (mijoz bo'yicha guruhlab) ──────────────────────── */}
+      {groupList.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic', marginTop: 20 }}>{L.yozuvYoq[lang]}</p>
       ) : (
         <>
-        <table className="data-table" style={{ width: '100%', maxWidth: 900 }}>
+        <table className="data-table" style={{ width: '100%', maxWidth: 980 }}>
           <thead>
             <tr>
               <th style={{ width: 30 }}>#</th>
-              <th style={{ width: 80 }}>{L.sana[lang]}</th>
               <th>{L.mijoz[lang]}</th>
-              <th style={{ textAlign: 'right', width: 120 }}>{L.qarz[lang]}</th>
-              <th style={{ textAlign: 'right', width: 110 }}>{L.tolandi[lang]}</th>
-              <th style={{ textAlign: 'right', width: 110, color: '#c62828' }}>{L.qoldi[lang]}</th>
+              <th style={{ textAlign: 'right', width: 130 }}>{L.qarz[lang]}</th>
+              <th style={{ textAlign: 'right', width: 120 }}>{L.tolandi[lang]}</th>
+              <th style={{ textAlign: 'right', width: 130, color: '#c62828' }}>{L.qoldi[lang]}</th>
               <th style={{ width: 90 }}>{L.holat[lang]}</th>
-              <th>{L.izoh[lang]}</th>
-              <th style={{ width: 140 }}>Amal</th>
+              <th style={{ width: 170 }}>Amal</th>
             </tr>
           </thead>
           <tbody>
-            {paged.map((r, i) => {
-              const remaining = Math.max(0, Number(r.amount) - Number(r.paid));
-              const st        = getStatus(r.amount, r.paid);
-              const ss        = STATUS_STYLE[st];
+            {pagedGroups.map((g, i) => {
+              const remaining = g.totalAmount - g.totalPaid;
+              const st  = remaining <= 0 ? 'full' : g.totalPaid > 0 ? 'partial' : 'none';
+              const ss  = STATUS_STYLE[st];
+              const isOpen = expanded.has(g.customer);
               return (
-                <tr key={r.id} style={{ background: ss.bg }}>
+                <>
+                {/* ── Guruh (mijoz) satri ── */}
+                <tr key={g.customer} style={{ background: ss.bg, cursor: 'pointer' }} onClick={() => toggleExpand(g.customer)}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
-                  <td style={{ fontSize: 12 }}>{r.date}</td>
-                  <td onClick={() => setCard(r.customer)} title="Mijoz ma'lumotlarini ochish"
-                    style={{ fontWeight: 'bold', color: '#003366', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}>{r.customer}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.amount)}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(r.paid)}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828', fontWeight: 'bold' }}>{fmt(remaining)}</td>
                   <td>
-                    <span style={{
-                      display: 'inline-block', padding: '2px 7px', fontSize: 11,
-                      border: `1px solid ${ss.border}`, borderRadius: 10,
-                      color: ss.color, fontWeight: 'bold', whiteSpace: 'nowrap',
-                    }}>
+                    <span style={{ fontWeight: 'bold', color: '#003366', fontSize: 14 }}>{g.customer}</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{g.rows.length} ta sotuv</span>
+                    <span style={{ marginLeft: 6, fontSize: 13 }}>{isOpen ? '▲' : '▼'}</span>
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(g.totalAmount)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(g.totalPaid)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828', fontWeight: 'bold', fontSize: 15 }}>{fmt(remaining)}</td>
+                  <td>
+                    <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: 11, border: `1px solid ${ss.border}`, borderRadius: 10, color: ss.color, fontWeight: 'bold' }}>
                       {ss.label[lang]}
                     </span>
                   </td>
-                  <td style={{ fontSize: 12, color: '#555' }}>{r.note || '—'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 4 }}>
                       {remaining > 0 && (
-                        <button
-                          onClick={() => handlePayOpen(r.id)}
-                          style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 3 }}
-                        >
+                        <button onClick={() => setQuick({ customer: g.customer, amount: String(remaining), channel: 'naqd' })}
+                          style={{ fontSize: 11, cursor: 'pointer', padding: '3px 8px', background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 3, fontWeight: 'bold' }}>
                           💰 {L.tolash[lang]}
                         </button>
                       )}
-                      {(r.payments || []).length > 0 && (
-                        <button
-                          onClick={() => setHistory(r.id)}
-                          style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#e3f2fd', border: '1px solid #1976d2', borderRadius: 3, color: '#1565c0' }}
-                        >
-                          📋 {L.tarix[lang]}
-                        </button>
-                      )}
                       {remaining > 0 && (
-                        <button
-                          onClick={() => openReminder(r)}
-                          title="Qarz eslatmasini yuborish (Telegram/SMS)"
-                          style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#e8f5e9', border: '1px solid #2e7d32', borderRadius: 3, color: '#2e7d32' }}
-                        >
+                        <button onClick={() => openReminder(g.rows[0])}
+                          title="Qarz eslatmasini yuborish"
+                          style={{ fontSize: 11, cursor: 'pointer', padding: '3px 7px', background: '#e8f5e9', border: '1px solid #2e7d32', borderRadius: 3, color: '#2e7d32' }}>
                           ✉️
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828' }}
-                      >
-                        ✕
+                      <button onClick={() => setCard(g.customer)}
+                        title="Mijoz kartasini ochish"
+                        style={{ fontSize: 11, cursor: 'pointer', padding: '3px 7px', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 3, color: '#1565c0' }}>
+                        👤
                       </button>
                     </div>
                   </td>
                 </tr>
+
+                {/* ── Kengaytirilgan: alohida qarz satrlari ── */}
+                {isOpen && g.rows.map(r => {
+                  const rem = Math.max(0, Number(r.amount) - Number(r.paid));
+                  return (
+                    <tr key={r.id} style={{ background: '#fafafa', borderLeft: '4px solid #90caf9' }}>
+                      <td></td>
+                      <td style={{ paddingLeft: 24, fontSize: 12, color: '#555' }}>
+                        <span style={{ color: '#888', marginRight: 8 }}>{r.date}</span>
+                        {r.note || '—'}
+                      </td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12 }}>{fmt(r.amount)}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontSize: 12 }}>{fmt(r.paid)}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: rem > 0 ? '#c62828' : '#888', fontSize: 12 }}>{fmt(rem)}</td>
+                      <td></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {rem > 0 && (
+                            <button onClick={() => handlePayOpen(r.id)}
+                              style={{ fontSize: 11, cursor: 'pointer', padding: '2px 6px', background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 3 }}>
+                              💰
+                            </button>
+                          )}
+                          {(r.payments || []).length > 0 && (
+                            <button onClick={() => setHistory(r.id)}
+                              style={{ fontSize: 11, cursor: 'pointer', padding: '2px 6px', background: '#e3f2fd', border: '1px solid #1976d2', borderRadius: 3, color: '#1565c0' }}>
+                              📋
+                            </button>
+                          )}
+                          <button onClick={() => handleDelete(r.id)}
+                            style={{ fontSize: 11, cursor: 'pointer', padding: '2px 6px', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828' }}>
+                            ✕
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                </>
               );
             })}
 
             {/* Jami qator */}
             <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-              <td colSpan={3} style={{ paddingLeft: 8 }}>{L.jami[lang]}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(filtered.reduce((s, r) => s + Number(r.amount), 0))}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(filtered.reduce((s, r) => s + Number(r.paid), 0))}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828' }}>{fmt(filtered.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0))}</td>
-              <td colSpan={3}></td>
+              <td colSpan={2} style={{ paddingLeft: 8 }}>{L.jami[lang]} ({groupList.length} mijoz)</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(groupList.reduce((s, g) => s + g.totalAmount, 0))}</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(groupList.reduce((s, g) => s + g.totalPaid, 0))}</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828' }}>{fmt(groupList.reduce((s, g) => s + Math.max(0, g.totalAmount - g.totalPaid), 0))}</td>
+              <td colSpan={2}></td>
             </tr>
           </tbody>
         </table>
-        <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+        <Paginator total={groupList.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
         </>
       )}
 
