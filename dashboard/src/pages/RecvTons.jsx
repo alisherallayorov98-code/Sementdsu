@@ -99,7 +99,7 @@ export default function RecvTons({ lang }) {
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
-    paymentChannel:'naqd', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
+    paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
   });
   const [filterSource, setFilterSource] = useState('');
   const [filterBrand,  setFilterBrand]  = useState('');
@@ -114,7 +114,8 @@ export default function RecvTons({ lang }) {
   // ── Qo'lda qo'shish ──────────────────────────────────────────────────────
   const handleAdd = (e) => {
     e.preventDefault();
-    if (!form.source || !form.tons) return;
+    if (!form.source) { alert('Zavod / Manba nomini kiriting!'); return; }
+    if (!form.tons)   { alert('Tonna kiritilmagan!'); return; }
     addSupplier({ name: form.source }); // yangi manbaani bazaga saqlab qo'yamiz
     addRecvRow({
       source: form.source, brand: form.brand,
@@ -126,7 +127,7 @@ export default function RecvTons({ lang }) {
       warehouseId: form.warehouseId || myWh,
     });
     setForm({ source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
-              paymentChannel:'naqd', cardName:'', factoryTime:'', izoh:'', warehouseId:'' });
+              paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'' });
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
@@ -208,7 +209,7 @@ export default function RecvTons({ lang }) {
         vehicleNo,
         date: verifyRow.factoryTime || verifyRow.date,
         factoryTime: verifyRow.factoryTime || '',
-        note: [vehicleNo && `Mashina: ${vehicleNo}`, `Zavod: ${verifyRow.source}`].filter(Boolean).join(' | '),
+        note: `Zavod: ${verifyRow.source}`,
       });
     }
     closeVerify();
