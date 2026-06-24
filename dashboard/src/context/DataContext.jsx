@@ -551,6 +551,27 @@ export function DataProvider({ children }) {
       }
     }
     setSalesRows(p => [...p, sale]);
+
+    // ── Mijozga Telegram xabari (fire-and-forget) ────────────────────────────
+    const custPhone = (customers.find(c => c.name === sale.customer) || {}).phone || '';
+    if (custPhone) {
+      const existingDebt = debtRows
+        .filter(r => r.customer === sale.customer)
+        .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
+      const newDebt = (sale.paymentChannel === 'nasiya') ? sum : 0;
+      const totalDebt = existingDebt + newDebt;
+      api.notifySale({
+        phone: custPhone,
+        customer: sale.customer,
+        tons: sale.tons,
+        pricePerTon: sale.pricePerTon,
+        paymentChannel: sale.paymentChannel,
+        note: sale.note || '',
+        totalDebt,
+        date: sale.date,
+      }).catch(() => {}); // xatolik savdoga ta'sir qilmasin
+    }
+
     return sale; // chek chiqarish uchun
   };
   // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi

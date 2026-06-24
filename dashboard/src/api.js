@@ -62,6 +62,7 @@ export const api = {
   // Bildirishnoma (Telegram / SMS)
   getTgContacts: () => req('/api/tg_contacts'),
   notify: (payload) => req('/api/notify', { method: 'POST', body: JSON.stringify(payload) }),
+  notifySale: (payload) => req('/api/notify_sale', { method: 'POST', body: JSON.stringify(payload) }),
 
   health: () => req('/api/health', {}, { auth: false }),
 };

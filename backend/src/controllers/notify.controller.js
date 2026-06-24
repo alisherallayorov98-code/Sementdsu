@@ -56,3 +56,16 @@ exports.send = async (req, res) => {
   const anyOk = Object.values(result).some(r => r.ok);
   res.json({ ok: anyOk, result });
 };
+
+// POST /api/notify_sale — savdo qilinganda mijozga avtomatik xabar
+// { phone, customer, tons, pricePerTon, paymentChannel, note, totalDebt, date }
+exports.notifySale = async (req, res) => {
+  const acc = req.user.account;
+  const data = req.body || {};
+  try {
+    const result = await tg.notifySale(acc, data);
+    res.json(result);
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+};

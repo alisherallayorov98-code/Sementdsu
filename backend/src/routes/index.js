@@ -33,5 +33,6 @@ router.get('/system', authenticate, authorize('admin'), system.status);
 // ── Bildirishnoma (Telegram / SMS) ─────────────────────────────────────────
 router.get('/tg_contacts', authenticate, notify.status);
 router.post('/notify', authenticate, notify.send);
+router.post('/notify_sale', authenticate, notify.notifySale);
 
 module.exports = router;
