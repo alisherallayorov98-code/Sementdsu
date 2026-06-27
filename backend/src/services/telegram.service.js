@@ -19,9 +19,11 @@ const CH  = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click', nasiya:
 const BRANDS = ['450 marka', '550 marka'];
 const TURLAR = ['📦 Qoplik', '🌫 Rasipnoy'];
 
-// Yo'l haqi turlari (kichik va katta mashinalar uchun)
-const SMALL_PRICES = [50000, 100000, 150000, 200000, 250000, 400000];
-const LARGE_PRICES = [50000, 100000, 150000, 200000, 250000, 400000, 450000, 500000, 550000];
+// Default tariflar (admin o'zgartirmasa)
+const DEFAULT_TARIFFS = [
+  { id: 1, name: 'Tarif 1', prices: [50000, 100000, 150000, 200000, 250000] },
+  { id: 2, name: 'Tarif 2', prices: [200000, 250000, 400000, 450000, 500000, 550000] },
+];
 
 // ── Asosiy tugmalar ───────────────────────────────────────────────────────────
 const mainKeyboard = {
@@ -61,24 +63,16 @@ function turKeyboard() {
   return { reply_markup: { inline_keyboard: [TURLAR.map(t => ({ text: t, callback_data: `tur:${t}` }))] } };
 }
 
-function destinationKeyboard(acc) {
-  const settings = db.getState(acc).app_settings || {};
-  const dests = settings.driverDestinations || [];
-  if (dests.length === 0) return null;
-  const rows = [];
-  for (let i = 0; i < dests.length; i += 2) {
-    rows.push(dests.slice(i, i + 2).map(d => ({ text: d, callback_data: `drv_dest:${d}` })));
-  }
-  return { reply_markup: { inline_keyboard: rows } };
-}
-
-function priceKeyboard(carType) {
-  const prices = carType === 'small' ? SMALL_PRICES : LARGE_PRICES;
+// Haydovchining tarifi bo'yicha narxlar inline keyboard
+function priceKeyboard(acc, tariffId) {
+  const tariffs = db.getState(acc).driver_tariffs || DEFAULT_TARIFFS;
+  const tariff  = tariffs.find(t => t.id === tariffId) || tariffs[0] || DEFAULT_TARIFFS[0];
+  const prices  = tariff?.prices || DEFAULT_TARIFFS[0].prices;
   const rows = [];
   for (let i = 0; i < prices.length; i += 3) {
     rows.push(prices.slice(i, i + 3).map(p => ({ text: `${fmt(p)} so'm`, callback_data: `drv_price:${p}` })));
   }
-  return { reply_markup: { inline_keyboard: rows } };
+  return { reply_markup: { inline_keyboard: rows }, tariffName: tariff?.name || '' };
 }
 
 function approveKeyboard(tripId) {
@@ -250,7 +244,7 @@ function start() {
     states[chatId] = {
       type: 'driver_reys', step: 'photo',
       driverId: driver.id, driverName: driver.name,
-      carNumber: driver.carNumber || '', carType: driver.carType || 'large',
+      carNumber: driver.carNumber || '', tariffId: driver.tariffId || null,
     };
     bot.sendMessage(chatId,
       `🚛 *Yangi reys*\n\n📸 *Yuk xatini rasmga oling va yuboring:*`,
@@ -292,20 +286,10 @@ function start() {
     // Eng yaxshi sifatli rasmni olamiz (oxirgisi — kattaroq)
     const photo = msg.photo[msg.photo.length - 1];
     state.photoFileId = photo.file_id;
-    state.step = 'manzil';
-
-    const destKb = destinationKeyboard(DEFAULT_ACCOUNT);
-    if (destKb) {
-      bot.sendMessage(chatId,
-        `✅ *Rasm qabul qilindi!*\n\nManzilni tanlang:`,
-        { parse_mode: 'Markdown', ...destKb });
-    } else {
-      // Manzillar yo'q — qo'lda kiritish
-      state.step = 'manzil_text';
-      bot.sendMessage(chatId,
-        `✅ *Rasm qabul qilindi!*\n\nManzilni yozing (masalan: Oqqo'rg'on, Toshkent, Chirchiq):`,
-        { parse_mode: 'Markdown' });
-    }
+    state.step = 'manzil_text';
+    bot.sendMessage(chatId,
+      `✅ *Rasm qabul qilindi!*\n\nManzilni yozing (masalan: Oqqo'rg'on, Toshkent, Chirchiq):`,
+      { parse_mode: 'Markdown' });
   });
 
   // ── Inline keyboard callback ──────────────────────────────────────────────
@@ -322,18 +306,6 @@ function start() {
       db.upsertTgContact(DEFAULT_ACCOUNT, { phone, chatId, name });
       states[chatId] = null;
       sendMenu(chatId, `✅ *Ulandi!* Raqam: ${phone}\n\nEndi har bir sotuvdan keyin xabar keladi.`);
-      return;
-    }
-
-    // Haydovchi reys — manzil tanlash
-    if (data.startsWith('drv_dest:') && state?.type === 'driver_reys' && state.step === 'manzil') {
-      const dest = data.replace('drv_dest:', '');
-      state.destination = dest;
-      state.step = 'price';
-      bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: q.message.message_id }).catch(() => {});
-      bot.sendMessage(chatId,
-        `✅ *Manzil:* ${dest}\n\nYo'l haqi turini tanlang:`,
-        { parse_mode: 'Markdown', ...priceKeyboard(state.carType) });
       return;
     }
 
@@ -454,13 +426,14 @@ function start() {
 
     const state = states[chatId];
 
-    // Haydovchi reys — qo'lda manzil kiritish
+    // Haydovchi reys — erkin manzil kiritish
     if (state?.type === 'driver_reys' && state.step === 'manzil_text') {
       state.destination = text;
       state.step = 'price';
+      const kb = priceKeyboard(DEFAULT_ACCOUNT, state.tariffId);
       bot.sendMessage(chatId,
-        `✅ *Manzil:* ${text}\n\nYo'l haqi turini tanlang:`,
-        { parse_mode: 'Markdown', ...priceKeyboard(state.carType) });
+        `✅ *Manzil:* ${text}\n\nYo'l haqi turini tanlang${kb.tariffName ? ` (${kb.tariffName})` : ''}:`,
+        { parse_mode: 'Markdown', ...kb });
       return;
     }
 

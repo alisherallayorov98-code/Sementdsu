@@ -29,6 +29,77 @@ function PasswordCell({ workerId, onSave }) {
   );
 }
 
+function TariffAdder({ onAdd, themeColor }) {
+  const [val, setVal] = useState('');
+  const handle = () => {
+    const t = val.trim();
+    if (!t) return;
+    onAdd(t);
+    setVal('');
+  };
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <input value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handle()}
+        placeholder="Yangi tarif nomi..."
+        style={{ padding: '5px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12, width: 160 }} />
+      <button onClick={handle}
+        style={{ padding: '5px 14px', background: themeColor, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold', fontSize: 12 }}>
+        + Tarif
+      </button>
+    </div>
+  );
+}
+
+function TariffCard({ tariff, onRename, onDelete, onAddPrice, onRemovePrice, themeColor }) {
+  const [newPrice, setNewPrice] = useState('');
+  const [editName, setEditName] = useState(false);
+  const [nameVal, setNameVal]   = useState(tariff.name);
+  const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+
+  return (
+    <div style={{ background: '#fff', border: '2px solid #e0e0e0', borderRadius: 8, padding: 16, minWidth: 220, flex: '1 1 220px', maxWidth: 300 }}>
+      {/* Tarif nomi */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        {editName ? (
+          <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+            <input value={nameVal} onChange={e => setNameVal(e.target.value)} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') { onRename(nameVal); setEditName(false); } if (e.key === 'Escape') setEditName(false); }}
+              style={{ flex: 1, padding: '3px 6px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3 }} />
+            <button onClick={() => { onRename(nameVal); setEditName(false); }}
+              style={{ padding: '2px 8px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 12 }}>✓</button>
+          </div>
+        ) : (
+          <span style={{ fontWeight: 'bold', fontSize: 15, color: themeColor, cursor: 'pointer' }} onClick={() => { setNameVal(tariff.name); setEditName(true); }}>
+            {tariff.name} ✎
+          </span>
+        )}
+        <button onClick={onDelete} style={{ background: 'none', border: 'none', color: '#c62828', fontSize: 16, cursor: 'pointer', marginLeft: 4 }}>🗑</button>
+      </div>
+
+      {/* Narxlar ro'yxati */}
+      <div style={{ marginBottom: 10, minHeight: 40 }}>
+        {tariff.prices.length === 0 && <div style={{ color: '#bbb', fontSize: 12, fontStyle: 'italic' }}>Narx yo'q</div>}
+        {tariff.prices.map(p => (
+          <div key={p} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', marginBottom: 4, background: '#f5f5f5', borderRadius: 5 }}>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', color: '#1565c0', fontSize: 14 }}>{fmt(p)} so'm</span>
+            <button onClick={() => onRemovePrice(p)}
+              style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Narx qo'shish */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { onAddPrice(newPrice); setNewPrice(''); } }}
+          placeholder="Narx (so'm)" style={{ flex: 1, padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12 }} />
+        <button onClick={() => { onAddPrice(newPrice); setNewPrice(''); }}
+          style={{ padding: '4px 10px', background: themeColor, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>+</button>
+      </div>
+    </div>
+  );
+}
+
 function DestinationAdder({ existing, onAdd, themeColor }) {
   const [val, setVal] = useState('');
   const handle = () => {
@@ -85,6 +156,7 @@ export default function Settings({ lang }) {
     customers, importCustomers, importDebts,
     warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
     cementTypes, addCementType, removeCementType,
+    driverTariffs, addDriverTariff, removeDriverTariff, renameDriverTariff, addPriceToTariff, removePriceFromTariff,
   } = useData();
   const [tab, setTab] = useState('workers');
   const [newWh, setNewWh] = useState('');
@@ -215,10 +287,10 @@ export default function Settings({ lang }) {
           Sement Turlari
         </button>
         <button
-          onClick={() => setTab('manzillar')}
-          style={{ padding: '10px 20px', background: tab === 'manzillar' ? appSettings.themeColor : 'transparent', color: tab === 'manzillar' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={() => setTab('tariflar')}
+          style={{ padding: '10px 20px', background: tab === 'tariflar' ? appSettings.themeColor : 'transparent', color: tab === 'tariflar' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
         >
-          Reys Manzillar
+          Reys Tariflar
         </button>
       </div>
 
@@ -331,37 +403,35 @@ export default function Settings({ lang }) {
         </div>
       )}
 
-      {/* REYS MANZILLAR TABI */}
-      {tab === 'manzillar' && (
-        <div style={{ maxWidth: 560 }}>
+      {/* REYS TARIFLAR TABI */}
+      {tab === 'tariflar' && (
+        <div style={{ maxWidth: 700 }}>
           <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #eee' }}>
-            <h3 style={{ marginTop: 0, color: appSettings.themeColor }}>Reys manzillari boshqaruvi</h3>
-            <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>
-              Bu yerda kiritilgan manzillar haydovchi Telegram botida tanlov sifatida chiqadi.
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h3 style={{ margin: 0, color: appSettings.themeColor }}>Reys tariflar boshqaruvi</h3>
+              <TariffAdder onAdd={addDriverTariff} themeColor={appSettings.themeColor} />
+            </div>
+            <p style={{ fontSize: 12, color: '#777', marginBottom: 20 }}>
+              Har bir tarif haydovchiga tayinlanadi. Bot o'sha tarif narxlarini ko'rsatadi. Manzil haydovchi o'zi erkin yozadi.
             </p>
-            <div style={{ marginBottom: 20 }}>
-              {(appSettings.driverDestinations || []).length === 0 && (
-                <div style={{ color: '#999', fontSize: 13, fontStyle: 'italic' }}>Hech qanday manzil yo'q. Bot manzilni qo'lda kiritishni so'raydi.</div>
-              )}
-              {(appSettings.driverDestinations || []).map(dest => (
-                <div key={dest} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', marginBottom: 6, background: '#fff', border: '1px solid #ddd', borderRadius: 6 }}>
-                  <span style={{ fontWeight: 'bold', fontSize: 14 }}>📍 {dest}</span>
-                  <button
-                    onClick={() => {
-                      const newDests = (appSettings.driverDestinations || []).filter(d => d !== dest);
-                      updateAppSettings({ ...appSettings, driverDestinations: newDests });
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#c62828', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
-                    title="O'chirish"
-                  >✕</button>
-                </div>
+            {(driverTariffs || []).length === 0 && (
+              <div style={{ color: '#999', fontSize: 13, fontStyle: 'italic' }}>Tarif yo'q.</div>
+            )}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {(driverTariffs || []).map(tariff => (
+                <TariffCard
+                  key={tariff.id}
+                  tariff={tariff}
+                  onRename={(name) => renameDriverTariff(tariff.id, name)}
+                  onDelete={() => {
+                    if (window.confirm(`"${tariff.name}" tarifini o'chirasizmi?`)) removeDriverTariff(tariff.id);
+                  }}
+                  onAddPrice={(p) => addPriceToTariff(tariff.id, p)}
+                  onRemovePrice={(p) => removePriceFromTariff(tariff.id, p)}
+                  themeColor={appSettings.themeColor}
+                />
               ))}
             </div>
-            <DestinationAdder
-              existing={appSettings.driverDestinations || []}
-              onAdd={(dest) => updateAppSettings({ ...appSettings, driverDestinations: [...(appSettings.driverDestinations || []), dest] })}
-              themeColor={appSettings.themeColor}
-            />
           </div>
         </div>
       )}

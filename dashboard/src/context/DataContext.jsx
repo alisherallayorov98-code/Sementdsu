@@ -853,14 +853,33 @@ export function DataProvider({ children }) {
   };
 
   // ── 18. Haydovchilar va Qatnovlar ─────────────────────────────────────────
-  const [drivers, setDrivers] = useState(() => load('drivers', []));
-  const [driverTrips, setDriverTrips] = useState(() => load('driver_trips', []));
+  const DEFAULT_TARIFFS = [
+    { id: 1, name: 'Tarif 1', prices: [50000, 100000, 150000, 200000, 250000] },
+    { id: 2, name: 'Tarif 2', prices: [200000, 250000, 400000, 450000, 500000, 550000] },
+  ];
+  const [drivers, setDrivers]           = useState(() => load('drivers', []));
+  const [driverTrips, setDriverTrips]   = useState(() => load('driver_trips', []));
+  const [driverTariffs, setDriverTariffs] = useState(() => load('driver_tariffs', DEFAULT_TARIFFS));
   useEffect(() => save('drivers', drivers), [drivers]);
   useEffect(() => save('driver_trips', driverTrips), [driverTrips]);
+  useEffect(() => save('driver_tariffs', driverTariffs), [driverTariffs]);
 
-  const addDriver = (name, carNumber, phone = '', carType = 'large') => {
+  const addDriverTariff    = (name) => setDriverTariffs(p => [...p, { id: Date.now(), name: name.trim(), prices: [] }]);
+  const removeDriverTariff = (id)   => setDriverTariffs(p => p.filter(t => t.id !== id));
+  const renameDriverTariff = (id, name) => setDriverTariffs(p => p.map(t => t.id === id ? { ...t, name } : t));
+  const addPriceToTariff   = (id, price) => setDriverTariffs(p => p.map(t => {
+    if (t.id !== id) return t;
+    const n = Number(price);
+    if (!n || t.prices.includes(n)) return t;
+    return { ...t, prices: [...t.prices, n].sort((a, b) => a - b) };
+  }));
+  const removePriceFromTariff = (id, price) => setDriverTariffs(p => p.map(t =>
+    t.id === id ? { ...t, prices: t.prices.filter(pr => pr !== price) } : t
+  ));
+
+  const addDriver = (name, carNumber, phone = '', tariffId = null) => {
     const ts = Date.now();
-    setDrivers(p => [...p, { id: ts, name, carNumber, phone, carType }]);
+    setDrivers(p => [...p, { id: ts, name, carNumber, phone, tariffId }]);
   };
   const updateDriver = (id, data) => setDrivers(p => p.map(d => d.id === id ? { ...d, ...data } : d));
   const deleteDriver = (id) => {
@@ -981,6 +1000,7 @@ export function DataProvider({ children }) {
     customers:          setCustomers,
     drivers:            setDrivers,
     driver_trips:       setDriverTrips,
+    driver_tariffs:     setDriverTariffs,
     sklad_rows:         setSkladRows,
     cement_types:       setCementTypes,
   };
@@ -1016,6 +1036,7 @@ export function DataProvider({ children }) {
     customers:          customers,
     drivers:            drivers,
     driver_trips:       driverTrips,
+    driver_tariffs:     driverTariffs,
     sklad_rows:         skladRows,
     cement_types:       cementTypes,
   };
@@ -1163,6 +1184,7 @@ export function DataProvider({ children }) {
     // Haydovchilar
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
+    driverTariffs, addDriverTariff, removeDriverTariff, renameDriverTariff, addPriceToTariff, removePriceFromTariff,
     // Asosiy sklad (kg — CHAKANA)
     skladRows, addSkladKirim, addSkladSotuv, totalSkladKg, updateSkladRow, deleteSkladSotuv,
     // Qaysi recvRow'lar chakana skladga o'tkazilganligi (Set<id>)

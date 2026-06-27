@@ -27,11 +27,11 @@ export default function Drivers({ lang }) {
   const {
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
-    appSettings,
+    driverTariffs, appSettings,
   } = useData();
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState({ name: '', carNumber: '', phone: '', carType: 'large' });
+  const [form, setForm]         = useState({ name: '', carNumber: '', phone: '', tariffId: '' });
   const [editId, setEditId]     = useState(null);
   const [editData, setEditData] = useState({});
   const [modalDriver, setModalDriver] = useState(null);
@@ -75,13 +75,13 @@ export default function Drivers({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name) return;
-    addDriver(form.name, form.carNumber, form.phone, form.carType);
-    setForm({ name: '', carNumber: '', phone: '', carType: 'large' });
+    addDriver(form.name, form.carNumber, form.phone, form.tariffId ? Number(form.tariffId) : null);
+    setForm({ name: '', carNumber: '', phone: '', tariffId: '' });
     setShowForm(false);
   };
   const startEdit = (d) => {
     setEditId(d.id);
-    setEditData({ name: d.name, carNumber: d.carNumber || '', phone: d.phone || '', carType: d.carType || 'large' });
+    setEditData({ name: d.name, carNumber: d.carNumber || '', phone: d.phone || '', tariffId: d.tariffId || '' });
   };
   const saveEdit = (id) => { if (!editData.name) return; updateDriver(id, editData); setEditId(null); };
   const handleDelete = (id, name) => {
@@ -170,9 +170,10 @@ export default function Drivers({ lang }) {
               <div style={{ fontSize: 12, color: '#d7ccc8', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {d.carNumber && <span>🔢 {d.carNumber}</span>}
                 {d.phone && <span>📞 {d.phone}</span>}
-                <span style={{ background: d.carType === 'small' ? '#ff8f00' : '#1565c0', color: '#fff', padding: '1px 7px', borderRadius: 8, fontSize: 10, fontWeight: 'bold' }}>
-                  {d.carType === 'small' ? '🚛 Kichik' : '🚚 Katta'}
-                </span>
+                {d.tariffId && (() => {
+                  const t = (driverTariffs || []).find(t => t.id === d.tariffId);
+                  return t ? <span style={{ background: '#1565c0', color: '#fff', padding: '1px 7px', borderRadius: 8, fontSize: 10, fontWeight: 'bold' }}>{t.name}</span> : null;
+                })()}
                 {d.telegramChatId
                   ? <span style={{ color: '#a5d6a7' }}>✅ Telegram ulangan</span>
                   : <span style={{ color: '#ef9a9a' }}>⚠️ Telegram ulanmagan</span>}
@@ -387,10 +388,10 @@ export default function Drivers({ lang }) {
             <input placeholder="+998..." value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={{ ...inp, width: 130 }} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 3 }}>Mashina turi</label>
-            <select value={form.carType} onChange={e => setForm({ ...form, carType: e.target.value })} style={{ ...inp }}>
-              <option value="large">🚚 Katta (20t+)</option>
-              <option value="small">🚛 Kichik (20-30t)</option>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 3 }}>Tarif</label>
+            <select value={form.tariffId} onChange={e => setForm({ ...form, tariffId: e.target.value })} style={{ ...inp }}>
+              <option value="">— Tarif tanlang —</option>
+              {(driverTariffs || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <button type="submit" style={{ padding: '6px 20px', cursor: 'pointer', background: ACCENT, color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', height: 29 }}>
@@ -408,7 +409,7 @@ export default function Drivers({ lang }) {
               <th style={{ width: 35 }}>#</th>
               <th>Ism</th>
               <th style={{ width: 130 }}>Mashina raqami</th>
-              <th style={{ width: 90 }}>Turi</th>
+              <th style={{ width: 90 }}>Tarif</th>
               <th style={{ width: 60, textAlign: 'center' }}>TG</th>
               <th style={{ textAlign: 'center', width: 80 }}>Qatnovlar</th>
               <th style={{ textAlign: 'right', width: 140, color: '#c62828' }}>Qarzimiz</th>
@@ -427,9 +428,9 @@ export default function Drivers({ lang }) {
                       <td><input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={{ ...inp, width: '100%' }} /></td>
                       <td><input value={editData.carNumber} onChange={e => setEditData({ ...editData, carNumber: e.target.value })} style={{ ...inp, width: '100%' }} /></td>
                       <td>
-                        <select value={editData.carType} onChange={e => setEditData({ ...editData, carType: e.target.value })} style={{ ...inp, width: '100%' }}>
-                          <option value="large">Katta</option>
-                          <option value="small">Kichik</option>
+                        <select value={editData.tariffId || ''} onChange={e => setEditData({ ...editData, tariffId: e.target.value ? Number(e.target.value) : null })} style={{ ...inp, width: '100%' }}>
+                          <option value="">— Tarif —</option>
+                          {(driverTariffs || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                       </td>
                       <td></td><td colSpan={2}></td>
@@ -452,9 +453,12 @@ export default function Drivers({ lang }) {
                       </td>
                       <td style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold' }}>{d.carNumber || '—'}</td>
                       <td style={{ fontSize: 11 }}>
-                        <span style={{ background: d.carType === 'small' ? '#fff3e0' : '#e3f2fd', color: d.carType === 'small' ? '#e65100' : '#1565c0', padding: '2px 7px', borderRadius: 8, fontWeight: 'bold' }}>
-                          {d.carType === 'small' ? 'Kichik' : 'Katta'}
-                        </span>
+                        {(() => {
+                          const t = (driverTariffs || []).find(t => t.id === d.tariffId);
+                          return t
+                            ? <span style={{ background: '#e3f2fd', color: '#1565c0', padding: '2px 7px', borderRadius: 8, fontWeight: 'bold' }}>{t.name}</span>
+                            : <span style={{ color: '#bbb' }}>—</span>;
+                        })()}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         {d.telegramChatId
