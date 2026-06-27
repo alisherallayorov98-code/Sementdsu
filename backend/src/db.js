@@ -269,13 +269,35 @@ module.exports = {
   saveZayavka(acc, record) {
     const db = load(acc);
     if (!db.zayavkaLog) db.zayavkaLog = [];
-    db.zayavkaLog.push({ ...record, sentAt: Date.now() });
-    // Oxirgi 500 ta yozuv saqlanadi
+    db.zayavkaLog.push({ ...record, sentAt: Date.now(), cancelled: false });
     if (db.zayavkaLog.length > 500) db.zayavkaLog = db.zayavkaLog.slice(-500);
     persist(acc);
   },
   getZayavkaLog(acc, limit = 50) {
     const log = load(acc).zayavkaLog || [];
     return log.slice(-limit).reverse();
+  },
+  // Zayavkani bekor qilish — guruhdan o'chirish uchun ma'lumot qaytaradi
+  cancelZayavka(acc, zayavkaId) {
+    const db = load(acc);
+    const log = db.zayavkaLog || [];
+    const idx = log.findIndex(z => z.id === zayavkaId);
+    if (idx === -1) return null;
+    if (log[idx].cancelled) return null; // allaqachon bekor
+    log[idx] = { ...log[idx], cancelled: true, cancelledAt: Date.now() };
+    persist(acc);
+    return log[idx];
+  },
+  // Tiket qoldig'ini tiklash (bekor qilinganda teskari yo'nalishda)
+  restoreTicketTonna(acc, ticketId, tonna) {
+    const db = load(acc);
+    const tickets = db.state.tickets || [];
+    const idx = tickets.findIndex(t => t.id === ticketId);
+    if (idx === -1) return null;
+    const restored = Math.max(0, (tickets[idx].usedTonna || 0) - Number(tonna));
+    tickets[idx] = { ...tickets[idx], usedTonna: restored };
+    db.state.tickets = tickets;
+    persist(acc);
+    return tickets[idx];
   },
 };

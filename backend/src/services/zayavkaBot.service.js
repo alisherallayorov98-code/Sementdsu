@@ -53,7 +53,8 @@ function getConfig(acc) {
 async function sendToGroup(acc, text) {
   const cfg = getConfig(acc);
   if (!cfg.groupChatId) throw new Error('Guruh chat ID sozlanmagan');
-  await bot.sendMessage(cfg.groupChatId, text);
+  const sent = await bot.sendMessage(cfg.groupChatId, text);
+  return sent; // { message_id, chat, ... }
 }
 
 // Tiket tugmalari (ochiq tiketlar)
@@ -249,7 +250,7 @@ function start(acc = DEFAULT_ACCOUNT) {
 
   bot.onText(/\/start/, (msg) => {
     bot.sendMessage(msg.chat.id,
-      '📋 *Zayavka Bot*\n\n/zayavka — yangi zayavka / новая заявка\n/tiketlar — ochiq tiketlar ro\'yxati\n/chatid — chat ID ni bilish',
+      '📋 *Zayavka Bot*\n\n/zayavka — yangi zayavka\n/bekor — zayavkani bekor qilish\n/tiketlar — ochiq tiketlar qoldig\'i\n/chatid — chat ID ni bilish',
       { parse_mode: 'Markdown' });
   });
 
@@ -278,12 +279,113 @@ function start(acc = DEFAULT_ACCOUNT) {
       { parse_mode: 'Markdown' });
   });
 
+  // /bekor [raqam] — zayavkani bekor qilish va guruhdan o'chirish
+  bot.onText(/\/bekor(.*)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const arg    = (match[1] || '').trim();
+
+    if (arg) {
+      // /bekor 47 — to'g'ridan-to'g'ri raqam bilan
+      const num = Number(arg);
+      if (!num) { bot.sendMessage(chatId, '❌ Noto\'g\'ri raqam. /bekor 47 ko\'rinishida yozing.'); return; }
+      showCancelConfirm(chatId, num);
+    } else {
+      // /bekor — oxirgi zayavkalar ro'yxatini ko'rsatish
+      const log = db.getZayavkaLog(acc, 10).filter(z => !z.cancelled);
+      if (log.length === 0) {
+        bot.sendMessage(chatId, '📭 Bekor qilish mumkin bo\'lgan zayavka yo\'q.');
+        return;
+      }
+      const rows = log.map(z => {
+        const mashina = z.values?.mashina || z.values?.car || '';
+        const tonna   = z.values?.tonna   || z.values?.ton || '';
+        const label   = `#${z.id} — ${z.date} — ${mashina} — ${tonna}t`;
+        return [{ text: label, callback_data: `zv_cancel_pick:${z.id}` }];
+      });
+      bot.sendMessage(chatId,
+        '🗑 *Qaysi zayavkani bekor qilasiz?*\n_Oxirgi 10 ta (bekor qilinmaganlar):_',
+        { parse_mode: 'Markdown', reply_markup: { inline_keyboard: rows } });
+    }
+  });
+
+  function showCancelConfirm(chatId, zayavkaId) {
+    const log = db.getZayavkaLog(acc, 100);
+    const z   = log.find(x => x.id === zayavkaId);
+    if (!z) { bot.sendMessage(chatId, `❌ #${zayavkaId} raqamli zayavka topilmadi.`); return; }
+    if (z.cancelled) { bot.sendMessage(chatId, `⚠️ #${zayavkaId} allaqachon bekor qilingan.`); return; }
+
+    bot.sendMessage(chatId,
+      `🗑 *#${z.id} zayavkani bekor qilasizmi?*\n\n${z.text}\n\n_Guruhdan ochiriladi${z.ticketId ? ' va tiket qoldighi tiklanadi.' : '.'}_`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: [[
+          { text: '✅ Ha, bekor qilish', callback_data: `zv_cancel_confirm:${zayavkaId}` },
+          { text: '❌ Yo\'q',             callback_data: 'zv_cancel_no' },
+        ]]},
+      });
+  }
+
   // Callback (tiket tanlash, tez tugmalar, tasdiqlash)
   bot.on('callback_query', async (q) => {
     const chatId = q.message.chat.id;
     const data   = q.data;
     bot.answerCallbackQuery(q.id).catch(() => {});
     bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: q.message.message_id }).catch(() => {});
+
+    // Bekor qilish — ro'yxatdan tanlash
+    if (data.startsWith('zv_cancel_pick:')) {
+      const zayavkaId = Number(data.replace('zv_cancel_pick:', ''));
+      showCancelConfirm(chatId, zayavkaId);
+      return;
+    }
+
+    // Bekor qilish — tasdiqlash
+    if (data.startsWith('zv_cancel_confirm:')) {
+      const zayavkaId = Number(data.replace('zv_cancel_confirm:', ''));
+      try {
+        const cancelled = db.cancelZayavka(acc, zayavkaId);
+        if (!cancelled) {
+          bot.sendMessage(chatId, '❌ Zayavka topilmadi yoki allaqachon bekor qilingan.');
+          return;
+        }
+
+        // Guruhdan xabarni o'chirish
+        let deleteMsg = '';
+        if (cancelled.groupChatId && cancelled.groupMessageId) {
+          try {
+            await bot.deleteMessage(cancelled.groupChatId, cancelled.groupMessageId);
+            deleteMsg = '\n🗑 Guruhdan o\'chirildi.';
+          } catch {
+            // Bot admin emas yoki xabar juda eski (48 soatdan ko'p)
+            deleteMsg = '\n⚠️ Guruhdan o\'chirib bo\'lmadi (bot admin emas yoki xabar 48 soatdan eski).';
+          }
+        }
+
+        // Tiket qoldig'ini tiklash
+        let ticketMsg = '';
+        if (cancelled.ticketId) {
+          const tonna   = Number(cancelled.values?.tonna || cancelled.values?.ton || 0);
+          const updated = db.restoreTicketTonna(acc, cancelled.ticketId, tonna);
+          if (updated) {
+            const remaining = (updated.totalTonna || 0) - (updated.usedTonna || 0);
+            ticketMsg = `\n📦 *${updated.number}* qoldi: *${remaining} t* (${tonna}t tiklandi)`;
+          }
+        }
+
+        bot.sendMessage(chatId,
+          `✅ *#${zayavkaId} zayavka bekor qilindi!*${deleteMsg}${ticketMsg}`,
+          { parse_mode: 'Markdown' });
+      } catch (e) {
+        bot.sendMessage(chatId, `❌ Xato: ${e.message}`);
+      }
+      return;
+    }
+
+    // Bekor qilishdan voz kechish
+    if (data === 'zv_cancel_no') {
+      bot.sendMessage(chatId, '↩️ Bekor qilish to\'xtatildi.');
+      return;
+    }
 
     // Tiket tanlash
     if (data.startsWith('zv_ticket:')) {
@@ -338,22 +440,32 @@ function start(acc = DEFAULT_ACCOUNT) {
         const counter = st._counter ?? db.nextZayavkaCounter(acc);
         const text    = renderTemplate(c.template || '', st.values, counter);
 
-        await sendToGroup(acc, text);
-        db.saveZayavka(acc, { id: counter, date: todayRU(), text, values: st.values });
+        const sent = await sendToGroup(acc, text);
 
         // Tiket qoldig'ini kamaytirish
         let ticketMsg = '';
-        if (st.ticketId) {
+        let ticketId  = st.ticketId || null;
+        if (ticketId) {
           const tonna = Number(st.values.tonna || st.values.ton || 0);
-          const updated = db.useTicketTonna(acc, st.ticketId, tonna);
+          const updated = db.useTicketTonna(acc, ticketId, tonna);
           if (updated) {
             const remaining = (updated.totalTonna || 0) - (updated.usedTonna || 0);
             ticketMsg = `\n📦 *${updated.number}* qoldi: *${remaining} t*`;
           }
         }
 
+        db.saveZayavka(acc, {
+          id:             counter,
+          date:           todayRU(),
+          text,
+          values:         st.values,
+          ticketId,
+          groupChatId:    c.groupChatId,
+          groupMessageId: sent?.message_id || null,
+        });
+
         bot.sendMessage(chatId,
-          `✅ *Zayavka #${counter} yuborildi!*${ticketMsg}`,
+          `✅ *Zayavka #${counter} yuborildi!*${ticketMsg}\n\n_Bekor qilish: /bekor_`,
           { parse_mode: 'Markdown' });
         delete states[chatId];
       } catch (e) {
