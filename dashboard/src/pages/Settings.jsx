@@ -144,6 +144,8 @@ function ZayavkaBotSettings({ themeColor }) {
     fieldOptions: DEFAULT_OPTIONS,
     optionalFields: [],
     autoFields: ['sana'],
+    accessCode: '',
+    authorizedUsers: [],
   });
 
   // Option editing state
@@ -165,6 +167,8 @@ function ZayavkaBotSettings({ themeColor }) {
           fieldOptions: r.config.fieldOptions || DEFAULT_OPTIONS,
           optionalFields: r.config.optionalFields || [],
           autoFields: r.config.autoFields || ['sana'],
+          accessCode: r.config.accessCode || '',
+          authorizedUsers: r.config.authorizedUsers || [],
         }));
       }
     }).catch(() => {}).finally(() => setLoading(false));
@@ -181,6 +185,8 @@ function ZayavkaBotSettings({ themeColor }) {
         fieldOptions: form.fieldOptions,
         optionalFields: form.optionalFields,
         autoFields: form.autoFields,
+        accessCode: form.accessCode,
+        authorizedUsers: form.authorizedUsers,
       });
       setMsg('✅ Saqlandi! Bot qayta ishga tushdi.');
     } catch (e) {
@@ -252,7 +258,42 @@ function ZayavkaBotSettings({ themeColor }) {
               style={sInput}
             />
           </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+              Kirish kodi 🔐 <span style={{ color: '#888' }}>(xodimlar botga birinchi marta kirishda yozadi)</span>
+            </div>
+            <input
+              value={form.accessCode}
+              onChange={e => setForm(f => ({ ...f, accessCode: e.target.value }))}
+              placeholder="masalan: sement2026"
+              style={{ ...sInput, maxWidth: 280 }}
+            />
+            {!form.accessCode && <div style={{ fontSize: 11, color: '#c62828', marginTop: 4 }}>⚠️ Kod bo'lmasa — hamma kirishi mumkin!</div>}
+          </div>
         </div>
+
+        {/* Ruxsat etilgan foydalanuvchilar */}
+        {(form.authorizedUsers || []).length > 0 && (
+          <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 14 }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span>Kirish olgan foydalanuvchilar: <strong>{form.authorizedUsers.length} ta</strong></span>
+              <button
+                onClick={() => { if (window.confirm('Barchasini tozalaysizmi? Xodimlar qayta kod kiritishi kerak.')) setForm(f => ({ ...f, authorizedUsers: [] })); }}
+                style={{ fontSize: 11, color: '#c62828', background: 'none', border: '1px solid #ef9a9a', borderRadius: 3, padding: '2px 8px', cursor: 'pointer' }}>
+                Barchasini tozalash
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {form.authorizedUsers.map(uid => (
+                <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 16, padding: '3px 10px', fontSize: 12 }}>
+                  <span style={{ fontFamily: 'monospace', color: '#1b5e20' }}>{uid}</span>
+                  <button onClick={() => setForm(f => ({ ...f, authorizedUsers: f.authorizedUsers.filter(u => u !== uid) }))}
+                    style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Shablon */}

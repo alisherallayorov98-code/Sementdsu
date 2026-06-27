@@ -135,7 +135,9 @@ router.put('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
     fieldOptions:   body.fieldOptions   ?? old.fieldOptions   ?? {},
     optionalFields: body.optionalFields ?? old.optionalFields ?? [],
     fieldDefaults:  body.fieldDefaults  ?? old.fieldDefaults  ?? {},
-    autoFields:     body.autoFields     ?? old.autoFields     ?? ['sana'],
+    autoFields:     body.autoFields      ?? old.autoFields      ?? ['sana'],
+    accessCode:     body.accessCode      ?? old.accessCode      ?? '',
+    authorizedUsers: body.authorizedUsers ?? old.authorizedUsers ?? [],
   };
   db.setZayavkaConfig(acc, cfg);
 

@@ -248,18 +248,40 @@ function start(acc = DEFAULT_ACCOUNT) {
     askField(chatId);
   }
 
+  // ── Ruxsat tekshiruvi ───────────────────────────────────────────────────────
+  function isAuthorized(chatId) {
+    const c = getConfig(acc);
+    const authorized = c.authorizedUsers || [];
+    // Kirish kodi o'rnatilmagan bo'lsa — hamma kirishi mumkin (sozlanmagan holat)
+    if (!c.accessCode) return true;
+    return authorized.includes(String(chatId));
+  }
+
+  function requireAuth(chatId, cb) {
+    if (isAuthorized(chatId)) { cb(); return; }
+    bot.sendMessage(chatId,
+      '🔐 *Kirish uchun kod kiriting:*\n\nAdminga murojaat qiling va kirish kodini oling.',
+      { parse_mode: 'Markdown' });
+    states[chatId] = { waitingAuth: true };
+  }
+
   // ── Bot hodisalari ──────────────────────────────────────────────────────────
 
   bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id,
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) {
+      requireAuth(chatId, () => {});
+      return;
+    }
+    bot.sendMessage(chatId,
       '📋 *Zayavka Bot*\n\n/zayavka — yangi zayavka\n/bekor — zayavkani bekor qilish\n/tiketlar — ochiq tiketlar qoldig\'i\n/chatid — chat ID ni bilish',
       { parse_mode: 'Markdown' });
   });
 
-  bot.onText(/\/zayavka/, (msg) => startZayavka(msg.chat.id));
+  bot.onText(/\/zayavka/, (msg) => requireAuth(msg.chat.id, () => startZayavka(msg.chat.id)));
 
   // /tiketlar — ochiq tiketlar ro'yxatini ko'rish
-  bot.onText(/\/tiketlar/, (msg) => {
+  bot.onText(/\/tiketlar/, (msg) => requireAuth(msg.chat.id, () => {
     const openTickets = db.getOpenTickets(acc);
     if (openTickets.length === 0) {
       bot.sendMessage(msg.chat.id, '📭 Hozir ochiq tiket yo\'q.');
@@ -267,13 +289,13 @@ function start(acc = DEFAULT_ACCOUNT) {
     }
     const lines = openTickets.map(t => {
       const remaining = (t.totalTonna || 0) - (t.usedTonna || 0);
-      const pct = t.totalTonna ? Math.round((t.usedTonna || 0) / t.totalTonna * 100) : 0;
-      return `• *${t.number}* — ${t.marka}\n  Jami: ${t.totalTonna}t | Ishlatildi: ${t.usedTonna || 0}t | Qoldi: *${remaining}t* (${pct}%)`;
+      const p = t.totalTonna ? Math.round((t.usedTonna || 0) / t.totalTonna * 100) : 0;
+      return `• *${t.number}* — ${t.marka}\n  Jami: ${t.totalTonna}t | Ketdi: ${t.usedTonna || 0}t | Qoldi: *${remaining}t* (${p}%)`;
     });
     bot.sendMessage(msg.chat.id,
       `📋 *Ochiq tiketlar (${openTickets.length} ta):*\n\n${lines.join('\n\n')}`,
       { parse_mode: 'Markdown' });
-  });
+  }));
 
   bot.onText(/\/chatid/, (msg) => {
     bot.sendMessage(msg.chat.id,
@@ -282,7 +304,7 @@ function start(acc = DEFAULT_ACCOUNT) {
   });
 
   // /bekor [raqam] — zayavkani bekor qilish va guruhdan o'chirish
-  bot.onText(/\/bekor(.*)/, async (msg, match) => {
+  bot.onText(/\/bekor(.*)/, async (msg, match) => { if (!isAuthorized(msg.chat.id)) { requireAuth(msg.chat.id, () => {}); return; }
     const chatId = msg.chat.id;
     const arg    = (match[1] || '').trim();
 
@@ -494,15 +516,39 @@ function start(acc = DEFAULT_ACCOUNT) {
     }
   });
 
-  // Matn xabarlar — maydon qiymati
+  // Matn xabarlar — kirish kodi yoki maydon qiymati
   bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text   = (msg.text || '').trim();
     if (!text || text.startsWith('/')) return;
 
     const st = states[chatId];
+
+    // Kirish kodi kutilmoqda
+    if (st?.waitingAuth) {
+      const c = getConfig(acc);
+      if (text === (c.accessCode || '')) {
+        // To'g'ri kod — ruxsat berildi
+        const authorized = [...(c.authorizedUsers || [])];
+        if (!authorized.includes(String(chatId))) authorized.push(String(chatId));
+        db.setZayavkaConfig(acc, { ...c, authorizedUsers: authorized });
+        delete states[chatId];
+        bot.sendMessage(chatId,
+          '✅ *Kirish tasdiqlandi!*\n\n/zayavka — zayavka yuborish\n/tiketlar — tiketlar qoldig\'i',
+          { parse_mode: 'Markdown' });
+      } else {
+        bot.sendMessage(chatId, '❌ Noto\'g\'ri kod. Qayta kiriting:');
+      }
+      return;
+    }
+
+    if (!isAuthorized(chatId)) {
+      requireAuth(chatId, () => {});
+      return;
+    }
+
     if (!st || !st.askFields || st.step >= st.askFields.length) {
-      bot.sendMessage(chatId, '/zayavka — yangi zayavka boshlash / начать заявку');
+      bot.sendMessage(chatId, '/zayavka — yangi zayavka boshlash');
       return;
     }
 
