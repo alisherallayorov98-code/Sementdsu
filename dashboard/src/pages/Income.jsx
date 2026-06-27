@@ -23,6 +23,7 @@ const INCOME_TYPES = [
   { value: 'naqd',           latn: 'Naqd',           cyrl: 'Нақд',          color: '#006600', bg: '#f0fff0' },
   { value: 'click',          latn: 'Click',          cyrl: 'Клик',          color: '#6600cc', bg: '#f5f0ff' },
   { value: 'perechisleniya', latn: 'Perechisleniya', cyrl: 'Перечисление',  color: '#0000cc', bg: '#f0f0ff' },
+  { value: 'kassir',         latn: 'Kassir kirim',   cyrl: 'Кассир кирим',  color: '#006666', bg: '#e8fffe' },
   { value: 'savdo',          latn: 'Savdo',          cyrl: 'Савдо',         color: '#996600', bg: '#fffde8' },
   { value: 'qarz_tolovi',    latn: "Qarz to'lovi",   cyrl: "Қарз тўлови",  color: '#cc6600', bg: '#fff5e8' },
 ];
@@ -58,8 +59,8 @@ export default function Income({ lang }) {
     incomeRows,    addIncomeRow,    deleteIncomeRow,
     bankIncomeRows, addBankIncomeRow, deleteBankIncomeRow,
     clickIncomeRows, addClickIncomeRow, deleteClickIncomeRow,
-    soldRows,
-    debtRows,
+    soldRows, debtRows,
+    cashRows, bankRows, clickRows,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -140,6 +141,25 @@ export default function Income({ lang }) {
         summa: Number(r.paid),
         canDelete: false,
       })),
+    // Kassir qo'lda kirim (cashRows/bankRows/clickRows — faqat manual yozuvlar)
+    ...(cashRows || []).filter(r => !r.auto && Number(r.amount) > 0).map(r => ({
+      id: 'kc_' + r.id, srcType: 'kassir', date: r.date,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Naqd]',
+      summa: Number(r.amount), canDelete: false,
+    })),
+    ...(bankRows || []).filter(r => !r.auto && Number(r.amount) > 0).map(r => ({
+      id: 'kb_' + r.id, srcType: 'kassir', date: r.date,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Bank]',
+      summa: Number(r.amount), canDelete: false,
+    })),
+    ...(clickRows || []).filter(r => !r.auto && Number(r.amount) > 0).map(r => ({
+      id: 'kck_' + r.id, srcType: 'kassir', date: r.date,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Click]',
+      summa: Number(r.amount), canDelete: false,
+    })),
   ];
 
   // Vaqt bo'yicha saralash — yangi tepada

@@ -20,10 +20,11 @@ const fmtTime = (ts) => {
 
 // Chiqim turlari
 const EXPENSE_TYPES = [
-  { value: 'naqd',     latn: 'Naqd chiqim',    cyrl: 'Нақд чиқим',     color: '#cc0000', bg: '#fff0f0' },
-  { value: 'oylik',    latn: 'Xodim oyligi',   cyrl: 'Ходим ойлиги',  color: '#993300', bg: '#fff5ee' },
-  { value: 'sement',   latn: "Zavodga to'lov",  cyrl: 'Заводга тўлов',   color: '#006699', bg: '#f0f8ff' },
-  { value: 'avans',    latn: 'Avans',           cyrl: 'Аванс',          color: '#cc6600', bg: '#fffbf0' },
+  { value: 'naqd',          latn: 'Naqd chiqim',    cyrl: 'Нақд чиқим',     color: '#cc0000', bg: '#fff0f0' },
+  { value: 'kassir_chiqim', latn: 'Kassir chiqim',  cyrl: 'Кассир чиқим',   color: '#8b0044', bg: '#fff0f8' },
+  { value: 'oylik',         latn: 'Xodim oyligi',   cyrl: 'Ходим ойлиги',   color: '#993300', bg: '#fff5ee' },
+  { value: 'sement',        latn: "Zavodga to'lov",  cyrl: 'Заводга тўлов',  color: '#006699', bg: '#f0f8ff' },
+  { value: 'avans',         latn: 'Avans',           cyrl: 'Аванс',          color: '#cc6600', bg: '#fffbf0' },
 ];
 
 const typeInfo = (val) => EXPENSE_TYPES.find(t => t.value === val) || { color: '#333', bg: '#fff', latn: val, cyrl: val };
@@ -52,9 +53,8 @@ const L = {
 export default function Expense({ lang }) {
   const {
     expenseRows, addExpenseRow, deleteExpenseRow,
-    workers,
-    supplierPayments,
-    advanceRows,
+    workers, supplierPayments, advanceRows,
+    cashRows, bankRows, clickRows,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -116,6 +116,25 @@ export default function Expense({ lang }) {
         qolgan: Number(r.amount) - Number(r.used || 0),
         canDelete: false,
       })),
+    // Kassir qo'lda chiqim (cashRows/bankRows/clickRows — faqat manual yozuvlar)
+    ...(cashRows || []).filter(r => !r.auto && Number(r.amount) < 0).map(r => ({
+      id: 'kc_' + r.id, srcType: 'kassir_chiqim', date: r.date,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Naqd]',
+      summa: Math.abs(Number(r.amount)), canDelete: false,
+    })),
+    ...(bankRows || []).filter(r => !r.auto && Number(r.amount) < 0).map(r => ({
+      id: 'kb_' + r.id, srcType: 'kassir_chiqim', date: r.date,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Bank]',
+      summa: Math.abs(Number(r.amount)), canDelete: false,
+    })),
+    ...(clickRows || []).filter(r => !r.auto && Number(r.amount) < 0).map(r => ({
+      id: 'kck_' + r.id, srcType: 'kassir_chiqim', date: r.date,
+      createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Click]',
+      summa: Math.abs(Number(r.amount)), canDelete: false,
+    })),
   ];
 
   // Vaqt bo'yicha saralash — yangi tepada

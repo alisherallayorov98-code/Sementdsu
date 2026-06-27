@@ -10,7 +10,7 @@ export default function OverallReport() {
     // Sement
     totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
     // Moliya naqd
-    incomeRows, expenseRows,
+    incomeRows, expenseRows, cashRows, bankRows, clickRows,
     // Moliya bank
     totalBankIncome, totalBankExpense,
     // Moliya click
@@ -28,8 +28,14 @@ export default function OverallReport() {
   } = useData();
 
   // ── Hisob-kitoblar ────────────────────────────────────────────────────────
-  const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0);
-  const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0);
+  const kassirKirim  = (arr) => arr.filter(r => !r.auto && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const kassirChiqim = (arr) => arr.filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+  const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0) + kassirKirim(cashRows);
+  const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0) + kassirChiqim(cashRows);
+  const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows);
+  const totalBankExpenseAll = Number(totalBankExpense) + kassirChiqim(bankRows);
+  const totalClickIncomeAll  = Number(totalClickIncome)  + kassirKirim(clickRows);
+  const totalClickExpenseAll = Number(totalClickExpense) + kassirChiqim(clickRows);
   const totalSalesSum = [...salesRows, ...soldRows].reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
   const totalSoldAll  = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
   
@@ -71,10 +77,10 @@ export default function OverallReport() {
     { k: 'Haydovchilardan qarzimiz', v: totalDriverDebt, b: "so'm" },
     { k: 'Jami naqd kirim', v: totalIncome, b: "so'm" },
     { k: 'Jami naqd chiqim', v: totalExpense, b: "so'm" },
-    { k: 'Bank orqali kirim', v: Number(totalBankIncome || 0), b: "so'm" },
-    { k: 'Bank orqali chiqim', v: Number(totalBankExpense || 0), b: "so'm" },
-    { k: 'Click orqali kirim', v: Number(totalClickIncome || 0), b: "so'm" },
-    { k: 'Click orqali chiqim', v: Number(totalClickExpense || 0), b: "so'm" },
+    { k: 'Bank orqali kirim', v: totalBankIncomeAll, b: "so'm" },
+    { k: 'Bank orqali chiqim', v: totalBankExpenseAll, b: "so'm" },
+    { k: 'Click orqali kirim', v: totalClickIncomeAll, b: "so'm" },
+    { k: 'Click orqali chiqim', v: totalClickExpenseAll, b: "so'm" },
     { k: "Joriy sement qoldig'i", v: Number(totalCementBalance || 0), b: 'tn' },
     { k: 'Sotilgan jami sement', v: totalSoldAll, b: 'tn' },
     { k: 'Olingan jami sement', v: Number(totalRecvTons || 0), b: 'tn' },
@@ -134,11 +140,11 @@ export default function OverallReport() {
           <Row label="Jami naqd kirim" val={totalIncome} color="#2e7d32" />
           <Row label="Jami naqd chiqim" val={totalExpense} color="#c62828" />
           <div style={{ height: 1, background: '#ccc', margin: '8px 0' }} />
-          <Row label="Bank orqali kirim" val={totalBankIncome} color="#2e7d32" />
-          <Row label="Bank orqali chiqim" val={totalBankExpense} color="#c62828" />
+          <Row label="Bank orqali kirim" val={totalBankIncomeAll} color="#2e7d32" />
+          <Row label="Bank orqali chiqim" val={totalBankExpenseAll} color="#c62828" />
           <div style={{ height: 1, background: '#ccc', margin: '8px 0' }} />
-          <Row label="Click orqali kirim" val={totalClickIncome} color="#2e7d32" />
-          <Row label="Click orqali chiqim" val={totalClickExpense} color="#c62828" />
+          <Row label="Click orqali kirim" val={totalClickIncomeAll} color="#2e7d32" />
+          <Row label="Click orqali chiqim" val={totalClickExpenseAll} color="#c62828" />
         </Section>
 
         {/* ── SEMENT VA SAVDO ─────────────────────────────────────────────── */}

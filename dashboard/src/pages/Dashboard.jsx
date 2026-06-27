@@ -23,6 +23,7 @@ export default function Dashboard() {
     totalCashBalance, totalBankBalance, totalClickBalance, totalCementBalance,
     totalDebts, salesRows, soldRows, incomeRows, expenseRows, tgOrders, debtRows, currentUser,
     customers, appSettings, pendingRecvCount, pendingBankCount,
+    cashRows, bankRows, clickRows,
   } = data;
   const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
 
@@ -43,8 +44,10 @@ export default function Dashboard() {
   const todaySales = allSales.filter(r => r.date === today);
   const monthSales = allSales.filter(r => (r.date || '').endsWith(monthKey));
 
-  const todayIncome  = incomeRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0);
-  const todayExpense = expenseRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const kassirTodayIn  = (arr) => arr.filter(r => r.date === today && !r.auto && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const kassirTodayOut = (arr) => arr.filter(r => r.date === today && !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+  const todayIncome  = incomeRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0) + kassirTodayIn(cashRows) + kassirTodayIn(bankRows) + kassirTodayIn(clickRows);
+  const todayExpense = expenseRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0) + kassirTodayOut(cashRows) + kassirTodayOut(bankRows) + kassirTodayOut(clickRows);
 
   const pending = tgOrders.filter(o => o.status === 'kutilmoqda');
   const pendingTons = pending.reduce((s, o) => s + Number(o.tons || 0), 0);
