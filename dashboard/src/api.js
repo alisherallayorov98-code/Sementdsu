@@ -66,6 +66,12 @@ export const api = {
   notifyOrderDone: (payload) => req('/api/notify_order_done', { method: 'POST', body: JSON.stringify(payload) }),
 
   health: () => req('/api/health', {}, { auth: false }),
+
+  // Haydovchi pending reyslari
+  getPendingDriverTrips: () => req('/api/driver_trips/pending'),
+  approveDriverTrip: (id) => req(`/api/driver_trips/approve/${id}`, { method: 'POST' }),
+  rejectDriverTrip:  (id, reason = '') => req(`/api/driver_trips/reject/${id}`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getDriverPhotoUrl: (fileId) => req(`/api/driver_trips/photo_url/${encodeURIComponent(fileId)}`),
 };
 
 export { API_URL };

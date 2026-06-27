@@ -36,7 +36,7 @@ const lastBackup = {};
 const accDir    = (acc) => path.join(ACCOUNTS_DIR, sanitize(acc));
 const dbFile    = (acc) => path.join(accDir(acc), 'db.json');
 const backupDir = (acc) => path.join(accDir(acc), 'backups');
-const emptyDb   = () => ({ state: {}, botOrders: [], tgContacts: [], updatedAt: null });
+const emptyDb   = () => ({ state: {}, botOrders: [], tgContacts: [], pendingDriverTrips: [], updatedAt: null });
 
 // Telefonni solishtirish uchun normallashtirish — faqat oxirgi 9 raqam (UZ)
 const normPhone = (p) => String(p || '').replace(/\D/g, '').slice(-9);
@@ -71,9 +71,10 @@ function load(acc) {
     console.error(`[DB:${acc}] o'qish xatosi:`, e.message);
     db = restore(acc) || emptyDb();
   }
-  if (!db.state)      db.state = {};
-  if (!db.botOrders)  db.botOrders = [];
-  if (!db.tgContacts) db.tgContacts = [];
+  if (!db.state)               db.state = {};
+  if (!db.botOrders)           db.botOrders = [];
+  if (!db.tgContacts)          db.tgContacts = [];
+  if (!db.pendingDriverTrips)  db.pendingDriverTrips = [];
   cache[acc] = db;
   return db;
 }
@@ -177,4 +178,59 @@ module.exports = {
     return workers.find(w => w.telegramChatId === String(chatId)) || null;
   },
   info(acc)            { const db = load(acc); return { updatedAt: db.updatedAt, botOrdersPending: db.botOrders.length }; },
+
+  // ── Haydovchi pending reyslari ───────────────────────────────────────────
+  getPendingDriverTrips(acc)       { return load(acc).pendingDriverTrips || []; },
+  addPendingDriverTrip(acc, trip)  { const db = load(acc); db.pendingDriverTrips.push(trip); persist(acc); },
+  updatePendingDriverTrip(acc, id, fields) {
+    const db = load(acc);
+    const i = db.pendingDriverTrips.findIndex(t => t.id === id);
+    if (i !== -1) db.pendingDriverTrips[i] = { ...db.pendingDriverTrips[i], ...fields };
+    persist(acc);
+  },
+  removePendingDriverTrip(acc, id) {
+    const db = load(acc); db.pendingDriverTrips = db.pendingDriverTrips.filter(t => t.id !== id); persist(acc);
+  },
+
+  // ── Haydovchi bot orqali ulanishi (deep link) ────────────────────────────
+  linkDriver(acc, driverId, chatId) {
+    const db = load(acc);
+    const drivers = db.state.drivers || [];
+    const idx = drivers.findIndex(d => String(d.id) === String(driverId));
+    if (idx === -1) return null;
+    drivers[idx] = { ...drivers[idx], telegramChatId: String(chatId) };
+    db.state.drivers = drivers;
+    persist(acc);
+    return drivers[idx];
+  },
+  getDriverByChatId(acc, chatId) {
+    const drivers = (load(acc).state.drivers || []);
+    return drivers.find(d => d.telegramChatId === String(chatId)) || null;
+  },
+
+  // ── Reys tasdiqlash: pending → state.driver_trips ────────────────────────
+  approveDriverTrip(acc, tripId) {
+    const db = load(acc);
+    const trip = (db.pendingDriverTrips || []).find(t => t.id === tripId);
+    if (!trip) return null;
+    const driverTrips = db.state.driver_trips || [];
+    const newTrip = {
+      id: trip.id, createdAt: trip.createdAt,
+      driverId: trip.driverId, date: trip.date,
+      destination: trip.destination, price: trip.price,
+      isPayment: false, note: trip.note || '',
+      photoFileId: trip.photoFileId || null, fromBot: true,
+    };
+    db.state.driver_trips = [...driverTrips, newTrip];
+    db.pendingDriverTrips = db.pendingDriverTrips.filter(t => t.id !== tripId);
+    persist(acc);
+    return { trip: newTrip, driver: (db.state.drivers || []).find(d => d.id === trip.driverId) };
+  },
+  // Haydovchi balansi (state dan hisoblash)
+  driverBalance(acc, driverId) {
+    const trips = ((load(acc).state.driver_trips || [])).filter(t => t.driverId === driverId);
+    const earned = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+    const paid   = trips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+    return earned - paid;
+  },
 };

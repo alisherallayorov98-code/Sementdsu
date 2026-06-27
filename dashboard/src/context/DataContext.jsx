@@ -858,9 +858,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('drivers', drivers), [drivers]);
   useEffect(() => save('driver_trips', driverTrips), [driverTrips]);
 
-  const addDriver = (name, carNumber, phone = '') => {
+  const addDriver = (name, carNumber, phone = '', carType = 'large') => {
     const ts = Date.now();
-    setDrivers(p => [...p, { id: ts, name, carNumber, phone }]);
+    setDrivers(p => [...p, { id: ts, name, carNumber, phone, carType }]);
   };
   const updateDriver = (id, data) => setDrivers(p => p.map(d => d.id === id ? { ...d, ...data } : d));
   const deleteDriver = (id) => {
@@ -876,11 +876,32 @@ export function DataProvider({ children }) {
     const ts = Date.now();
     const amt = Number(price);
     const today = new Date().toLocaleDateString('ru-RU');
-    setDriverTrips(p => [...p, {
-      id: ts, createdAt: ts, driverId, date: today,
-      destination, price: amt, isPayment, note,
-      channel: isPayment ? channel : undefined,
-    }]);
+    setDriverTrips(p => {
+      const updated = [...p, {
+        id: ts, createdAt: ts, driverId, date: today,
+        destination, price: amt, isPayment, note,
+        channel: isPayment ? channel : undefined,
+      }];
+      // Haydovchiga bot xabari (avans berilib yoki qo'shimcha reys qo'shilsa)
+      const drv = drivers.find(d => d.id === driverId);
+      if (drv?.telegramChatId) {
+        const earned = updated.filter(t => t.driverId === driverId && !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+        const paid   = updated.filter(t => t.driverId === driverId &&  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+        const balance = earned - paid;
+        const balText = balance > 0
+          ? `💰 Sizga *${balance.toLocaleString('ru-RU').replace(/,/g,' ')} so'm* to'lanishi kerak`
+          : balance < 0
+            ? `⚠️ Avans qarzingiz: *${Math.abs(balance).toLocaleString('ru-RU').replace(/,/g,' ')} so'm*`
+            : `✅ Hisob-kitob muvozanatli`;
+        const msg = isPayment
+          ? `💸 *Avans oldingiz!*\n\nSumma: *${amt.toLocaleString('ru-RU').replace(/,/g,' ')} so'm*\n\n${balText}`
+          : `🚛 *Reys qo'shildi!*\n\n📍 ${destination}\n💰 *${amt.toLocaleString('ru-RU').replace(/,/g,' ')} so'm*\n\n${balText}`;
+        import('../api').then(({ api }) => {
+          api.notify({ chatId: drv.telegramChatId, text: msg, channels: ['telegram'] }).catch(() => {});
+        });
+      }
+      return updated;
+    });
     // ── INTEGRATSIYA: haydovchiga to'lov → tegishli kassadan chiqim ─────────
     if (isPayment && amt > 0) {
       const drv = drivers.find(d => d.id === driverId);

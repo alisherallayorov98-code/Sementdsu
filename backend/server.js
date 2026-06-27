@@ -10,14 +10,38 @@
 // ─────────────────────────────────────────────────────────────────────────────
 require('dotenv').config();
 
+const cron           = require('node-cron');
 const createApp      = require('./src/app');
 const telegram       = require('./src/services/telegram.service');
 const debtReminder   = require('./src/services/debtReminder.service');
-const { PORT, NODE_ENV } = require('./src/config');
+const db             = require('./src/db');
+const { PORT, NODE_ENV, DEFAULT_ACCOUNT } = require('./src/config');
 
 const app = createApp();
 const bot = telegram.start();
 if (bot) debtReminder.start(bot);
+
+// ── 6 oydan eski reys rasmlari o'chiriladi (lekin yozuv qoladi) ────────────
+cron.schedule('0 3 * * *', () => {
+  try {
+    const SIX_MONTHS = 6 * 30 * 24 * 60 * 60 * 1000;
+    const cutoff     = Date.now() - SIX_MONTHS;
+    const state      = db.getState(DEFAULT_ACCOUNT);
+    const trips      = state.driver_trips || [];
+    let changed      = false;
+    trips.forEach(t => {
+      if (t.photoFileId && t.createdAt && t.createdAt < cutoff) {
+        t.photoFileId = null;
+        changed = true;
+      }
+    });
+    if (changed) {
+      state.driver_trips = trips;
+      db.setState(DEFAULT_ACCOUNT, state);
+      console.log('[Cron] Eski reys rasmlari o\'chirildi.');
+    }
+  } catch (e) { console.error('[Cron] rasm tozalash xatosi:', e.message); }
+});
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Backend ${PORT}-portda ishlamoqda  (${NODE_ENV})`);
