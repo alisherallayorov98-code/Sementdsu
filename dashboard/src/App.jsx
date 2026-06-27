@@ -86,6 +86,15 @@ function App() {
         <GlobalSearch />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {/* Kesh tozalash (Ctrl+Shift+R) */}
+          <button
+            onClick={() => { window.location.reload(true); }}
+            title="Sahifani yangilash — keshni tozalab qayta yuklash (Ctrl+Shift+R)"
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            🔄 <span style={{ fontSize: 10, opacity: 0.85 }}>Ctrl+Shift+R</span>
+          </button>
+
           {/* Server bilan aloqa holati */}
           {!backendOnline && (
             <div title="Server bilan aloqa yo'q. O'zgarishlar vaqtincha faqat shu qurilmada saqlanmoqda." style={{ color: '#fff', fontSize: 12, background: '#c62828', padding: '4px 10px', borderRadius: 12, fontWeight: 'bold' }}>
