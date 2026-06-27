@@ -1,11 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Zayavka boti — zavodga sement chiqarish buyurtmalarini gruppaga yuboradi.
 //
-// Oqim:
-//   /zayavka → shablon maydonlarini ketma-ket so'raydi → preview → guruhga yuboradi
+// Oqim (tiket tizimi bilan):
+//   /zayavka → ochiq tiketlar ro'yxati → tiket tanlanadi (marka/raqam auto)
+//              → mashina raqami → tonna → preview → guruhga yuboradi
+//              → tiket qoldig'i kamayadi
 //
-// autoFields: sana kabi maydonlar so'ralmaydi, avtomatik to'ldiriladi.
-// Bilingual: savollar O'zbek/Rus tilida, chiqish esa shablon tilidadir (Rus).
+// Tiket yo'q bo'lsa: eski oqim (qo'lda tiket raqami + marka kiritish)
 // ─────────────────────────────────────────────────────────────────────────────
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('../db');
@@ -17,10 +18,9 @@ let running = false;
 const isRunning = () => running;
 const getBot    = () => bot;
 
-// Bugungi sanani RU formatida (DD.MM.YYYY) qaytaradi
 const todayRU = () => new Date().toLocaleDateString('ru-RU');
 
-// Avtomatik qiymatlar (field nomi → funksiya)
+// Avtomatik to'ldiriladigan maydonlar
 const AUTO_VALUES = {
   sana: todayRU,
   date: todayRU,
@@ -41,7 +41,7 @@ function renderTemplate(template, values, counter) {
   let out = template;
   out = out.replace(/\{number\}/g, String(counter));
   for (const [k, v] of Object.entries(values)) {
-    out = out.replace(new RegExp(`\\{${k}\\}`, 'g'), v || '—');
+    out = out.replace(new RegExp(`\\{${k}\\}`, 'g'), v ?? '—');
   }
   return out;
 }
@@ -56,12 +56,26 @@ async function sendToGroup(acc, text) {
   await bot.sendMessage(cfg.groupChatId, text);
 }
 
+// Tiket tugmalari (ochiq tiketlar)
+function ticketKeyboard(tickets) {
+  const rows = tickets.map(t => {
+    const remaining = (t.totalTonna || 0) - (t.usedTonna || 0);
+    const label = `${t.number} — ${t.marka} — ${remaining}t qoldi`;
+    return [{ text: label, callback_data: `zv_ticket:${t.id}` }];
+  });
+  rows.push([{ text: '✏️ Qo\'lda kiritish / Вручную', callback_data: 'zv_manual' }]);
+  return { reply_markup: { inline_keyboard: rows } };
+}
+
 // Maydon uchun inline keyboard
 function fieldKeyboard(fieldKey, options, skipable) {
   if (!options || options.length === 0) return skipable ? skipKeyboard() : null;
   const rows = [];
   for (let i = 0; i < options.length; i += 3) {
-    rows.push(options.slice(i, i + 3).map(o => ({ text: o, callback_data: `zv_opt:${fieldKey}:${encodeURIComponent(o)}` })));
+    rows.push(options.slice(i, i + 3).map(o => ({
+      text: o,
+      callback_data: `zv_opt:${fieldKey}:${encodeURIComponent(o)}`,
+    })));
   }
   if (skipable) rows.push([{ text: "⏭ O'tkazib / Пропустить", callback_data: `zv_skip:${fieldKey}` }]);
   return { reply_markup: { inline_keyboard: rows } };
@@ -96,51 +110,65 @@ function start(acc = DEFAULT_ACCOUNT) {
     return null;
   }
 
-  const states = {}; // chatId → { allFields, askFields, values, step }
+  // chatId → { allFields, askFields, values, step, ticketId? }
+  const states = {};
 
+  // Auto qiymatlarni to'ldirish
   function buildAutoValues(c) {
     const auto = {};
-    // AUTO_VALUES dan avtomatik qiymatlar
-    for (const [k, fn] of Object.entries(AUTO_VALUES)) {
-      auto[k] = fn();
-    }
-    // Admin belgilagan autoFields ham
-    const adminAuto = c.autoFields || [];
-    for (const f of adminAuto) {
+    for (const [k, fn] of Object.entries(AUTO_VALUES)) auto[k] = fn();
+    for (const f of (c.autoFields || [])) {
       if (!auto[f]) auto[f] = (c.fieldDefaults || {})[f] || '';
     }
     return auto;
   }
 
-  function startZayavka(chatId) {
+  // Tiket tanlanganidan so'ng yoki qo'lda oqimni boshlash
+  function beginFieldCollection(chatId, prefilledValues = {}) {
     const c = getConfig(acc);
-    const template = c.template || '';
+    const template  = c.template || '';
     const allFields = extractFields(template);
 
     if (allFields.length === 0) {
-      bot.sendMessage(chatId,
-        '⚠️ Shablon sozlanmagan.\n\nAdmin panelda Settings → Zayavka Bot ni sozlang.');
+      bot.sendMessage(chatId, '⚠️ Shablon sozlanmagan. Admin panelda Settings → Zayavka Bot ni sozlang.');
       return;
     }
 
     const autoVals = buildAutoValues(c);
-    // Faqat avtomatik bo'lmagan maydonlar so'raladi
-    const askFields = allFields.filter(f => !(f in autoVals));
+    // Avtomatik va tiket orqali to'ldirilgan maydonlarni so'ramaymiz
+    const filledFields = new Set([...Object.keys(autoVals), ...Object.keys(prefilledValues)]);
+    const askFields = allFields.filter(f => !filledFields.has(f));
 
-    // Dastlabki qiymatlar: auto qiymatlar + admin default'lar
-    const values = { ...autoVals };
+    const values = { ...autoVals, ...prefilledValues };
     for (const f of allFields) {
       if (!values[f] && (c.fieldDefaults || {})[f]) values[f] = c.fieldDefaults[f];
     }
 
-    states[chatId] = { allFields, askFields, values, step: 0 };
+    states[chatId] = { ...states[chatId], allFields, askFields, values, step: 0 };
 
     if (askFields.length === 0) {
       showPreview(chatId);
     } else {
-      bot.sendMessage(chatId, '📋 *Zayavka / Заявка*\n\nMaydonlarni to\'ldiring / Заполните поля:', { parse_mode: 'Markdown' });
-      setTimeout(() => askField(chatId), 200);
+      askField(chatId);
     }
+  }
+
+  function startZayavka(chatId) {
+    const openTickets = db.getOpenTickets(acc);
+    states[chatId] = { ticketId: null };
+
+    if (openTickets.length === 0) {
+      // Tiket yo'q — qo'lda kiritish
+      bot.sendMessage(chatId,
+        '📋 *Zayavka / Заявка*\n\n⚠️ Ochiq tiket yo\'q. Qo\'lda kiritamiz.',
+        { parse_mode: 'Markdown' });
+      setTimeout(() => beginFieldCollection(chatId), 200);
+      return;
+    }
+
+    bot.sendMessage(chatId,
+      `📋 *Zayavka / Заявка*\n\nTiket tanlang / Выберите тикет (${openTickets.length} ta ochiq):`,
+      { parse_mode: 'Markdown', ...ticketKeyboard(openTickets) });
   }
 
   function askField(chatId) {
@@ -161,8 +189,18 @@ function start(acc = DEFAULT_ACCOUNT) {
     const total    = st.askFields.length;
 
     let text = `*[${stepNum}/${total}] ${label}*`;
-    if (options.length) text += '\n\nQuyidagilardan tanlang / Выберите или напишите:';
+    if (options.length) text += '\n\nQuyidagilardan tanlang yoki yozing / Выберите или напишите:';
     else text += '\n\nYozing / Напишите:';
+
+    // Tonna so'ralganda — tiket qoldig'ini ko'rsatamiz
+    if ((field === 'tonna' || field === 'ton') && st.ticketId) {
+      const openTickets = db.getOpenTickets(acc);
+      const ticket = openTickets.find(t => t.id === st.ticketId);
+      if (ticket) {
+        const remaining = (ticket.totalTonna || 0) - (ticket.usedTonna || 0);
+        text += `\n\n📦 *${ticket.number}* — qoldi: *${remaining} t*`;
+      }
+    }
 
     const kb = fieldKeyboard(field, options, optional);
     if (kb) {
@@ -175,12 +213,26 @@ function start(acc = DEFAULT_ACCOUNT) {
   function showPreview(chatId) {
     const st = states[chatId];
     const c  = getConfig(acc);
+
+    // Preview uchun counter incrementi — confirm da ishlatilinadi
     const counter  = db.nextZayavkaCounter(acc);
     const rendered = renderTemplate(c.template || '', st.values, counter);
     st._counter = counter;
 
+    // Tiket qoldig'ini ko'rsatamiz
+    let extra = '';
+    if (st.ticketId) {
+      const openTickets = db.getOpenTickets(acc);
+      const ticket = openTickets.find(t => t.id === st.ticketId);
+      if (ticket) {
+        const sent      = Number(st.values.tonna || st.values.ton || 0);
+        const remaining = (ticket.totalTonna || 0) - (ticket.usedTonna || 0) - sent;
+        extra = `\n\n📦 Yuborilgandan keyin qoladi: *${remaining} t*`;
+      }
+    }
+
     bot.sendMessage(chatId,
-      `👀 *Ko'rinish / Предпросмотр:*\n\n${rendered}\n\n─────────────────\nTasdiqlaysizmi? / Подтверждаете?`,
+      `👀 *Ko'rinish / Предпросмотр:*\n\n${rendered}${extra}\n\n─────────────────\nTasdiqlaysizmi? / Подтверждаете?`,
       { parse_mode: 'Markdown', ...confirmKeyboard() });
   }
 
@@ -193,44 +245,91 @@ function start(acc = DEFAULT_ACCOUNT) {
     askField(chatId);
   }
 
-  // /start
+  // ── Bot hodisalari ──────────────────────────────────────────────────────────
+
   bot.onText(/\/start/, (msg) => {
     bot.sendMessage(msg.chat.id,
-      '📋 *Zayavka Bot*\n\n/zayavka — yangi zayavka / новая заявка\n/chatid — chat ID ni bilish',
+      '📋 *Zayavka Bot*\n\n/zayavka — yangi zayavka / новая заявка\n/tiketlar — ochiq tiketlar ro\'yxati\n/chatid — chat ID ni bilish',
       { parse_mode: 'Markdown' });
   });
 
-  // /zayavka
   bot.onText(/\/zayavka/, (msg) => startZayavka(msg.chat.id));
 
-  // /chatid — guruh ID sini bilish (admin uchun)
-  bot.onText(/\/chatid/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId,
-      `ℹ️ *Chat ID:* \`${chatId}\`\nTur / Тип: ${msg.chat.type}`,
+  // /tiketlar — ochiq tiketlar ro'yxatini ko'rish
+  bot.onText(/\/tiketlar/, (msg) => {
+    const openTickets = db.getOpenTickets(acc);
+    if (openTickets.length === 0) {
+      bot.sendMessage(msg.chat.id, '📭 Hozir ochiq tiket yo\'q.');
+      return;
+    }
+    const lines = openTickets.map(t => {
+      const remaining = (t.totalTonna || 0) - (t.usedTonna || 0);
+      const pct = t.totalTonna ? Math.round((t.usedTonna || 0) / t.totalTonna * 100) : 0;
+      return `• *${t.number}* — ${t.marka}\n  Jami: ${t.totalTonna}t | Ishlatildi: ${t.usedTonna || 0}t | Qoldi: *${remaining}t* (${pct}%)`;
+    });
+    bot.sendMessage(msg.chat.id,
+      `📋 *Ochiq tiketlar (${openTickets.length} ta):*\n\n${lines.join('\n\n')}`,
       { parse_mode: 'Markdown' });
   });
 
-  // Callback (tez tugmalar va tasdiqlash)
+  bot.onText(/\/chatid/, (msg) => {
+    bot.sendMessage(msg.chat.id,
+      `ℹ️ *Chat ID:* \`${msg.chat.id}\`\nTur: ${msg.chat.type}`,
+      { parse_mode: 'Markdown' });
+  });
+
+  // Callback (tiket tanlash, tez tugmalar, tasdiqlash)
   bot.on('callback_query', async (q) => {
     const chatId = q.message.chat.id;
     const data   = q.data;
     bot.answerCallbackQuery(q.id).catch(() => {});
     bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: q.message.message_id }).catch(() => {});
 
+    // Tiket tanlash
+    if (data.startsWith('zv_ticket:')) {
+      const ticketId    = data.replace('zv_ticket:', '');
+      const openTickets = db.getOpenTickets(acc);
+      const ticket      = openTickets.find(t => t.id === ticketId);
+      if (!ticket) {
+        bot.sendMessage(chatId, '❌ Tiket topilmadi yoki yopilgan. /zayavka — qayta boshlash.');
+        delete states[chatId];
+        return;
+      }
+      const remaining = (ticket.totalTonna || 0) - (ticket.usedTonna || 0);
+      states[chatId] = { ticketId };
+      bot.sendMessage(chatId,
+        `✅ *${ticket.number}* — ${ticket.marka}\nQoldi: *${remaining} t*`,
+        { parse_mode: 'Markdown' });
+      setTimeout(() => beginFieldCollection(chatId, { tiket: ticket.number, marka: ticket.marka }), 300);
+      return;
+    }
+
+    // Qo'lda kiritish (tiket tanlash o'rniga)
+    if (data === 'zv_manual') {
+      states[chatId] = { ticketId: null };
+      bot.sendMessage(chatId, '✏️ Qo\'lda kiritish / Ручной ввод');
+      setTimeout(() => beginFieldCollection(chatId), 300);
+      return;
+    }
+
+    // Tez tugmalar
     if (data.startsWith('zv_opt:')) {
       const parts = data.split(':');
       const field = parts[1];
       const value = decodeURIComponent(parts.slice(2).join(':'));
       const st = states[chatId];
-      if (st && st.askFields[st.step] === field) setValue(chatId, value);
+      if (st && st.askFields && st.askFields[st.step] === field) setValue(chatId, value);
       return;
     }
+
+    // O'tkazib yuborish
     if (data === 'zv_skip_any' || data.startsWith('zv_skip:')) {
       const st = states[chatId];
       if (st) { st.step++; askField(chatId); }
       return;
     }
+
+    // Tasdiqlash — guruhga yuborish
     if (data === 'zv_confirm') {
       const st = states[chatId];
       if (!st) return;
@@ -238,10 +337,23 @@ function start(acc = DEFAULT_ACCOUNT) {
         const c       = getConfig(acc);
         const counter = st._counter ?? db.nextZayavkaCounter(acc);
         const text    = renderTemplate(c.template || '', st.values, counter);
+
         await sendToGroup(acc, text);
-        db.saveZayavka(acc, { id: counter, date: new Date().toLocaleDateString('ru-RU'), text, values: st.values });
+        db.saveZayavka(acc, { id: counter, date: todayRU(), text, values: st.values });
+
+        // Tiket qoldig'ini kamaytirish
+        let ticketMsg = '';
+        if (st.ticketId) {
+          const tonna = Number(st.values.tonna || st.values.ton || 0);
+          const updated = db.useTicketTonna(acc, st.ticketId, tonna);
+          if (updated) {
+            const remaining = (updated.totalTonna || 0) - (updated.usedTonna || 0);
+            ticketMsg = `\n📦 *${updated.number}* qoldi: *${remaining} t*`;
+          }
+        }
+
         bot.sendMessage(chatId,
-          `✅ *Zayavka #${counter} yuborildi! / Заявка #${counter} отправлена!*`,
+          `✅ *Zayavka #${counter} yuborildi!*${ticketMsg}`,
           { parse_mode: 'Markdown' });
         delete states[chatId];
       } catch (e) {
@@ -249,6 +361,8 @@ function start(acc = DEFAULT_ACCOUNT) {
       }
       return;
     }
+
+    // Qayta boshlash
     if (data === 'zv_restart') {
       delete states[chatId];
       startZayavka(chatId);
@@ -263,8 +377,8 @@ function start(acc = DEFAULT_ACCOUNT) {
     if (!text || text.startsWith('/')) return;
 
     const st = states[chatId];
-    if (!st || st.step >= st.askFields.length) {
-      bot.sendMessage(chatId, '/zayavka — yangi zayavka boshlash / начать новую заявку');
+    if (!st || !st.askFields || st.step >= st.askFields.length) {
+      bot.sendMessage(chatId, '/zayavka — yangi zayavka boshlash / начать заявку');
       return;
     }
 

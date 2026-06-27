@@ -860,9 +860,26 @@ export function DataProvider({ children }) {
   const [drivers, setDrivers]           = useState(() => load('drivers', []));
   const [driverTrips, setDriverTrips]   = useState(() => load('driver_trips', []));
   const [driverTariffs, setDriverTariffs] = useState(() => load('driver_tariffs', DEFAULT_TARIFFS));
+  const [tickets, setTickets]             = useState(() => load('tickets', []));
   useEffect(() => save('drivers', drivers), [drivers]);
   useEffect(() => save('driver_trips', driverTrips), [driverTrips]);
   useEffect(() => save('driver_tariffs', driverTariffs), [driverTariffs]);
+  useEffect(() => save('tickets', tickets), [tickets]);
+
+  // ── Tiketlar (zayavka uchun) ────────────────────────────────────────────────
+  const addTicket = (number, marka, totalTonna) => {
+    const id = 'tk_' + Date.now();
+    setTickets(p => [...p, {
+      id, number: number.trim(), marka: marka.trim(),
+      totalTonna: Number(totalTonna) || 0,
+      usedTonna: 0, status: 'open', createdAt: Date.now(),
+    }]);
+  };
+  const closeTicket  = (id) => setTickets(p => p.map(t => t.id === id ? { ...t, status: 'closed', closedAt: Date.now() } : t));
+  const reopenTicket = (id) => setTickets(p => p.map(t => t.id === id ? { ...t, status: 'open', closedAt: null } : t));
+  const deleteTicket = (id) => setTickets(p => p.filter(t => t.id !== id));
+  // Bot usedTonna ni to'g'ridan-to'g'ri state ga yozadi (db.useTicketTonna).
+  // Frontend keyingi sync da yangi qiymatni oladi.
 
   const addDriverTariff    = (name) => setDriverTariffs(p => [...p, { id: Date.now(), name: name.trim(), prices: [] }]);
   const removeDriverTariff = (id)   => setDriverTariffs(p => p.filter(t => t.id !== id));
@@ -1003,6 +1020,7 @@ export function DataProvider({ children }) {
     driver_tariffs:     setDriverTariffs,
     sklad_rows:         setSkladRows,
     cement_types:       setCementTypes,
+    tickets:            setTickets,
   };
 
   // Holatning joriy "suratini" yig'ish (serverga shu jo'natiladi)
@@ -1039,6 +1057,7 @@ export function DataProvider({ children }) {
     driver_tariffs:     driverTariffs,
     sklad_rows:         skladRows,
     cement_types:       cementTypes,
+    tickets:            tickets,
   };
 
   // 1) Tizimga kirilgach (token bor) — serverdan butun holatni yuklab olish
@@ -1192,6 +1211,8 @@ export function DataProvider({ children }) {
     // Sement turlari
     cementTypes, addCementType, removeCementType,
     cementBalanceByType, skladKgByType,
+    // Tiketlar (zayavka uchun)
+    tickets, addTicket, closeTicket, reopenTicket, deleteTicket,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

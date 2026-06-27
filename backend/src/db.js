@@ -236,6 +236,21 @@ module.exports = {
     return earned - paid;
   },
 
+  // ── Tiket qoldig'ini kamaytirish (bot tomonidan chaqiriladi) ────────────────
+  useTicketTonna(acc, ticketId, tonna) {
+    const db = load(acc);
+    const tickets = db.state.tickets || [];
+    const idx = tickets.findIndex(t => t.id === ticketId);
+    if (idx === -1) return null;
+    tickets[idx] = { ...tickets[idx], usedTonna: (tickets[idx].usedTonna || 0) + Number(tonna) };
+    db.state.tickets = tickets;
+    persist(acc);
+    return tickets[idx];
+  },
+  getOpenTickets(acc) {
+    return (load(acc).state.tickets || []).filter(t => t.status === 'open');
+  },
+
   // ── Zayavka bot konfiguratsiyasi ─────────────────────────────────────────
   getZayavkaConfig(acc)      { return load(acc).zayavkaConfig || null; },
   setZayavkaConfig(acc, cfg) {
