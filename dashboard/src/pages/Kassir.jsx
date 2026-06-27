@@ -102,9 +102,9 @@ const inp = { padding: '7px 10px', fontSize: 13, border: '1px solid #ccc', borde
 export default function Kassir() {
   const data = useData();
   const {
-    cashOpening, cashRows, addCashRow,
-    bankOpening, bankRows, addBankRow,
-    clickOpening, clickRows, addClickRow,
+    cashOpening, cashRows, addCashRow, updateCashRow,
+    bankOpening, bankRows, addBankRow, updateBankRow,
+    clickOpening, clickRows, addClickRow, updateClickRow,
     payCustomerDebt, addAdvanceRow,
     advanceBalanceOf, debtRows,
     salesRows, addSaleRow, deleteSaleRow,
@@ -129,7 +129,7 @@ export default function Kassir() {
 
   // ── Form holatlari ───────────────────────────────────────────────────────────
   const [kirim, setKirim] = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
-  const [chiqim, setChiqim] = useState({ amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
+  const [chiqim, setChiqim] = useState({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
   const [sotuv, setSotuv] = useState({ customer: '', tons: '', pricePerTon: '', channel: 'naqd', note: '', warehouseId: '', date: toISO() });
   const [sklad, setSklad] = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
   const [search, setSearch] = useState('');
@@ -137,6 +137,8 @@ export default function Kassir() {
   const [salesPage, setSalesPage] = useState(1);
   const [notifyRow, setNotifyRow] = useState(null);
   const [card, setCard] = useState(null);
+  // Tahrirlash modali
+  const [editRow, setEditRow] = useState(null); // { row, channel: 'naqd'|'bank'|'click' }
 
   useEffect(() => { setSalesPage(1); }, [search, range.from, range.to]);
 
@@ -197,10 +199,11 @@ export default function Kassir() {
       addRow(opt.to,   +amt, tag);
       showToast(`${fmt(amt)} so'm o'tkazildi`);
     } else {
-      addRow(chiqim.channel, -amt, chiqim.note);
+      const fullDesc = chiqim.customer ? `${chiqim.note} (${chiqim.customer})` : chiqim.note;
+      addRow(chiqim.channel, -amt, fullDesc);
       showToast(`-${fmt(amt)} so'm chiqim`);
     }
-    setChiqim({ amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
+    setChiqim({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
   };
 
   // ── Submit: SOTUV (ton) ──────────────────────────────────────────────────────
@@ -251,6 +254,16 @@ export default function Kassir() {
   const printChek = (sale) => {
     const q = customerSummary(sale.customer, data).qolganQarz;
     printSaleReceipt(sale, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
+  };
+
+  // ── Tahrirlash ───────────────────────────────────────────────────────────────
+  const saveEdit = (fields) => {
+    if (!editRow) return;
+    const { row, channel } = editRow;
+    const fn = { naqd: updateCashRow, bank: updateBankRow, click: updateClickRow }[channel];
+    if (fn) fn(row.id, fields);
+    setEditRow(null);
+    showToast('Saqlandi');
   };
 
   const sortedSales = [...salesRows].sort((a, b) => b.createdAt - a.createdAt);
@@ -422,6 +435,12 @@ export default function Kassir() {
                   placeholder="0" style={{ ...inp, width: 150 }} required />
               </Field>
             </Row>
+            {!chiqim.isTransfer && (
+              <Field label="Mijoz (ixtiyoriy)">
+                <CustomerSelect value={chiqim.customer} onChange={v => setChiqim({ ...chiqim, customer: v })}
+                  placeholder="Pul kimga chiqdi? (ixtiyoriy)" accentColor="#c62828" />
+              </Field>
+            )}
             <SaveBtn color="#c62828" label="✓ Chiqim yozish" />
           </form>
         )}
@@ -704,17 +723,22 @@ export default function Kassir() {
                       {amt >= 0 ? '+' : ''}{fmt(amt)}
                     </td>
                     <td style={{ fontSize: 11, color: '#888' }}>{r.worker || '—'}</td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       {r.sourceType === 'sale' && (() => {
                         const sale = (salesRows || []).find(s => s.id === r.sourceId);
                         if (!sale) return null;
                         return (
                           <button type="button" onClick={() => printChek(sale)}
-                            style={{ padding: '2px 6px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
+                            style={{ padding: '2px 6px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11, marginRight: 3 }}>
                             🧾
                           </button>
                         );
                       })()}
+                      <button type="button" onClick={() => setEditRow({ row: r, channel: r._ch })}
+                        title="Tahrirlash"
+                        style={{ padding: '2px 6px', background: '#f5f5f5', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
+                        ✏️
+                      </button>
                     </td>
                   </tr>
                 );
@@ -733,6 +757,65 @@ export default function Kassir() {
 
       {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
+
+      {/* ── TAHRIRLASH MODALI ── */}
+      {editRow && <EditModal row={editRow.row} channel={editRow.channel} onSave={saveEdit} onClose={() => setEditRow(null)} />}
     </div>
   );
 }
+
+// ── EditModal ─────────────────────────────────────────────────────────────────
+function EditModal({ row, channel, onSave, onClose }) {
+  const isAuto = row.auto === true;
+  const [desc, setDesc] = useState(row.desc || row.note || '');
+  const [amount, setAmount] = useState(String(Math.abs(Number(row.amount || 0))));
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    const fields = { desc };
+    if (!isAuto) {
+      const sign = Number(row.amount) >= 0 ? 1 : -1;
+      fields.amount = sign * Number(amount);
+    }
+    onSave(fields);
+  };
+
+  const chColor = { naqd: '#1565c0', bank: '#2e7d32', click: '#6a1b9a' }[channel] || '#333';
+  const isOut = Number(row.amount) < 0;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 8, width: '100%', maxWidth: 420, fontFamily: 'Tahoma, sans-serif', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+        <div style={{ background: chColor, color: '#fff', padding: '12px 16px', borderRadius: '8px 8px 0 0', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+          <span>✏️ Tahrirlash — {channel?.toUpperCase()}</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 18 }}>✕</button>
+        </div>
+        <form onSubmit={handleSave} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 12, color: '#888' }}>
+            {row.date} · {isOut ? 'Chiqim' : 'Kirim'}
+            {isAuto && <span style={{ marginLeft: 8, background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: 10, fontSize: 11 }}>avtomatik yozuv — faqat izoh tahrir qilinadi</span>}
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'block', marginBottom: 4 }}>Izoh *</label>
+            <input value={desc} onChange={e => setDesc(e.target.value)}
+              style={{ ...inpS, width: '100%', boxSizing: 'border-box' }}
+              placeholder="Izoh yozing..." required />
+          </div>
+          {!isAuto && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'block', marginBottom: 4 }}>Summa (mutlaq qiymat) *</label>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                style={{ ...inpS, width: 180 }} required />
+              <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>Manfiy/musbat belgi avtomatik saqlanadi</div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 20px', border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', background: '#f5f5f5' }}>Bekor</button>
+            <button type="submit" style={{ padding: '8px 24px', background: chColor, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>✓ Saqlash</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+const inpS = { padding: '7px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };

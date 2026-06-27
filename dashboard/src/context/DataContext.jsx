@@ -145,6 +145,7 @@ export function DataProvider({ children }) {
     setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
+  const updateCashRow    = (id, fields) => setCashRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
 
   // ── 3. Bank ───────────────────────────────────────────────────────────────
   const [bankOpening, setBankOpening] = useState(() => load('bank_opening', { date: '', amount: 0 }));
@@ -157,6 +158,7 @@ export function DataProvider({ children }) {
     setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
+  const updateBankRow    = (id, fields) => setBankRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
 
   // ── 4. Click ──────────────────────────────────────────────────────────────
   const [clickOpening, setClickOpening] = useState(() => load('click_opening', { date: '', amount: 0 }));
@@ -169,6 +171,7 @@ export function DataProvider({ children }) {
     setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
+  const updateClickRow    = (id, fields) => setClickRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
 
   // ── 5. Sement qoldig'i ────────────────────────────────────────────────────
   const [cementOpening, setCementOpening] = useState(() => load('cement_opening', { date: '25.04.2025', tons: 0 }));
@@ -1036,11 +1039,11 @@ export function DataProvider({ children }) {
     // Bildirishnoma (Telegram/SMS)
     tgContacts, notifyMeta, refreshTgContacts, tgChatIdFor, tgLocationFor,
     // 2. Naqd pul
-    cashOpening, setCashOpening, cashRows, totalCashBalance, addCashRow, deleteCashRow,
+    cashOpening, setCashOpening, cashRows, totalCashBalance, addCashRow, deleteCashRow, updateCashRow,
     // 3. Bank
-    bankOpening, setBankOpening, bankRows, totalBankBalance, addBankRow, deleteBankRow,
+    bankOpening, setBankOpening, bankRows, totalBankBalance, addBankRow, deleteBankRow, updateBankRow,
     // 4. Click
-    clickOpening, setClickOpening, clickRows, totalClickBalance, addClickRow, deleteClickRow,
+    clickOpening, setClickOpening, clickRows, totalClickBalance, addClickRow, deleteClickRow, updateClickRow,
     // 5. Sement
     cementOpening, setCementOpening, totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
     // Skladlar (omborlar)
