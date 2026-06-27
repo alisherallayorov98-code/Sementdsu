@@ -95,6 +95,7 @@ export default function RecvTons({ lang }) {
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
   // "Birdan sotish" — tasdiqlash oynasida zavoddan to'g'ri mijozga sotish
   const [sell, setSell] = useState({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
+  const [toSklad, setToSklad] = useState(false); // asosiy skladga o'tkazish
   const [range, setRange] = useState({ from: '', to: '' }); // sana oralig'i filtri
   const [selected, setSelected] = useState(new Set()); // ommaviy tanlash
 
@@ -181,7 +182,7 @@ export default function RecvTons({ lang }) {
     setVerifyRow({ ...r });
     setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
   };
-  const closeVerify = () => { setVerifyRow(null); setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' }); };
+  const closeVerify = () => { setVerifyRow(null); setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' }); setToSklad(false); };
   const confirmVerify = () => {
     if (!verifyRow.source) { alert('Zavod nomini kiriting'); return; }
     const tons = Number(verifyRow.tons) || 0;
@@ -212,6 +213,10 @@ export default function RecvTons({ lang }) {
         factoryTime: verifyRow.factoryTime || '',
         note: `Zavod: ${verifyRow.source}`,
       });
+    }
+    // 3) Asosiy skladga o'tkazish → ton × 1000 = kg
+    if (toSklad && !sell.on) {
+      addSkladKirim(verifyRow.id, tons * 1000, `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`);
     }
     closeVerify();
   };
@@ -736,11 +741,22 @@ export default function RecvTons({ lang }) {
                 Tasdiqlangach: <b>{fmt(Number(verifyRow.tons||0)*Number(verifyRow.pricePerTon||0))} so'm</b> yetkazib beruvchiga <b>qarz</b> sifatida yoziladi. Kassadan pul yechilmaydi — to'lovni keyin "Yetkazib beruvchi qarzi" bo'limidan kiritasiz.
               </div>
 
-              {/* ── Birdan sotish (zavoddan to'g'ri mijozga) ── */}
-              <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:'bold', color:'#01579b', cursor:'pointer', background:'#e1f5fe', padding:'8px 10px', borderRadius:6 }}>
-                <input type="checkbox" checked={sell.on} onChange={e => setSell({ ...sell, on: e.target.checked })} />
-                🛒 Birdan mijozga sotish (zavoddan to'g'ri ketdi)
-              </label>
+              {/* ── 2 ta variant: Birdan sotish | Asosiy skladga ── */}
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <label style={{ flex:1, minWidth:180, display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:'bold', color: sell.on ? '#01579b' : '#555', cursor:'pointer', background: sell.on ? '#e1f5fe' : '#f5f5f5', padding:'8px 10px', borderRadius:6, border:`2px solid ${sell.on ? '#01579b' : '#ddd'}` }}>
+                  <input type="checkbox" checked={sell.on} onChange={e => { setSell({ ...sell, on: e.target.checked }); if (e.target.checked) setToSklad(false); }} />
+                  🛒 Birdan mijozga sotish
+                </label>
+                <label style={{ flex:1, minWidth:180, display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:'bold', color: toSklad ? '#4e342e' : '#555', cursor:'pointer', background: toSklad ? '#efebe9' : '#f5f5f5', padding:'8px 10px', borderRadius:6, border:`2px solid ${toSklad ? '#4e342e' : '#ddd'}` }}>
+                  <input type="checkbox" checked={toSklad} onChange={e => { setToSklad(e.target.checked); if (e.target.checked) setSell({ ...sell, on: false }); }} />
+                  🏗 Asosiy skladga (kg ga)
+                </label>
+              </div>
+              {toSklad && !sell.on && (
+                <div style={{ fontSize:12, color:'#4e342e', background:'#efebe9', padding:8, borderRadius:4 }}>
+                  {Number(verifyRow.tons) > 0 ? <><b>{verifyRow.tons} tn × 1000 = {(Number(verifyRow.tons)*1000).toLocaleString('ru-RU')} kg</b> asosiy skladga kirim qilinadi.</> : 'Tonna kiritilmagan'}
+                </div>
+              )}
               {sell.on && (
                 <div style={{ display:'flex', flexDirection:'column', gap:10, border:'1px solid #b3e5fc', borderRadius:6, padding:10, background:'#f5fbff' }}>
                   <Field label="Mijoz *">
@@ -766,7 +782,7 @@ export default function RecvTons({ lang }) {
               <div style={{ display:'flex', gap:8, marginTop:4 }}>
                 <button onClick={confirmVerify}
                   style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>
-                  {sell.on ? '✓ Tasdiqlab sotish' : '✓ Tasdiqlash'}
+                  {sell.on ? '✓ Tasdiqlab sotish' : toSklad ? '✓ Tasdiqlab skladga' : '✓ Tasdiqlash'}
                 </button>
                 <button onClick={closeVerify} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
               </div>
