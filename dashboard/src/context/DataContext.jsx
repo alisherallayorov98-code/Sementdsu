@@ -644,6 +644,15 @@ export function DataProvider({ children }) {
 
   const totalSkladKg = skladRows.reduce((s, r) => s + Number(r.kg || 0), 0);
 
+  const updateSkladRow = (id, fields) => setSkladRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
+
+  const deleteSkladSotuv = (id) => {
+    setSkladRows(p => p.filter(r => r.id !== id));
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
+    setDebtRows(p => p.filter(r => !(r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id)));
+  };
+
   // ── Ulgurji sklad (ton) bo'yicha qoldiq ────────────────────────────────────
   // Chakana skladga (kg) o'tkazilgan recvRow'lar CHIQARIB TASHLANADI
   // chunki ularning hisobi totalSkladKg orqali alohida yuritiladi.
@@ -1104,7 +1113,7 @@ export function DataProvider({ children }) {
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
     // Asosiy sklad (kg — CHAKANA)
-    skladRows, addSkladKirim, addSkladSotuv, totalSkladKg,
+    skladRows, addSkladKirim, addSkladSotuv, totalSkladKg, updateSkladRow, deleteSkladSotuv,
     // Qaysi recvRow'lar chakana skladga o'tkazilganligi (Set<id>)
     skladSourceIds: _skladSourceIds,
   };

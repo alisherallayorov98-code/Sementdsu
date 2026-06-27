@@ -11,10 +11,7 @@ import Paginator from '../components/Paginator';
 import { filterByRange } from '../lib/dateRange';
 
 const fmt   = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
-const fmtT  = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(3); };
 const toDay = () => new Date().toLocaleDateString('ru-RU');
-const toISO = () => new Date().toISOString().slice(0, 10);
-const isoToLocal = (iso) => { if (!iso) return toDay(); const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; };
 const timeStr = (ts) => {
   if (!ts) return '—';
   const d = new Date(ts);
@@ -37,9 +34,9 @@ const TRANSFERS = [
 ];
 
 const OP_LABELS = {
-  sale: '📦 Sotuv', sklad_sale: '🏗 Sklad', debt_payment: '💰 Qarz to\'lovi',
-  advance: '🔄 Avans', salary: '👔 Oylik', supplier_payment: '🏭 Zavod',
-  transfer: '↔️ O\'tkazma', recv: '🏗 Sement olish',
+  sale: '📦 Sotuv', sklad_sale: '🏗 Sklad', sklad_nasiya: '⚠️ Sklad Nasiya',
+  debt_payment: '💰 Qarz to\'lovi', advance: '🔄 Avans', salary: '👔 Oylik',
+  supplier_payment: '🏭 Zavod', transfer: '↔️ O\'tkazma', recv: '🏗 Sement olish',
 };
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -75,7 +72,7 @@ function ChanBtns({ value, onChange, extra = [] }) {
 }
 
 // ── Yordamchilar ──────────────────────────────────────────────────────────────
-function Row({ children }) {
+function FRow({ children }) {
   return <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10, alignItems: 'flex-end' }}>{children}</div>;
 }
 function Field({ label, children }) {
@@ -102,79 +99,63 @@ const inp = { padding: '7px 10px', fontSize: 13, border: '1px solid #ccc', borde
 export default function Kassir() {
   const data = useData();
   const {
-    cashOpening, cashRows, addCashRow, updateCashRow,
-    bankOpening, bankRows, addBankRow, updateBankRow,
-    clickOpening, clickRows, addClickRow, updateClickRow,
+    cashRows, addCashRow, updateCashRow,
+    bankRows, addBankRow, updateBankRow,
+    clickRows, addClickRow, updateClickRow,
+    totalCashBalance, totalBankBalance, totalClickBalance,
     payCustomerDebt, addAdvanceRow,
     advanceBalanceOf, debtRows,
-    salesRows, addSaleRow, deleteSaleRow,
-    totalCementBalance, warehouses, defaultWhId, cementBalanceOf, whName,
+    salesRows,
     appSettings, currentWorker, setCurrentWorker, workers,
-    customers, currentUser,
-    addSkladSotuv, totalSkladKg,
+    addSkladSotuv, totalSkladKg, skladRows, updateSkladRow, deleteSkladSotuv,
   } = data;
 
-  const myWh = currentUser?.warehouseId || defaultWhId;
-
-  // ── Balanslar ────────────────────────────────────────────────────────────────
-  const cashBal  = Number(cashOpening?.amount  || 0) + cashRows.reduce((s, r)  => s + Number(r.amount  || 0), 0);
-  const bankBal  = Number(bankOpening?.amount  || 0) + bankRows.reduce((s, r)  => s + Number(r.amount  || 0), 0);
-  const clickBal = Number(clickOpening?.amount || 0) + clickRows.reduce((s, r) => s + Number(r.amount || 0), 0);
-
-  // ── Asosiy tab ───────────────────────────────────────────────────────────────
-  const [tab, setTab]     = useState('kirim');    // kirim | chiqim | sotuv
-  const [sotuvTab, setSotuvTab] = useState('ton'); // ton | kg
+  // ── Tab holati ────────────────────────────────────────────────────────────────
+  const [tab, setTab]     = useState('kirim');
   const [toast, setToast] = useState('');
   const showToast = useCallback((msg) => setToast(msg), []);
 
-  // ── Form holatlari ───────────────────────────────────────────────────────────
-  const [kirim, setKirim] = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
+  // ── Formalar ─────────────────────────────────────────────────────────────────
+  const [kirim,  setKirim]  = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
   const [chiqim, setChiqim] = useState({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
-  const [sotuv, setSotuv] = useState({ customer: '', tons: '', pricePerTon: '', channel: 'naqd', note: '', warehouseId: '', date: toISO() });
-  const [sklad, setSklad] = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
-  const [search, setSearch] = useState('');
-  const [range, setRange] = useState({ from: '', to: '' });
-  const [salesPage, setSalesPage] = useState(1);
-  const [notifyRow, setNotifyRow] = useState(null);
-  const [card, setCard] = useState(null);
-  // Tahrirlash modali
-  const [editRow, setEditRow] = useState(null); // { row, channel: 'naqd'|'bank'|'click' }
+  const [sklad,  setSklad]  = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
 
-  useEffect(() => { setSalesPage(1); }, [search, range.from, range.to]);
+  // ── Modallar ──────────────────────────────────────────────────────────────────
+  const [notifyRow,    setNotifyRow]    = useState(null);
+  const [card,         setCard]         = useState(null);
+  const [editRow,      setEditRow]      = useState(null); // { row, channel }
+  const [editSkladRow, setEditSkladRow] = useState(null);
 
-  // ── Mijoz qoldig'i (kirim tab) ───────────────────────────────────────────────
+  // ── Sklad tarixi filter ────────────────────────────────────────────────────────
+  const [skladSearch, setSkladSearch] = useState('');
+  const [skladRange,  setSkladRange]  = useState({ from: '', to: '' });
+  const [skladPage,   setSkladPage]   = useState(1);
+  useEffect(() => { setSkladPage(1); }, [skladSearch, skladRange.from, skladRange.to]);
+
+  // ── Mijoz holati (kirim tab) ──────────────────────────────────────────────────
   const custDebt = kirim.customer
     ? debtRows.filter(r => r.customer === kirim.customer).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
     : 0;
   const custAdv = kirim.customer ? advanceBalanceOf(kirim.customer) : 0;
-
-  // Sotuv formasidagi sklad qoldig'i
-  const activeWh = sotuv.warehouseId || myWh;
-  const whBal = cementBalanceOf(activeWh);
-  const sotuvAdv = sotuv.customer && sotuv.channel === 'avans' ? advanceBalanceOf(sotuv.customer) : 0;
 
   const addRow = (channel, amount, desc) => {
     const fn = { naqd: addCashRow, bank: addBankRow, click: addClickRow }[channel];
     if (fn) fn(amount, desc, toDay());
   };
 
-  // ── Submit: KIRIM ────────────────────────────────────────────────────────────
+  // ── KIRIM ────────────────────────────────────────────────────────────────────
   const submitKirim = (e) => {
     e.preventDefault();
     const amt = Number(kirim.amount);
     if (!amt || !kirim.note) return;
-
     if (kirim.customer) {
       const res = payCustomerDebt(kirim.customer, amt, kirim.channel, kirim.note);
-      const leftover = res.leftover;
       if (res.applied === 0) {
-        // qarz yo'q — to'liq avans
         addAdvanceRow(kirim.customer, amt, kirim.note, kirim.channel);
         showToast(`${fmt(amt)} so'm avans sifatida qabul qilindi`);
-      } else if (leftover > 0) {
-        // ortiqcha qism avansga
-        addAdvanceRow(kirim.customer, leftover, `${kirim.note} (ortiqcha)`, kirim.channel);
-        showToast(`${fmt(res.applied)} qarz ✓ · ${fmt(leftover)} avans`);
+      } else if (res.leftover > 0) {
+        addAdvanceRow(kirim.customer, res.leftover, `${kirim.note} (ortiqcha)`, kirim.channel);
+        showToast(`${fmt(res.applied)} qarz ✓ · ${fmt(res.leftover)} avans`);
       } else {
         showToast(`${fmt(res.applied)} so'm qarz to'lovi qabul qilindi`);
       }
@@ -185,12 +166,11 @@ export default function Kassir() {
     setKirim({ customer: '', amount: '', note: '', channel: 'naqd' });
   };
 
-  // ── Submit: CHIQIM ───────────────────────────────────────────────────────────
+  // ── CHIQIM ───────────────────────────────────────────────────────────────────
   const submitChiqim = (e) => {
     e.preventDefault();
     const amt = Number(chiqim.amount);
     if (!amt || !chiqim.note) return;
-
     if (chiqim.isTransfer) {
       const opt = TRANSFERS.find(o => o.v === chiqim.tDir);
       if (!opt) return;
@@ -206,57 +186,43 @@ export default function Kassir() {
     setChiqim({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
   };
 
-  // ── Submit: SOTUV (ton) ──────────────────────────────────────────────────────
-  const submitSotuv = (e) => {
-    e.preventDefault();
-    if (!sotuv.customer || !sotuv.tons || !sotuv.pricePerTon) return;
-    if (Number(sotuv.tons) > Number(whBal)) {
-      if (!window.confirm(`Diqqat! "${whName(activeWh)}" sklad qoldig'i: ${whBal} tn. Baribir sotasizmi?`)) return;
-    }
-    const localDate = isoToLocal(sotuv.date);
-    const created = addSaleRow({
-      customer: sotuv.customer, tons: sotuv.tons, pricePerTon: sotuv.pricePerTon,
-      paymentChannel: sotuv.channel, note: sotuv.note, warehouseId: activeWh,
-      date: localDate, worker: currentWorker,
-    });
-    showToast(`${fmtT(sotuv.tons)} tn sotildi — ${fmt(Number(sotuv.tons) * Number(sotuv.pricePerTon))} so'm`);
-    if (created) {
-      const s = customerSummary(created.customer, data);
-      const extraDebt = created.paymentChannel === 'nasiya' ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
-      printSaleReceipt(created, {
-        appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '',
-        address: appSettings?.companyAddress || '', qolganQarz: s.qolganQarz + extraDebt,
-      });
-    }
-    setSotuv({ customer: '', tons: '', pricePerTon: '', channel: 'naqd', note: '', warehouseId: sotuv.warehouseId, date: toISO() });
-  };
-
-  // ── Submit: SKLAD (kg) ───────────────────────────────────────────────────────
+  // ── SKLAD SOTUV (kg) ─────────────────────────────────────────────────────────
   const submitSklad = (e) => {
     e.preventDefault();
     if (!sklad.customer || !sklad.kg || !sklad.pricePerKg) return;
     if (totalSkladKg < Number(sklad.kg)) {
       alert(`Sklad qoldig'i yetarli emas. Qoldiq: ${fmt(totalSkladKg)} kg`); return;
     }
-    addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note });
+    const created = addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note });
     showToast(`${sklad.kg} kg sotildi — ${fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm`);
+    if (created && sklad.channel !== 'nasiya') {
+      const kgAbs = Math.abs(Number(sklad.kg));
+      const q = customerSummary(created.customer, data).qolganQarz;
+      printSaleReceipt({
+        customer: created.customer, tons: (kgAbs / 1000).toFixed(3),
+        pricePerTon: Number(sklad.pricePerKg) * 1000,
+        paymentChannel: created.channel,
+        note: `${created.note || ''} (${kgAbs} kg)`,
+        date: created.date, worker: currentWorker,
+      }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
+    }
     setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
   };
 
-  // ── Savdo tarixi ─────────────────────────────────────────────────────────────
-  const CH_LBL = { naqd: 'Naqd', bank: 'Bank', click: 'Click', nasiya: 'Nasiya', avans: 'Avans' };
-  const saleMsg = (r) => {
-    const total = Number(r.tons || 0) * Number(r.pricePerTon || 0);
-    const base = `Hurmatli ${r.customer}! ${fmtT(r.tons)} tn sement. Summa: ${fmt(total)} so'm. To'lov: ${CH_LBL[r.paymentChannel] || r.paymentChannel}.`;
-    const q = customerSummary(r.customer, data).qolganQarz;
-    return q > 0 ? `${base} Qoldiq qarz: ${fmt(q)} so'm.` : `${base} Rahmat!`;
-  };
-  const printChek = (sale) => {
+  // ── Sklad cheki ──────────────────────────────────────────────────────────────
+  const printSkladChek = (sale) => {
+    const kgAbs = Math.abs(Number(sale.kg));
     const q = customerSummary(sale.customer, data).qolganQarz;
-    printSaleReceipt(sale, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
+    printSaleReceipt({
+      customer: sale.customer, tons: (kgAbs / 1000).toFixed(3),
+      pricePerTon: Number(sale.pricePerKg) * 1000,
+      paymentChannel: sale.channel,
+      note: `${sale.note || ''} (${kgAbs} kg)`,
+      date: sale.date, worker: sale.worker || '',
+    }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
   };
 
-  // ── Tahrirlash ───────────────────────────────────────────────────────────────
+  // ── Kassa yozuvi tahrirlash ───────────────────────────────────────────────────
   const saveEdit = (fields) => {
     if (!editRow) return;
     const { row, channel } = editRow;
@@ -266,17 +232,21 @@ export default function Kassir() {
     showToast('Saqlandi');
   };
 
-  const sortedSales = [...salesRows].sort((a, b) => b.createdAt - a.createdAt);
-  const filteredSales = filterByRange(
-    sortedSales.filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()) || (r.note || '').toLowerCase().includes(search.toLowerCase())),
-    range
+  // ── Sklad tarixi ─────────────────────────────────────────────────────────────
+  const SK_PAGE = 50;
+  const sortedSklad = [...(skladRows || []).filter(r => r.type === 'chiqim')]
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const filteredSklad = filterByRange(
+    sortedSklad.filter(r =>
+      !skladSearch ||
+      (r.customer || '').toLowerCase().includes(skladSearch.toLowerCase()) ||
+      (r.note || '').toLowerCase().includes(skladSearch.toLowerCase())
+    ),
+    skladRange
   );
-  const PAGE_SIZE = 50;
-  const pagedSales = filteredSales.slice((salesPage - 1) * PAGE_SIZE, salesPage * PAGE_SIZE);
-
-  const totalTons    = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
-  const totalSalesSum = salesRows.reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-  const chSum = (ch) => salesRows.filter(r => r.paymentChannel === ch).reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+  const pagedSklad = filteredSklad.slice((skladPage - 1) * SK_PAGE, skladPage * SK_PAGE);
+  const totalSkladKgSold  = sortedSklad.reduce((s, r) => s + Math.abs(Number(r.kg || 0)), 0);
+  const totalSkladSomSold = sortedSklad.reduce((s, r) => s + Math.abs(Number(r.kg || 0)) * Number(r.pricePerKg || 0), 0);
 
   const chBadge = (ch) => {
     const colors = { naqd: ['#e8f5e9','#2e7d32'], bank: ['#e3f2fd','#0d47a1'], click: ['#f3e5f5','#4a148c'], nasiya: ['#ffebee','#c62828'], avans: ['#fff8e1','#e65100'] };
@@ -286,20 +256,29 @@ export default function Kassir() {
 
   // ── Bugungi jurnal ────────────────────────────────────────────────────────────
   const today = toDay();
+  const jSkladNasiya = (skladRows || [])
+    .filter(r => r.date === today && r.type === 'chiqim' && r.channel === 'nasiya')
+    .map(r => ({
+      ...r, _ch: 'nasiya_sklad', _nasiyaAmt: r.amount, amount: 0,
+      desc: `Sklad nasiya: ${r.customer} (${Math.abs(r.kg)} kg × ${fmt(r.pricePerKg)} so'm/kg)`,
+      sourceType: 'sklad_nasiya',
+    }));
+
   const journalRows = [
     ...cashRows.map(r => ({ ...r, _ch: 'naqd' })),
     ...bankRows.map(r => ({ ...r, _ch: 'bank' })),
     ...clickRows.map(r => ({ ...r, _ch: 'click' })),
+    ...jSkladNasiya,
   ].filter(r => r.date === today).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
   const todayIn  = journalRows.filter(r => Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
   const todayOut = journalRows.filter(r => Number(r.amount) < 0).reduce((s, r) => s + Number(r.amount), 0);
 
-  // ── Tab colors ───────────────────────────────────────────────────────────────
+  // ── Tablar ────────────────────────────────────────────────────────────────────
   const TABS = {
     kirim:  { color: '#2e7d32', bg: '#e8f5e9', label: '➕ Kirim' },
     chiqim: { color: '#c62828', bg: '#ffebee', label: '➖ Chiqim' },
-    sotuv:  { color: '#e65100', bg: '#fff3e0', label: '📦 Sotish' },
+    sotuv:  { color: '#4e342e', bg: '#efebe9', label: '🏗 Sotish (kg)' },
   };
   const activeTab = TABS[tab];
 
@@ -307,16 +286,16 @@ export default function Kassir() {
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13, paddingBottom: 30 }}>
       <Toast msg={toast} onHide={() => setToast('')} />
 
-      {/* ── KASSA QOLDIG'I ── */}
+      {/* ── BALANSLAR ── */}
       <div style={{
         display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14,
         position: 'sticky', top: 0, zIndex: 100,
         background: '#fff', paddingBottom: 10, borderBottom: '2px solid #eee',
       }}>
         {[
-          { label: '💵 Naqd',  val: cashBal,  color: '#1565c0', bg: '#e3f2fd' },
-          { label: '🏦 Bank',  val: bankBal,  color: '#2e7d32', bg: '#e8f5e9' },
-          { label: '📱 Click', val: clickBal, color: '#6a1b9a', bg: '#f3e5f5' },
+          { label: '💵 Naqd',  val: totalCashBalance,  color: '#1565c0', bg: '#e3f2fd' },
+          { label: '🏦 Bank',  val: totalBankBalance,  color: '#2e7d32', bg: '#e8f5e9' },
+          { label: '📱 Click', val: totalClickBalance, color: '#6a1b9a', bg: '#f3e5f5' },
           { label: '🏗 Sklad', val: totalSkladKg, color: '#4e342e', bg: '#efebe9', unit: 'kg' },
         ].map(c => (
           <div key={c.label} style={{ flex: 1, minWidth: 130, padding: '8px 14px', background: c.bg, borderLeft: `5px solid ${c.color}`, borderRadius: 6 }}>
@@ -348,13 +327,13 @@ export default function Kassir() {
         ))}
       </div>
 
-      {/* ── FORMA MAYDONI ── */}
+      {/* ── FORMA ── */}
       <div style={{ background: activeTab.bg, border: `2px solid ${activeTab.color}44`, borderRadius: 8, padding: '16px 18px', marginBottom: 16 }}>
 
         {/* ─ KIRIM ─ */}
         {tab === 'kirim' && (
           <form onSubmit={submitKirim}>
-            <Row>
+            <FRow>
               <Field label="Mijoz (ixtiyoriy)">
                 <CustomerSelect value={kirim.customer} onChange={v => setKirim({ ...kirim, customer: v })}
                   placeholder="Mijoz (izlash...)" accentColor="#2e7d32" />
@@ -368,8 +347,8 @@ export default function Kassir() {
                   </div>
                 </Field>
               )}
-            </Row>
-            <Row>
+            </FRow>
+            <FRow>
               <Field label="Summa *">
                 <input type="number" value={kirim.amount} onChange={e => setKirim({ ...kirim, amount: e.target.value })}
                   placeholder="0" style={{ ...inp, width: 160 }} required />
@@ -386,7 +365,7 @@ export default function Kassir() {
                 <input value={kirim.note} onChange={e => setKirim({ ...kirim, note: e.target.value })}
                   placeholder="To'lov sababi yoki qayerdan..." style={{ ...inp, width: 260 }} required />
               </Field>
-            </Row>
+            </FRow>
             <Field label="Kanal"><ChanBtns value={kirim.channel} onChange={v => setKirim({ ...kirim, channel: v })} /></Field>
             <SaveBtn color="#2e7d32" label="✓ Kirim qilish" />
           </form>
@@ -395,36 +374,31 @@ export default function Kassir() {
         {/* ─ CHIQIM ─ */}
         {tab === 'chiqim' && (
           <form onSubmit={submitChiqim}>
-            {/* O'tkazma toggle */}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 'bold', color: chiqim.isTransfer ? '#6a1b9a' : '#555' }}>
                 <input type="checkbox" checked={chiqim.isTransfer} onChange={e => setChiqim({ ...chiqim, isTransfer: e.target.checked })} />
                 ↔️ Kanallar orasida o'tkazma
               </label>
             </div>
-
             {chiqim.isTransfer ? (
-              <>
-                <Field label="Yo'nalish">
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                    {TRANSFERS.map(o => (
-                      <button key={o.v} type="button" onClick={() => setChiqim({ ...chiqim, tDir: o.v })} style={{
-                        padding: '7px 12px', cursor: 'pointer', borderRadius: 6, fontWeight: 'bold', fontSize: 12,
-                        border: `2px solid ${chiqim.tDir === o.v ? '#6a1b9a' : '#ddd'}`,
-                        background: chiqim.tDir === o.v ? '#6a1b9a' : '#f9f9f9',
-                        color: chiqim.tDir === o.v ? '#fff' : '#444',
-                      }}>{o.label}</button>
-                    ))}
-                  </div>
-                </Field>
-              </>
+              <Field label="Yo'nalish">
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {TRANSFERS.map(o => (
+                    <button key={o.v} type="button" onClick={() => setChiqim({ ...chiqim, tDir: o.v })} style={{
+                      padding: '7px 12px', cursor: 'pointer', borderRadius: 6, fontWeight: 'bold', fontSize: 12,
+                      border: `2px solid ${chiqim.tDir === o.v ? '#6a1b9a' : '#ddd'}`,
+                      background: chiqim.tDir === o.v ? '#6a1b9a' : '#f9f9f9',
+                      color: chiqim.tDir === o.v ? '#fff' : '#444',
+                    }}>{o.label}</button>
+                  ))}
+                </div>
+              </Field>
             ) : (
               <Field label="Chiqim kanali">
                 <ChanBtns value={chiqim.channel} onChange={v => setChiqim({ ...chiqim, channel: v })} />
               </Field>
             )}
-
-            <Row>
+            <FRow>
               <Field label="Izoh *">
                 <input value={chiqim.note} onChange={e => setChiqim({ ...chiqim, note: e.target.value })}
                   placeholder="Nima uchun chiqim (masalan: taksi, ovqat, tamirlash...)"
@@ -434,7 +408,7 @@ export default function Kassir() {
                 <input type="number" value={chiqim.amount} onChange={e => setChiqim({ ...chiqim, amount: e.target.value })}
                   placeholder="0" style={{ ...inp, width: 150 }} required />
               </Field>
-            </Row>
+            </FRow>
             {!chiqim.isTransfer && (
               <Field label="Mijoz (ixtiyoriy)">
                 <CustomerSelect value={chiqim.customer} onChange={v => setChiqim({ ...chiqim, customer: v })}
@@ -445,173 +419,89 @@ export default function Kassir() {
           </form>
         )}
 
-        {/* ─ SOTISH ─ */}
+        {/* ─ SOTISH (kg) ─ */}
         {tab === 'sotuv' && (
-          <>
-            {/* Sub-tab: Tonna | Kg */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              {[
-                { v: 'ton', label: '📦 Tonnalab (Sement)', color: '#e65100' },
-                { v: 'kg',  label: '🏗 Kilogramlab (Sklad)', color: '#4e342e' },
-              ].map(t => (
-                <button key={t.v} onClick={() => setSotuvTab(t.v)} type="button" style={{
-                  padding: '8px 20px', cursor: 'pointer', fontWeight: 'bold', fontSize: 13, borderRadius: 6,
-                  border: `2px solid ${sotuvTab === t.v ? t.color : '#ddd'}`,
-                  background: sotuvTab === t.v ? t.color : '#f9f9f9', color: sotuvTab === t.v ? '#fff' : '#555',
-                }}>{t.label}</button>
-              ))}
+          <form onSubmit={submitSklad}>
+            <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 13 }}>
+              🏗 Sklad qoldig'i:
+              <b style={{ color: totalSkladKg < 0 ? '#c62828' : '#4e342e', fontFamily: 'monospace', fontSize: 16, marginLeft: 6 }}>{fmt(totalSkladKg)} kg</b>
+              <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>({(totalSkladKg / 1000).toFixed(3)} tn)</span>
             </div>
-
-            {/* TONNALAB */}
-            {sotuvTab === 'ton' && (
-              <form onSubmit={submitSotuv}>
-                {/* Sement qoldig'i */}
-                <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #ffcc80', fontSize: 13 }}>
-                  🏬 {warehouses.length > 1 ? whName(activeWh) + ' qoldig\'i' : "Sement qoldig'i"}:
-                  <b style={{ color: whBal > 0 ? '#1b5e20' : '#c62828', fontFamily: 'monospace', fontSize: 16, marginLeft: 6 }}>{fmtT(whBal)} tn</b>
-                  {warehouses.length > 1 && <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>Umumiy: {fmtT(totalCementBalance)} tn</span>}
-                </div>
-                <Row>
-                  <Field label="Mijoz *">
-                    <CustomerSelect value={sotuv.customer} onChange={v => setSotuv({ ...sotuv, customer: v })}
-                      placeholder="Mijoz (izlash...)" accentColor="#e65100" />
-                  </Field>
-                  <Field label="Tonna *">
-                    <input type="number" step="0.001" value={sotuv.tons} onChange={e => setSotuv({ ...sotuv, tons: e.target.value })}
-                      placeholder="0.000" style={{ ...inp, width: 120 }} required />
-                  </Field>
-                  <Field label="1 tn narxi *">
-                    <input type="number" value={sotuv.pricePerTon} onChange={e => setSotuv({ ...sotuv, pricePerTon: e.target.value })}
-                      placeholder="0" style={{ ...inp, width: 140 }} required />
-                  </Field>
-                  {warehouses.length > 1 && (
-                    <Field label="Sklad">
-                      <select value={activeWh} onChange={e => setSotuv({ ...sotuv, warehouseId: e.target.value })} style={{ ...inp, fontWeight: 'bold' }}>
-                        {warehouses.map(w => <option key={w.id} value={w.id}>🏬 {w.name}</option>)}
-                      </select>
-                    </Field>
-                  )}
-                </Row>
-                {sotuv.tons && sotuv.pricePerTon && (
-                  <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #ffcc80', fontSize: 14 }}>
-                    💰 Jami: <b style={{ color: '#e65100', fontSize: 16 }}>{fmt(Number(sotuv.tons) * Number(sotuv.pricePerTon))} so'm</b>
-                  </div>
-                )}
-                <Row>
-                  <Field label="Izoh / Mashina №">
-                    <input value={sotuv.note} onChange={e => setSotuv({ ...sotuv, note: e.target.value })}
-                      placeholder="Masalan: 30156UPA, buyurtma №12..." style={{ ...inp, width: 260 }} />
-                  </Field>
-                  <Field label="📅 Sotuv sanasi *">
-                    <input type="date" value={sotuv.date} onChange={e => setSotuv({ ...sotuv, date: e.target.value })} style={{ ...inp, width: 160 }} required />
-                  </Field>
-                </Row>
-                <Field label="To'lov turi">
-                  <ChanBtns value={sotuv.channel} onChange={v => setSotuv({ ...sotuv, channel: v })} extra={[
-                    { v: 'nasiya', icon: '⚠️', label: 'Nasiya', color: '#c62828' },
-                    { v: 'avans',  icon: '🅰️', label: 'Avans',  color: '#e65100' },
-                  ]} />
-                  {sotuv.customer && sotuv.channel === 'avans' && (
-                    <div style={{ fontSize: 12, marginTop: 4, color: sotuvAdv > 0 ? '#2e7d32' : '#c62828' }}>
-                      Mavjud avans: <b>{fmt(sotuvAdv)} so'm</b>
-                      {sotuvAdv <= 0 && ' — yetmaydi, qolgani qarzga yoziladi'}
-                    </div>
-                  )}
-                </Field>
-                <SaveBtn color="#e65100" label="✓ Sotish (Chek chiqadi)" />
-              </form>
+            <FRow>
+              <Field label="Mijoz *">
+                <CustomerSelect value={sklad.customer} onChange={v => setSklad({ ...sklad, customer: v })}
+                  placeholder="Mijoz (izlash...)" accentColor="#4e342e" />
+              </Field>
+              <Field label="Kilogram *">
+                <input type="number" step="0.01" value={sklad.kg} onChange={e => setSklad({ ...sklad, kg: e.target.value })}
+                  placeholder="0" style={{ ...inp, width: 120 }} required />
+              </Field>
+              <Field label="1 kg narxi *">
+                <input type="number" value={sklad.pricePerKg} onChange={e => setSklad({ ...sklad, pricePerKg: e.target.value })}
+                  placeholder="0" style={{ ...inp, width: 140 }} required />
+              </Field>
+            </FRow>
+            {sklad.kg && sklad.pricePerKg && (
+              <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 14 }}>
+                💰 Jami: <b style={{ color: '#4e342e', fontSize: 16 }}>{fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm</b>
+                <span style={{ fontSize: 11, color: '#888', marginLeft: 12 }}>Qoldiq: {fmt(totalSkladKg - Number(sklad.kg || 0))} kg</span>
+              </div>
             )}
-
-            {/* KILOGRAMLAB */}
-            {sotuvTab === 'kg' && (
-              <form onSubmit={submitSklad}>
-                <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 13 }}>
-                  🏗 Sklad qoldig'i:
-                  <b style={{ color: totalSkladKg < 0 ? '#c62828' : '#4e342e', fontFamily: 'monospace', fontSize: 16, marginLeft: 6 }}>{fmt(totalSkladKg)} kg</b>
-                  <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>({(totalSkladKg / 1000).toFixed(3)} tn)</span>
-                </div>
-                <Row>
-                  <Field label="Mijoz *">
-                    <CustomerSelect value={sklad.customer} onChange={v => setSklad({ ...sklad, customer: v })}
-                      placeholder="Mijoz (izlash...)" accentColor="#4e342e" />
-                  </Field>
-                  <Field label="Kilogram *">
-                    <input type="number" step="0.01" value={sklad.kg} onChange={e => setSklad({ ...sklad, kg: e.target.value })}
-                      placeholder="0" style={{ ...inp, width: 120 }} required />
-                  </Field>
-                  <Field label="1 kg narxi *">
-                    <input type="number" value={sklad.pricePerKg} onChange={e => setSklad({ ...sklad, pricePerKg: e.target.value })}
-                      placeholder="0" style={{ ...inp, width: 140 }} required />
-                  </Field>
-                </Row>
-                {sklad.kg && sklad.pricePerKg && (
-                  <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 14 }}>
-                    💰 Jami: <b style={{ color: '#4e342e', fontSize: 16 }}>{fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm</b>
-                    <span style={{ fontSize: 11, color: '#888', marginLeft: 12 }}>Qoldiq: {fmt(totalSkladKg - Number(sklad.kg || 0))} kg</span>
-                  </div>
-                )}
-                <Row>
-                  <Field label="Izoh">
-                    <input value={sklad.note} onChange={e => setSklad({ ...sklad, note: e.target.value })}
-                      placeholder="Ixtiyoriy" style={{ ...inp, width: 260 }} />
-                  </Field>
-                </Row>
-                <Field label="To'lov turi">
-                  <ChanBtns value={sklad.channel} onChange={v => setSklad({ ...sklad, channel: v })} extra={[
-                    { v: 'nasiya', icon: '⚠️', label: 'Nasiya', color: '#c62828' },
-                  ]} />
-                </Field>
-                <SaveBtn color="#4e342e" label="✓ Sklad sotuv" />
-              </form>
-            )}
-          </>
+            <FRow>
+              <Field label="Izoh">
+                <input value={sklad.note} onChange={e => setSklad({ ...sklad, note: e.target.value })}
+                  placeholder="Ixtiyoriy" style={{ ...inp, width: 260 }} />
+              </Field>
+            </FRow>
+            <Field label="To'lov turi">
+              <ChanBtns value={sklad.channel} onChange={v => setSklad({ ...sklad, channel: v })} extra={[
+                { v: 'nasiya', icon: '⚠️', label: 'Nasiya', color: '#c62828' },
+              ]} />
+            </Field>
+            <SaveBtn color="#4e342e" label="✓ Sotish (Chek chiqadi)" />
+          </form>
         )}
       </div>
 
-      {/* ── SAVDO TARIXI ── */}
+      {/* ── SKLAD SAVDO TARIXI (kg) ── */}
       <div style={{ marginBottom: 20, background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontWeight: 'bold', fontSize: 14, color: '#003366' }}>📦 Savdo tarixi</span>
+          <span style={{ fontWeight: 'bold', fontSize: 14, color: '#4e342e' }}>🏗 Sklad savdo tarixi (kg)</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input placeholder="🔍 Mijoz yoki izoh..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, width: 220 }} />
+            <input placeholder="🔍 Mijoz yoki izoh..." value={skladSearch}
+              onChange={e => setSkladSearch(e.target.value)} style={{ ...inp, width: 220 }} />
             <ExcelExport
-              filename="Savdo_tarixi"
-              sheetName="Savdo"
-              title="Savdo tarixi"
+              filename="Sklad_savdo_tarixi"
+              sheetName="Sklad"
+              title="Sklad savdo tarixi (kg)"
               columns={[
-                { header: 'Sana',        value: r => r.date },
-                { header: 'Mijoz',       value: r => r.customer },
-                { header: 'Tonna',       value: r => Number(r.tons || 0) },
-                { header: 'Narx (1 tn)', value: r => Number(r.pricePerTon || 0) },
-                { header: 'Jami summa',  value: r => Number(r.tons || 0) * Number(r.pricePerTon || 0) },
-                { header: "To'lov turi", value: r => r.paymentChannel || '' },
-                { header: 'Izoh',        value: r => r.note || '' },
-                { header: 'Xodim',       value: r => r.worker || '' },
+                { header: 'Sana',       value: r => r.date },
+                { header: 'Mijoz',      value: r => r.customer },
+                { header: 'Kg',         value: r => Math.abs(Number(r.kg || 0)) },
+                { header: 'Narx/kg',    value: r => Number(r.pricePerKg || 0) },
+                { header: 'Jami summa', value: r => Math.abs(Number(r.kg || 0)) * Number(r.pricePerKg || 0) },
+                { header: "To'lov",     value: r => r.channel || '' },
+                { header: 'Izoh',       value: r => r.note || '' },
+                { header: 'Xodim',      value: r => r.worker || '' },
               ]}
-              rows={filteredSales}
+              rows={filteredSklad}
             />
           </div>
         </div>
 
-        {/* Statistika */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-          <div style={{ padding: '6px 14px', background: '#e8f5e9', borderRadius: 6, fontSize: 12 }}>
-            🏬 Qoldiq: <b style={{ color: whBal > 0 ? '#1b5e20' : '#c62828' }}>{fmtT(whBal)} tn</b>
+          <div style={{ padding: '6px 14px', background: '#efebe9', borderRadius: 6, fontSize: 12 }}>
+            🏗 Qoldiq: <b style={{ color: totalSkladKg < 0 ? '#c62828' : '#4e342e' }}>{fmt(totalSkladKg)} kg</b>
           </div>
           <div style={{ padding: '6px 14px', background: '#e3f2fd', borderRadius: 6, fontSize: 12 }}>
-            📦 Jami: <b>{fmtT(totalTons)} tn · {fmt(totalSalesSum)} so'm</b>
+            📦 Jami sotilgan: <b>{fmt(totalSkladKgSold)} kg · {fmt(totalSkladSomSold)} so'm</b>
           </div>
-          {[['naqd','💵'],['bank','🏦'],['click','📱'],['nasiya','⚠️']].map(([c, icon]) => (
-            <div key={c} style={{ padding: '6px 10px', background: '#f5f5f5', borderRadius: 6, fontSize: 12 }}>
-              {icon} {c}: <b>{fmt(chSum(c))}</b>
-            </div>
-          ))}
         </div>
 
-        <DateRangeFilter value={range} onChange={setRange} color="#003366" />
+        <DateRangeFilter value={skladRange} onChange={setSkladRange} color="#4e342e" />
 
-        {filteredSales.length === 0 ? (
-          <p style={{ color: '#aaa', fontStyle: 'italic' }}>Savdo topilmadi.</p>
+        {filteredSklad.length === 0 ? (
+          <p style={{ color: '#aaa', fontStyle: 'italic' }}>Sklad savdo topilmadi.</p>
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
@@ -623,41 +513,38 @@ export default function Kassir() {
                     <th>Mijoz</th>
                     <th>Izoh</th>
                     <th style={{ width: 90 }}>To'lov</th>
-                    <th style={{ textAlign: 'right', width: 80 }}>Tonna</th>
-                    <th style={{ textAlign: 'right', width: 120 }}>Narx</th>
+                    <th style={{ textAlign: 'right', width: 80 }}>Kg</th>
+                    <th style={{ textAlign: 'right', width: 100 }}>Narx/kg</th>
                     <th style={{ textAlign: 'right', width: 130 }}>Jami</th>
+                    <th style={{ width: 70, textAlign: 'center' }}>Xodim</th>
                     <th style={{ width: 90, textAlign: 'center' }}>Amal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedSales.map((r, i) => (
+                  {pagedSklad.map((r, i) => (
                     <tr key={r.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ color: '#888', textAlign: 'center', fontSize: 11 }}>{(salesPage - 1) * PAGE_SIZE + i + 1}</td>
-                      <td style={{ fontSize: 12, color: '#555' }}>
-                        <div>{r.date}</div>
-                        {r.factoryTime && <div style={{ fontSize: 10, color: '#e65100', fontWeight: 'bold' }}>{r.factoryTime}</div>}
-                      </td>
+                      <td style={{ color: '#888', textAlign: 'center', fontSize: 11 }}>{(skladPage - 1) * SK_PAGE + i + 1}</td>
+                      <td style={{ fontSize: 12, color: '#555' }}>{r.date}</td>
                       <td>
                         <div onClick={() => setCard(r.customer)} title="Mijoz kartochkasi"
                           style={{ fontWeight: 'bold', color: '#1565c0', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}>
                           {r.customer}
                         </div>
-                        {r.worker && <div style={{ fontSize: 10, color: '#aaa' }}>👷 {r.worker}</div>}
                       </td>
                       <td style={{ fontSize: 12, color: '#555', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.note || '—'}</td>
-                      <td>{chBadge(r.paymentChannel)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace' }}>{fmtT(r.tons)}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#555' }}>{fmt(r.pricePerTon)}</td>
+                      <td>{chBadge(r.channel)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace' }}>{fmt(Math.abs(Number(r.kg || 0)))}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#555' }}>{fmt(r.pricePerKg)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14, color: '#333' }}>
-                        {fmt(Number(r.tons) * Number(r.pricePerTon))}
+                        {fmt(Math.abs(Number(r.kg || 0)) * Number(r.pricePerKg || 0))}
                       </td>
+                      <td style={{ textAlign: 'center', fontSize: 11, color: '#888' }}>{r.worker || '—'}</td>
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <button onClick={() => printChek(r)} title="Chek chiqarish"
+                        <button onClick={() => printSkladChek(r)} title="Chek chiqarish"
                           style={{ cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', color: '#1565c0', borderRadius: 3, padding: '2px 6px', marginRight: 3, fontSize: 13 }}>🧾</button>
-                        <button onClick={() => setNotifyRow({ name: r.customer, phone: customers?.find(c => c.name === r.customer)?.phone || '', text: saleMsg(r) })}
-                          title="Xabar yuborish"
-                          style={{ cursor: 'pointer', background: '#e8f5e9', border: '1px solid #2e7d32', color: '#2e7d32', borderRadius: 3, padding: '2px 6px', marginRight: 3, fontSize: 13 }}>✉️</button>
-                        <button onClick={() => { if (window.confirm("O'chirasizmi?")) deleteSaleRow(r.id); }}
+                        <button onClick={() => setEditSkladRow(r)} title="Tahrirlash"
+                          style={{ cursor: 'pointer', background: '#fff8e1', border: '1px solid #f9a825', color: '#e65100', borderRadius: 3, padding: '2px 6px', marginRight: 3, fontSize: 13 }}>✏️</button>
+                        <button onClick={() => { if (window.confirm("O'chirasizmi? Bog'liq to'lov yozuvlari ham o'chadi.")) deleteSkladSotuv(r.id); }}
                           style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828', fontSize: 13 }}>✕</button>
                       </td>
                     </tr>
@@ -665,7 +552,7 @@ export default function Kassir() {
                 </tbody>
               </table>
             </div>
-            <Paginator total={filteredSales.length} page={salesPage} setPage={setSalesPage} pageSize={PAGE_SIZE} />
+            <Paginator total={filteredSklad.length} page={skladPage} setPage={setSkladPage} pageSize={SK_PAGE} />
           </>
         )}
       </div>
@@ -682,12 +569,12 @@ export default function Kassir() {
             sheetName="Jurnal"
             title={`Bugungi jurnal — ${today}`}
             columns={[
-              { header: 'Vaqt',     value: r => timeStr(r.createdAt) },
-              { header: 'Kanal',    value: r => r._ch || '' },
+              { header: 'Vaqt',       value: r => timeStr(r.createdAt) },
+              { header: 'Kanal',      value: r => r._ch || '' },
               { header: 'Operatsiya', value: r => OP_LABELS[r.sourceType] || (Number(r.amount) > 0 ? 'Kirim' : 'Chiqim') },
-              { header: 'Izoh',     value: r => r.desc || r.note || '' },
-              { header: 'Summa',    value: r => Number(r.amount || 0) },
-              { header: 'Xodim',    value: r => r.worker || '' },
+              { header: 'Izoh',       value: r => r.desc || r.note || '' },
+              { header: 'Summa',      value: r => r._ch === 'nasiya_sklad' ? r._nasiyaAmt : Number(r.amount || 0) },
+              { header: 'Xodim',      value: r => r.worker || '' },
             ]}
             rows={journalRows}
           />
@@ -711,16 +598,25 @@ export default function Kassir() {
             <tbody>
               {journalRows.map((r, i) => {
                 const amt = Number(r.amount || 0);
-                const ch = CH.find(c => c.v === r._ch);
+                const isNasiyaSklad = r._ch === 'nasiya_sklad';
+                const ch = isNasiyaSklad
+                  ? { icon: '⚠️', label: 'Nasiya', color: '#c62828' }
+                  : CH.find(c => c.v === r._ch);
                 const opLabel = OP_LABELS[r.sourceType] || (amt > 0 ? '➕ Kirim' : '➖ Chiqim');
                 return (
-                  <tr key={r.id || i} style={{ background: i % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                  <tr key={r.id || i} style={{
+                    background: isNasiyaSklad ? '#fff8e1' : (i % 2 === 0 ? '#fff' : '#f9f9f9'),
+                    borderLeft: isNasiyaSklad ? '3px solid #f9a825' : undefined,
+                  }}>
                     <td style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>{timeStr(r.createdAt)}</td>
                     <td style={{ fontSize: 11, color: ch?.color || '#555' }}>{ch?.icon} {ch?.label || r._ch}</td>
                     <td style={{ fontWeight: 'bold', color: '#003366', fontSize: 12 }}>{opLabel}</td>
                     <td style={{ fontSize: 12, color: '#555', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.desc || r.note || '—'}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: amt >= 0 ? '#2e7d32' : '#c62828', fontSize: 14 }}>
-                      {amt >= 0 ? '+' : ''}{fmt(amt)}
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', fontSize: 14 }}>
+                      {isNasiyaSklad
+                        ? <span style={{ color: '#e65100' }}>{fmt(r._nasiyaAmt)} <span style={{ fontSize: 10, background: '#ffe0b2', color: '#e65100', borderRadius: 4, padding: '1px 5px' }}>NASIYA</span></span>
+                        : <span style={{ color: amt >= 0 ? '#2e7d32' : '#c62828' }}>{amt >= 0 ? '+' : ''}{fmt(amt)}</span>
+                      }
                     </td>
                     <td style={{ fontSize: 11, color: '#888' }}>{r.worker || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
@@ -728,23 +624,28 @@ export default function Kassir() {
                         const sale = (salesRows || []).find(s => s.id === r.sourceId);
                         if (!sale) return null;
                         return (
-                          <button type="button" onClick={() => printChek(sale)}
+                          <button type="button" onClick={() => {
+                            const q = customerSummary(sale.customer, data).qolganQarz;
+                            printSaleReceipt(sale, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
+                          }}
                             style={{ padding: '2px 6px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11, marginRight: 3 }}>
                             🧾
                           </button>
                         );
                       })()}
-                      <button type="button" onClick={() => setEditRow({ row: r, channel: r._ch })}
-                        title="Tahrirlash"
-                        style={{ padding: '2px 6px', background: '#f5f5f5', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
-                        ✏️
-                      </button>
+                      {!isNasiyaSklad && (
+                        <button type="button" onClick={() => setEditRow({ row: r, channel: r._ch })}
+                          title="Tahrirlash"
+                          style={{ padding: '2px 6px', background: '#f5f5f5', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
+                          ✏️
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
               })}
               <tr style={{ background: '#fffde7', fontWeight: 'bold', borderTop: '2px solid #fbc02d' }}>
-                <td colSpan={4} style={{ textAlign: 'right', padding: '6px 8px' }}>BUGUNGI JAMI:</td>
+                <td colSpan={4} style={{ textAlign: 'right', padding: '6px 8px' }}>BUGUNGI JAMI (naqd):</td>
                 <td style={{ textAlign: 'right', fontFamily: 'monospace', color: (todayIn + todayOut) >= 0 ? '#2e7d32' : '#c62828', fontSize: 14 }}>
                   {(todayIn + todayOut) >= 0 ? '+' : ''}{fmt(todayIn + todayOut)}
                 </td>
@@ -757,17 +658,22 @@ export default function Kassir() {
 
       {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
-
-      {/* ── TAHRIRLASH MODALI ── */}
       {editRow && <EditModal row={editRow.row} channel={editRow.channel} onSave={saveEdit} onClose={() => setEditRow(null)} />}
+      {editSkladRow && (
+        <SkladEditModal
+          row={editSkladRow}
+          onSave={(fields) => { updateSkladRow(editSkladRow.id, fields); setEditSkladRow(null); showToast('Saqlandi'); }}
+          onClose={() => setEditSkladRow(null)}
+        />
+      )}
     </div>
   );
 }
 
-// ── EditModal ─────────────────────────────────────────────────────────────────
+// ── EditModal (kassa yozuvi) ──────────────────────────────────────────────────
 function EditModal({ row, channel, onSave, onClose }) {
   const isAuto = row.auto === true;
-  const [desc, setDesc] = useState(row.desc || row.note || '');
+  const [desc,   setDesc]   = useState(row.desc || row.note || '');
   const [amount, setAmount] = useState(String(Math.abs(Number(row.amount || 0))));
 
   const handleSave = (e) => {
@@ -818,4 +724,47 @@ function EditModal({ row, channel, onSave, onClose }) {
     </div>
   );
 }
+
+// ── SkladEditModal ─────────────────────────────────────────────────────────────
+function SkladEditModal({ row, onSave, onClose }) {
+  const kgAbs = Math.abs(Number(row.kg || 0));
+  const [customer, setCustomer] = useState(row.customer || '');
+  const [note,     setNote]     = useState(row.note || '');
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    onSave({ customer, note });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 8, width: '100%', maxWidth: 420, fontFamily: 'Tahoma, sans-serif', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+        <div style={{ background: '#4e342e', color: '#fff', padding: '12px 16px', borderRadius: '8px 8px 0 0', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+          <span>✏️ Sklad sotuv tahrirlash</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 18 }}>✕</button>
+        </div>
+        <form onSubmit={handleSave} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 12, color: '#888' }}>
+            {row.date} · {kgAbs} kg · {fmt(kgAbs * Number(row.pricePerKg || 0))} so'm · {(row.channel || '').toUpperCase()}
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'block', marginBottom: 4 }}>Mijoz *</label>
+            <input value={customer} onChange={e => setCustomer(e.target.value)}
+              style={{ ...inpS, width: '100%', boxSizing: 'border-box' }} required />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'block', marginBottom: 4 }}>Izoh</label>
+            <input value={note} onChange={e => setNote(e.target.value)}
+              style={{ ...inpS, width: '100%', boxSizing: 'border-box' }} placeholder="Ixtiyoriy" />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 20px', border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', background: '#f5f5f5' }}>Bekor</button>
+            <button type="submit" style={{ padding: '8px 24px', background: '#4e342e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>✓ Saqlash</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const inpS = { padding: '7px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
