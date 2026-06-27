@@ -140,9 +140,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('cash_opening', cashOpening), [cashOpening]);
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
   const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+  const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = Date.now();
-    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
   const updateCashRow    = (id, fields) => setCashRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -153,9 +153,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_opening', bankOpening), [bankOpening]);
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+  const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = Date.now();
-    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
   const updateBankRow    = (id, fields) => setBankRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -166,9 +166,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('click_opening', clickOpening), [clickOpening]);
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
   const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+  const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = Date.now();
-    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
   const updateClickRow    = (id, fields) => setClickRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -421,7 +421,7 @@ export function DataProvider({ children }) {
 
     // Kassaga bitta umumiy kirim (sotuvdan farqlash uchun sourceType: debt_payment)
     const tag  = `🔗 Qarz to'lovi: ${customer}`;
-    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${[customer]}_pc${base}`, createdAt: base, worker: currentWorker, date: today };
+    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${[customer]}_pc${base}`, createdAt: base, worker: currentWorker, date: today, customer };
     if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
     else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
     else if (channel === 'click') setClickRows(p => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
@@ -457,7 +457,7 @@ export function DataProvider({ children }) {
     const sum = Number(amount);
     if (sum > 0) {
       const tag  = `🔗 Avans: ${customer}`;
-      const link = { auto: true, sourceType: 'advance', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
+      const link = { auto: true, sourceType: 'advance', sourceId: ts, createdAt: ts, worker: currentWorker, date: today, customer };
       if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
       else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
       else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
@@ -642,7 +642,7 @@ export function DataProvider({ children }) {
     const sum  = kgN * Number(pricePerKg);
     const td   = new Date().toLocaleDateString('ru-RU');
     const tag  = `🏗 Sklad: ${customer} (${kgN} kg)`;
-    const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td };
+    const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td, customer };
     if (sum > 0) {
       if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);

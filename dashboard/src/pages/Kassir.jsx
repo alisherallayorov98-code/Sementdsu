@@ -139,9 +139,9 @@ export default function Kassir() {
     : 0;
   const custAdv = kirim.customer ? advanceBalanceOf(kirim.customer) : 0;
 
-  const addRow = (channel, amount, desc) => {
+  const addRow = (channel, amount, desc, customer = '') => {
     const fn = { naqd: addCashRow, bank: addBankRow, click: addClickRow }[channel];
-    if (fn) fn(amount, desc, toDay());
+    if (fn) fn(amount, desc, toDay(), customer);
   };
 
   // ── KIRIM ────────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ export default function Kassir() {
         showToast(`${fmt(res.applied)} so'm qarz to'lovi qabul qilindi`);
       }
     } else {
-      addRow(kirim.channel, amt, kirim.note);
+      addRow(kirim.channel, amt, kirim.note, kirim.customer);
       showToast(`+${fmt(amt)} so'm kirim`);
     }
     setKirim({ customer: '', amount: '', note: '', channel: 'naqd' });
@@ -180,8 +180,8 @@ export default function Kassir() {
       addRow(opt.to,   +amt, tag);
       showToast(`${fmt(amt)} so'm o'tkazildi`);
     } else {
-      const fullDesc = chiqim.customer ? `${chiqim.note} (${chiqim.customer})` : chiqim.note;
-      addRow(chiqim.channel, -amt, fullDesc);
+      const fullDesc = chiqim.note;
+      addRow(chiqim.channel, -amt, fullDesc, chiqim.customer);
       showToast(`-${fmt(amt)} so'm chiqim`);
     }
     setChiqim({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
@@ -595,6 +595,7 @@ export default function Kassir() {
               { header: 'Vaqt',       value: r => timeStr(r.createdAt) },
               { header: 'Kanal',      value: r => r._ch || '' },
               { header: 'Operatsiya', value: r => OP_LABELS[r.sourceType] || (Number(r.amount) > 0 ? 'Kirim' : 'Chiqim') },
+              { header: 'Mijoz',      value: r => r.customer || '' },
               { header: 'Izoh',       value: r => r.desc || r.note || '' },
               { header: 'Summa',      value: r => r._ch === 'nasiya_sklad' ? r._nasiyaAmt : Number(r.amount || 0) },
               { header: 'Xodim',      value: r => r.worker || '' },
@@ -611,7 +612,8 @@ export default function Kassir() {
               <tr>
                 <th style={{ width: 50 }}>Vaqt</th>
                 <th style={{ width: 60 }}>Kanal</th>
-                <th style={{ width: 140 }}>Operatsiya</th>
+                <th style={{ width: 130 }}>Operatsiya</th>
+                <th style={{ width: 120 }}>Mijoz</th>
                 <th>Izoh</th>
                 <th style={{ textAlign: 'right', width: 130 }}>Summa</th>
                 <th style={{ width: 80 }}>Xodim</th>
@@ -634,7 +636,16 @@ export default function Kassir() {
                     <td style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>{timeStr(r.createdAt)}</td>
                     <td style={{ fontSize: 11, color: ch?.color || '#555' }}>{ch?.icon} {ch?.label || r._ch}</td>
                     <td style={{ fontWeight: 'bold', color: '#003366', fontSize: 12 }}>{opLabel}</td>
-                    <td style={{ fontSize: 12, color: '#555', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.desc || r.note || '—'}</td>
+                    <td>
+                      {r.customer
+                        ? <span onClick={() => setCard(r.customer)} title="Mijoz kartochkasi"
+                            style={{ fontWeight: 'bold', color: '#1565c0', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', fontSize: 12 }}>
+                            {r.customer}
+                          </span>
+                        : <span style={{ color: '#ccc', fontSize: 11 }}>—</span>
+                      }
+                    </td>
+                    <td style={{ fontSize: 12, color: '#555', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.desc || r.note || '—'}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', fontSize: 14 }}>
                       {isNasiyaSklad
                         ? <span style={{ color: '#e65100' }}>{fmt(r._nasiyaAmt)} <span style={{ fontSize: 10, background: '#ffe0b2', color: '#e65100', borderRadius: 4, padding: '1px 5px' }}>NASIYA</span></span>
@@ -668,7 +679,7 @@ export default function Kassir() {
                 );
               })}
               <tr style={{ background: '#fffde7', fontWeight: 'bold', borderTop: '2px solid #fbc02d' }}>
-                <td colSpan={4} style={{ textAlign: 'right', padding: '6px 8px' }}>BUGUNGI JAMI (naqd):</td>
+                <td colSpan={5} style={{ textAlign: 'right', padding: '6px 8px' }}>BUGUNGI JAMI (naqd):</td>
                 <td style={{ textAlign: 'right', fontFamily: 'monospace', color: (todayIn + todayOut) >= 0 ? '#2e7d32' : '#c62828', fontSize: 14 }}>
                   {(todayIn + todayOut) >= 0 ? '+' : ''}{fmt(todayIn + todayOut)}
                 </td>
