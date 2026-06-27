@@ -139,14 +139,16 @@ function ZayavkaBotSettings({ themeColor }) {
   const [form, setForm] = useState({
     botToken: '',
     groupChatId: '',
+    companyName: '',
     template: DEFAULT_TEMPLATE,
     fieldLabels: DEFAULT_LABELS,
     fieldOptions: DEFAULT_OPTIONS,
     optionalFields: [],
     autoFields: ['sana'],
-    accessCode: '',
-    authorizedUsers: [],
   });
+  const [inviteCode, setInviteCode] = useState('');
+  const [linkedUsers, setLinkedUsers] = useState([]);
+  const [regenLoading, setRegenLoading] = useState(false);
 
   // Option editing state
   const [optField, setOptField] = useState('');
@@ -158,17 +160,17 @@ function ZayavkaBotSettings({ themeColor }) {
     api.getZayavkaConfig().then(r => {
       if (r.ok) {
         setCfg(r.config);
+        setInviteCode(r.config.inviteCode || '');
         setForm(f => ({
           ...f,
           botToken: r.config.hasToken ? '***' : '',
           groupChatId: r.config.groupChatId || '',
+          companyName: r.config.companyName || '',
           template: r.config.template || DEFAULT_TEMPLATE,
           fieldLabels: r.config.fieldLabels || DEFAULT_LABELS,
           fieldOptions: r.config.fieldOptions || DEFAULT_OPTIONS,
           optionalFields: r.config.optionalFields || [],
           autoFields: r.config.autoFields || ['sana'],
-          accessCode: r.config.accessCode || '',
-          authorizedUsers: r.config.authorizedUsers || [],
         }));
       }
     }).catch(() => {}).finally(() => setLoading(false));
@@ -180,13 +182,12 @@ function ZayavkaBotSettings({ themeColor }) {
       await api.saveZayavkaConfig({
         botToken: form.botToken === '***' ? undefined : form.botToken,
         groupChatId: form.groupChatId,
+        companyName: form.companyName,
         template: form.template,
         fieldLabels: form.fieldLabels,
         fieldOptions: form.fieldOptions,
         optionalFields: form.optionalFields,
         autoFields: form.autoFields,
-        accessCode: form.accessCode,
-        authorizedUsers: form.authorizedUsers,
       });
       setMsg('✅ Saqlandi! Bot qayta ishga tushdi.');
     } catch (e) {
@@ -222,16 +223,17 @@ function ZayavkaBotSettings({ themeColor }) {
       <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.7 }}>
         <strong style={{ color: '#1b5e20', fontSize: 14 }}>Zayavka Bot — qanday ishlaydi?</strong>
         <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
-          <li>BotFather'dan yangi bot yarating → tokenini quyida kiriting</li>
-          <li>Botni maqsad guruhingizga <strong>admin</strong> qilib qo'shing va <strong>"Xabarlarni o'chirish"</strong> huquqini bering — shunda /bekor istalgan vaqtda ishlaydi</li>
-          <li>Guruhda <code>/chatid</code> yozing → bot javob bergan ID ni "Guruh Chat ID" ga kiriting</li>
-          <li>Shablon va maydon sozlamalarini to'ldiring → Saqlang</li>
-          <li>Xodimlar bot orqali <code>/zayavka</code> yozadi → 4 ta savol (sana avtomatik) → guruhga boradi</li>
+          <li>BotFather'dan bot yarating → tokenini kiriting → <strong>Saqlang</strong></li>
+          <li>Botni guruhga <strong>admin</strong> qilib qo'shing ({"Xabarlarni o'chirish"} huquqi bilan)</li>
+          <li>Guruhda <code>/chatid</code> yozing → Guruh Chat ID ga kiriting → Saqlang</li>
+          <li>Quyidagi <strong>Invite havolani</strong> xodimga yuboring — u bosishi bilan korxonangizga ulanadi</li>
+          <li>Xodim: <strong>📋 Yangi zayavka</strong> tugmasi → tiket tanlaydi → 2-3 savol → guruhga boradi</li>
+          <li>Bekor qilish: <strong>🗑 Bekor qilish</strong> tugmasi → guruhdan o'chiriladi, tiket qoldig'i qaytadi</li>
         </ol>
         <div style={{ marginTop: 8, color: '#555', background: '#f1f8e9', border: '1px solid #c5e1a5', borderRadius: 4, padding: '8px 12px' }}>
-          <strong>Shablon:</strong> o'zgaradigan joylarni <code>{`{tiket}`}</code>, <code>{`{marka}`}</code>, <code>{`{tonna}`}</code>, <code>{`{mashina}`}</code> kabi yozing.<br/>
-          <code>{`{sana}`}</code> — avtomatik (bugungi sana). <code>{`{number}`}</code> — tartib raqam. Qolgan matn doimiy turadi.<br/>
-          <strong>Savollar</strong> ikki tilda (O'zbek/Rus), <strong>natija</strong> shablon tilidadir (Rus).
+          <strong>Shablon:</strong> <code>{`{tiket}`}</code>, <code>{`{marka}`}</code>, <code>{`{tonna}`}</code>, <code>{`{mashina}`}</code> — bot so'raydi.<br/>
+          <code>{`{sana}`}</code> — avtomatik (bugungi sana). <code>{`{number}`}</code> — tartib raqam. Qolgan matn o'zgarmaydi.<br/>
+          <strong>Tiket tanlansa</strong> — tiket va marka avtomatik to'ldiriladi, faqat mashina+tonna so'raladi.
         </div>
       </div>
 
@@ -259,41 +261,74 @@ function ZayavkaBotSettings({ themeColor }) {
             />
           </div>
           <div>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
-              Kirish kodi 🔐 <span style={{ color: '#888' }}>(xodimlar botga birinchi marta kirishda yozadi)</span>
-            </div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>Korxona nomi (botda ko'rinadi)</div>
             <input
-              value={form.accessCode}
-              onChange={e => setForm(f => ({ ...f, accessCode: e.target.value }))}
-              placeholder="masalan: sement2026"
-              style={{ ...sInput, maxWidth: 280 }}
+              value={form.companyName}
+              onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+              placeholder="masalan: Davr-Su MCHJ"
+              style={{ ...sInput, maxWidth: 320 }}
             />
-            {!form.accessCode && <div style={{ fontSize: 11, color: '#c62828', marginTop: 4 }}>⚠️ Kod bo'lmasa — hamma kirishi mumkin!</div>}
           </div>
         </div>
 
-        {/* Ruxsat etilgan foydalanuvchilar */}
-        {(form.authorizedUsers || []).length > 0 && (
-          <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 14 }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span>Kirish olgan foydalanuvchilar: <strong>{form.authorizedUsers.length} ta</strong></span>
-              <button
-                onClick={() => { if (window.confirm('Barchasini tozalaysizmi? Xodimlar qayta kod kiritishi kerak.')) setForm(f => ({ ...f, authorizedUsers: [] })); }}
-                style={{ fontSize: 11, color: '#c62828', background: 'none', border: '1px solid #ef9a9a', borderRadius: 3, padding: '2px 8px', cursor: 'pointer' }}>
-                Barchasini tozalash
-              </button>
+        {/* Invite link */}
+        {inviteCode && (() => {
+          const botUser = cfg?.botUsername || 'sementbuyurtma_bot';
+          const link = `https://t.me/${botUser}?start=${inviteCode}`;
+          return (
+            <div style={{ marginTop: 18, background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 6, padding: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 'bold', color: '#1b5e20', marginBottom: 8 }}>
+                Xodim uchun invite havola (shu link orqali kiradi)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  readOnly
+                  value={link}
+                  style={{ ...sInput, fontFamily: 'monospace', fontSize: 11, flex: 1, minWidth: 200, background: '#fff' }}
+                  onClick={e => e.target.select()}
+                />
+                <button
+                  onClick={() => { navigator.clipboard.writeText(link); }}
+                  style={{ ...sBtn, background: '#43a047', padding: '8px 14px', whiteSpace: 'nowrap' }}>
+                  Nusxa
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: '#555', marginTop: 8 }}>
+                Bu havolani xodimga yuboring — u ochishi bilan korxonangizga ulanadi va bot menyusi ochiladi.
+              </div>
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Yangi kod yaratiladi — eski havola ishlamay qoladi. Davom etamizmi?')) return;
+                    setRegenLoading(true);
+                    try {
+                      const r = await api.regenerateInvite(false);
+                      if (r.ok) setInviteCode(r.inviteCode);
+                    } catch { /* */ }
+                    setRegenLoading(false);
+                  }}
+                  disabled={regenLoading}
+                  style={{ fontSize: 11, background: 'none', border: '1px solid #aaa', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', color: '#555' }}>
+                  {regenLoading ? '...' : 'Yangi havola yaratish'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Yangi kod yaratiladi VA barcha ulangan xodimlar chiqariladi. Davom etamizmi?')) return;
+                    setRegenLoading(true);
+                    try {
+                      const r = await api.regenerateInvite(true);
+                      if (r.ok) { setInviteCode(r.inviteCode); setLinkedUsers([]); }
+                    } catch { /* */ }
+                    setRegenLoading(false);
+                  }}
+                  disabled={regenLoading}
+                  style={{ fontSize: 11, background: 'none', border: '1px solid #ef9a9a', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', color: '#c62828' }}>
+                  Barcha xodimlarni chiqarish + yangi havola
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {form.authorizedUsers.map(uid => (
-                <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 16, padding: '3px 10px', fontSize: 12 }}>
-                  <span style={{ fontFamily: 'monospace', color: '#1b5e20' }}>{uid}</span>
-                  <button onClick={() => setForm(f => ({ ...f, authorizedUsers: f.authorizedUsers.filter(u => u !== uid) }))}
-                    style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Shablon */}

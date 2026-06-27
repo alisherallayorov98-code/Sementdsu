@@ -62,7 +62,10 @@
       "Bash(cat src/config.js)",
       "Bash(node -c src/config.js)",
       "Bash(node -c src/controllers/auth.controller.js)",
-      "PowerShell(gh run list --workflow=deploy.yml --limit 3)"
+      "PowerShell(gh run list --workflow=deploy.yml --limit 3)",
+      "Bash(grep -n \"declared but\" /dev/stdin 2>/dev/null || echo \"checking diagnostics...\" *)",
+      "Read(//dev/**)",
+      "Bash(node -e ' *)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

@@ -16,6 +16,20 @@ const MAX_BACKUPS     = 72;
 const ensure = (d) => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); };
 ensure(ACCOUNTS_DIR);
 
+// ── Global: zayavka bot foydalanuvchilari (chatId → accountId) ──────────────
+// Barcha akkauntlar uchun umumiy (bot tokeni bitta)
+const ZV_USERS_FILE = path.join(DATA_DIR, 'zayavka_users.json');
+let _zvUsers = null;
+function loadZvUsers() {
+  if (_zvUsers) return _zvUsers;
+  try { _zvUsers = fs.existsSync(ZV_USERS_FILE) ? JSON.parse(fs.readFileSync(ZV_USERS_FILE, 'utf8')) : {}; }
+  catch { _zvUsers = {}; }
+  return _zvUsers;
+}
+function saveZvUsers() {
+  fs.writeFileSync(ZV_USERS_FILE, JSON.stringify(_zvUsers || {}, null, 2));
+}
+
 // Bir martalik migratsiya: eski data/db.json -> accounts/default/db.json
 (function migrateLegacy() {
   const old = path.join(DATA_DIR, 'db.json');
@@ -234,6 +248,43 @@ module.exports = {
     const earned = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
     const paid   = trips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
     return earned - paid;
+  },
+
+  // ── Zayavka bot foydalanuvchi boshqaruvi (global, ko'p-akkaunt) ─────────────
+  // Invite code orqali akkaunt topish (barcha akkauntlar ichidan)
+  findAccountByInviteCode(code) {
+    if (!code) return null;
+    try {
+      const accs = fs.readdirSync(ACCOUNTS_DIR);
+      for (const acc of accs) {
+        const cfg = this.getZayavkaConfig(acc);
+        if (cfg?.inviteCode && cfg.inviteCode === code) return acc;
+      }
+    } catch { /* ignore */ }
+    return null;
+  },
+  // ChatId ni akkauntga ulash
+  linkZvUser(chatId, accountId) {
+    const u = loadZvUsers();
+    u[String(chatId)] = accountId;
+    _zvUsers = u;
+    saveZvUsers();
+  },
+  // ChatId ning akkauntini topish
+  getZvUserAccount(chatId) {
+    return loadZvUsers()[String(chatId)] || null;
+  },
+  // Akkauntdagi barcha ulangan foydalanuvchilar
+  getZvUsersForAccount(accountId) {
+    const u = loadZvUsers();
+    return Object.entries(u).filter(([, acc]) => acc === accountId).map(([chatId]) => chatId);
+  },
+  // Foydalanuvchini olib tashlash
+  unlinkZvUser(chatId) {
+    const u = loadZvUsers();
+    delete u[String(chatId)];
+    _zvUsers = u;
+    saveZvUsers();
   },
 
   // ── Tiket qoldig'ini kamaytirish (bot tomonidan chaqiriladi) ────────────────

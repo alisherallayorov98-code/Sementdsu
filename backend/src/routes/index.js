@@ -112,8 +112,14 @@ router.get('/driver_trips/photo_url/:fileId', authenticate, async (req, res) => 
 // ── Zayavka bot konfiguratsiyasi ───────────────────────────────────────────
 // GET /zayavka_config — konfiguratsiyani olish
 router.get('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
-  const cfg = db.getZayavkaConfig(req.user.account) || {};
-  // botToken ni response dan olib tashlaymiz (xavfsizlik)
+  const acc = req.user.account;
+  const cfg = db.getZayavkaConfig(acc) || {};
+  // inviteCode avtomatik yaratish (birinchi marta)
+  if (!cfg.inviteCode) {
+    const crypto = require('crypto');
+    cfg.inviteCode = crypto.randomBytes(8).toString('hex');
+    db.setZayavkaConfig(acc, cfg);
+  }
   const { botToken: _, ...safe } = cfg;
   res.json({ ok: true, config: { ...safe, hasToken: !!(cfg.botToken) } });
 });
@@ -123,7 +129,6 @@ router.put('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
   const acc = req.user.account;
   const old = db.getZayavkaConfig(acc) || {};
   const body = req.body || {};
-  // Token berilmagan bo'lsa yoki '***' bo'lsa — eskisini saqlaymiz
   const botToken = (body.botToken && body.botToken !== '***')
     ? body.botToken.trim()
     : old.botToken;
@@ -136,17 +141,31 @@ router.put('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
     optionalFields: body.optionalFields ?? old.optionalFields ?? [],
     fieldDefaults:  body.fieldDefaults  ?? old.fieldDefaults  ?? {},
     autoFields:     body.autoFields      ?? old.autoFields      ?? ['sana'],
-    accessCode:     body.accessCode      ?? old.accessCode      ?? '',
-    authorizedUsers: body.authorizedUsers ?? old.authorizedUsers ?? [],
+    companyName:    body.companyName     ?? old.companyName     ?? '',
+    inviteCode:     old.inviteCode       ?? '',   // o'zgartirilmaydi (regenerate orqali)
   };
   db.setZayavkaConfig(acc, cfg);
 
-  // Bot ni restart qilish (token yoki config o'zgardi)
   const zbSvc = require('../services/zayavkaBot.service');
   zbSvc.stop();
   setTimeout(() => zbSvc.start(acc), 500);
 
   res.json({ ok: true });
+});
+
+// POST /zayavka_config/regenerate_invite — yangi invite code yaratish
+router.post('/zayavka_config/regenerate_invite', authenticate, authorize('admin'), (req, res) => {
+  const acc    = req.user.account;
+  const crypto = require('crypto');
+  const old    = db.getZayavkaConfig(acc) || {};
+  const newCode = crypto.randomBytes(8).toString('hex');
+  db.setZayavkaConfig(acc, { ...old, inviteCode: newCode });
+  // Eski foydalanuvchilarni o'chirish (ixtiyoriy)
+  if (req.body?.revokeUsers) {
+    const users = db.getZvUsersForAccount(acc);
+    users.forEach(chatId => db.unlinkZvUser(chatId));
+  }
+  res.json({ ok: true, inviteCode: newCode });
 });
 
 // GET /zayavka_log — oxirgi zayavkalar tarixi

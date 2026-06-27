@@ -77,6 +77,7 @@ export const api = {
   getZayavkaConfig: () => req('/api/zayavka_config'),
   saveZayavkaConfig: (cfg) => req('/api/zayavka_config', { method: 'PUT', body: JSON.stringify(cfg) }),
   getZayavkaLog: (limit = 50) => req(`/api/zayavka_log?limit=${limit}`),
+  regenerateInvite: (revokeUsers = false) => req('/api/zayavka_config/regenerate_invite', { method: 'POST', body: JSON.stringify({ revokeUsers }) }),
 };
 
 export { API_URL };
