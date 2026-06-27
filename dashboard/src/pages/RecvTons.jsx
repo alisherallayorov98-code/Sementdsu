@@ -85,12 +85,13 @@ const downloadTemplate = () => {
 
 export default function RecvTons({ lang }) {
   const {
-    recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow,
+    recvRows, addRecvRow, updateRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow,
     addSaleRow, addSupplier,
     currentWorker, setCurrentWorker,
     warehouses, defaultWhId, currentUser, appSettings,
     skladRows, addSkladKirim,
   } = useData();
+  const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
   // "Birdan sotish" — tasdiqlash oynasida zavoddan to'g'ri mijozga sotish
@@ -673,18 +674,14 @@ export default function RecvTons({ lang }) {
                           style={{ fontSize:11, cursor:'pointer', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
                         >✓ Tekshirish</button>
                       )}
-                      {!r.pending && (() => {
-                        const alreadyIn = skladRows.some(s => s.sourceId === r.id);
-                        return alreadyIn ? (
-                          <span title="Asosiy skladga qo'shilgan" style={{ fontSize:11, color:'#2e7d32', fontWeight:'bold', marginRight:4 }}>📦✓</span>
-                        ) : (
-                          <button
-                            onClick={() => { addSkladKirim(r.id, Number(r.tons||0)*1000, `${r.source}${r.brand?' · '+r.brand:''}`); }}
-                            title="Asosiy skladga kilogramda kirim qilish"
-                            style={{ fontSize:11, cursor:'pointer', background:'#e65100', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
-                          >📦 Sklad</button>
-                        );
-                      })()}
+                      {!r.pending && skladRows.some(s => s.sourceId === r.id) && (
+                        <span title="Asosiy skladga qo'shilgan" style={{ fontSize:11, color:'#2e7d32', fontWeight:'bold', marginRight:4 }}>📦✓</span>
+                      )}
+                      <button
+                        onClick={() => setEditRecv({ ...r })}
+                        title="Tahrirlash"
+                        style={{ fontSize:11, cursor:'pointer', background:'#1565c0', color:'#fff', border:'none', borderRadius:3, padding:'3px 7px', marginRight:4 }}
+                      >✏️</button>
                       <button
                         onClick={() => { if(window.confirm("O'chirilsinmi?")) deleteRecvRow(r.id); }}
                         style={{ fontSize:10, cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', padding:'2px 5px' }}
@@ -710,6 +707,15 @@ export default function RecvTons({ lang }) {
 
       {renderModal()}
       {renderImportPreview()}
+      {editRecv && (
+        <RecvEditModal
+          row={editRecv}
+          warehouses={warehouses}
+          myWh={myWh}
+          onSave={(fields) => { updateRecvRow(editRecv.id, fields); setEditRecv(null); }}
+          onClose={() => setEditRecv(null)}
+        />
+      )}
 
       {/* ── TEKSHIRISH (TASDIQLASH) MODALI ─────────────────────────────────── */}
       {verifyRow && createPortal(
@@ -804,6 +810,81 @@ function Field({ label, children }) {
   );
 }
 const vInp = { width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4, fontFamily:'Tahoma, sans-serif' };
+
+// ── RecvRow tahrirlash modali ─────────────────────────────────────────────────
+export function RecvEditModal({ row, warehouses, myWh, onSave, onClose }) {
+  const [f, setF] = useState({ ...row });
+  const s = v => e => setF(p => ({ ...p, [v]: e.target.value }));
+  const handle = e => { e.preventDefault(); onSave(f); };
+  return createPortal(
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9100, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:16, overflowY:'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:520, marginTop:20, fontFamily:'Tahoma, sans-serif' }}>
+        <div style={{ background:'#1565c0', color:'#fff', padding:'12px 16px', borderRadius:'8px 8px 0 0', fontWeight:'bold', display:'flex', justifyContent:'space-between' }}>
+          <span>✏️ Yozuvni tahrirlash</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', fontSize:18, lineHeight:1 }}>✕</button>
+        </div>
+        <form onSubmit={handle} style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+          {!f.pending && (
+            <div style={{ fontSize:12, color:'#e65100', background:'#fff3e0', padding:8, borderRadius:4 }}>
+              ⚠ Tasdiqlangan yozuv — tonnani o'zgartirish yetkazib beruvchi qarziga ta'sir qilmaydi (qo'lda tekshiring)
+            </div>
+          )}
+          <div style={{ display:'flex', gap:10 }}>
+            <Field label="Zavod / Manba *">
+              <input value={f.source||''} onChange={s('source')} style={vInp} placeholder="Zavod nomi" required />
+            </Field>
+            <Field label="Marka">
+              <input value={f.brand||''} onChange={s('brand')} style={vInp} placeholder="Sement markasi" />
+            </Field>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <Field label="Tonna *">
+              <input type="number" value={f.tons||''} onChange={s('tons')} style={vInp} required />
+            </Field>
+            <Field label="Narx (1 tn)">
+              <input type="number" value={f.pricePerTon||''} onChange={s('pricePerTon')} style={vInp} />
+            </Field>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <Field label="Mashina №">
+              <input value={f.vehicleNo||''} onChange={s('vehicleNo')} style={vInp} />
+            </Field>
+            <Field label="Karta nomi">
+              <input value={f.cardName||''} onChange={s('cardName')} style={vInp} />
+            </Field>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <Field label="Vaqt (zavod)">
+              <input value={f.factoryTime||''} onChange={s('factoryTime')} style={vInp} placeholder="2026-06-24 20:57:13" />
+            </Field>
+            <Field label="To'lov usuli">
+              <select value={f.paymentChannel||'naqd'} onChange={s('paymentChannel')} style={vInp}>
+                <option value="naqd">💵 Naqd</option>
+                <option value="bank">🏦 Bank</option>
+                <option value="click">📱 Click</option>
+              </select>
+            </Field>
+          </div>
+          {warehouses?.length > 1 && (
+            <Field label="Sklad">
+              <select value={f.warehouseId||myWh} onChange={s('warehouseId')} style={vInp}>
+                {warehouses.map(w => <option key={w.id} value={w.id}>🏬 {w.name}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label="Izoh">
+            <input value={f.izoh||''} onChange={s('izoh')} style={vInp} placeholder="Ixtiyoriy" />
+          </Field>
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
+            <button type="button" onClick={onClose} style={{ padding:'8px 20px', border:'1px solid #ccc', borderRadius:6, cursor:'pointer', background:'#f5f5f5' }}>Bekor</button>
+            <button type="submit" style={{ padding:'8px 28px', background:'#1565c0', color:'#fff', border:'none', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:14 }}>✓ Saqlash</button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 const thS = { border:'1px solid #999', padding:'5px 8px', background:'#f0f0f0', fontWeight:'bold', fontSize:12, textAlign:'left' };
 const tdS = { border:'1px solid #ccc', padding:'5px 8px', fontSize:12 };

@@ -243,6 +243,7 @@ export function DataProvider({ children }) {
     setRecvRows(p => [...p, row]);
     return row;
   };
+  const updateRecvRow = (id, fields) => setRecvRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
   const deleteRecvRow = (id) => {
     setRecvRows(p => p.filter(r => r.id !== id));
     // Cascade: eski versiyalarda yaratilgan auto chiqim yozuvlari bo'lsa ham o'chirish
@@ -1056,7 +1057,7 @@ export function DataProvider({ children }) {
     // 9. Sotilgan tonna
     soldRows, addSoldRow, deleteSoldRow,
     // 10. Olingan tonna
-    recvRows, addRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow, pendingRecvCount,
+    recvRows, addRecvRow, updateRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow, pendingRecvCount,
     // 10b/10c. Yetkazib beruvchilar va ularga qarz/to'lovlar
     suppliers, addSupplier, updateSupplier, deleteSupplier,
     supplierPayments, paySupplier, deleteSupplierPayment,
