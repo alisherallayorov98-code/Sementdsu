@@ -147,7 +147,7 @@ export default function Kassir() {
   const submitKirim = (e) => {
     e.preventDefault();
     const amt = Number(kirim.amount);
-    if (!amt || !kirim.note) return;
+    if (!amt) return;
     if (kirim.customer) {
       const res = payCustomerDebt(kirim.customer, amt, kirim.channel, kirim.note);
       if (res.applied === 0) {
@@ -170,7 +170,7 @@ export default function Kassir() {
   const submitChiqim = (e) => {
     e.preventDefault();
     const amt = Number(chiqim.amount);
-    if (!amt || !chiqim.note) return;
+    if (!amt) return;
     if (chiqim.isTransfer) {
       const opt = TRANSFERS.find(o => o.v === chiqim.tDir);
       if (!opt) return;
@@ -360,9 +360,9 @@ export default function Kassir() {
                   </div>
                 )}
               </Field>
-              <Field label="Izoh *">
+              <Field label="Izoh">
                 <input value={kirim.note} onChange={e => setKirim({ ...kirim, note: e.target.value })}
-                  placeholder="To'lov sababi yoki qayerdan..." style={{ ...inp, width: 260 }} required />
+                  placeholder="To'lov sababi yoki qayerdan..." style={{ ...inp, width: 260 }} />
               </Field>
             </FRow>
             <Field label="Kanal"><ChanBtns value={kirim.channel} onChange={v => setKirim({ ...kirim, channel: v })} /></Field>
@@ -397,23 +397,25 @@ export default function Kassir() {
                 <ChanBtns value={chiqim.channel} onChange={v => setChiqim({ ...chiqim, channel: v })} />
               </Field>
             )}
+            {!chiqim.isTransfer && (
+              <FRow>
+                <Field label="Mijoz (ixtiyoriy)">
+                  <CustomerSelect value={chiqim.customer} onChange={v => setChiqim({ ...chiqim, customer: v })}
+                    placeholder="Pul kimga chiqdi? (ixtiyoriy)" accentColor="#c62828" />
+                </Field>
+              </FRow>
+            )}
             <FRow>
-              <Field label="Izoh *">
+              <Field label="Izoh">
                 <input value={chiqim.note} onChange={e => setChiqim({ ...chiqim, note: e.target.value })}
                   placeholder="Nima uchun chiqim (masalan: taksi, ovqat, tamirlash...)"
-                  style={{ ...inp, width: 300 }} required />
+                  style={{ ...inp, width: 300 }} />
               </Field>
               <Field label="Summa *">
                 <input type="number" value={chiqim.amount} onChange={e => setChiqim({ ...chiqim, amount: e.target.value })}
                   placeholder="0" style={{ ...inp, width: 150 }} required />
               </Field>
             </FRow>
-            {!chiqim.isTransfer && (
-              <Field label="Mijoz (ixtiyoriy)">
-                <CustomerSelect value={chiqim.customer} onChange={v => setChiqim({ ...chiqim, customer: v })}
-                  placeholder="Pul kimga chiqdi? (ixtiyoriy)" accentColor="#c62828" />
-              </Field>
-            )}
             <SaveBtn color="#c62828" label="✓ Chiqim yozish" />
           </form>
         )}
