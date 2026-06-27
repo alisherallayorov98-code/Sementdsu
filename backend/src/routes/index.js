@@ -129,12 +129,13 @@ router.put('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
     : old.botToken;
   const cfg = {
     botToken,
-    groupChatId:    body.groupChatId   ?? old.groupChatId,
-    template:       body.template      ?? old.template,
-    fieldLabels:    body.fieldLabels   ?? old.fieldLabels   ?? {},
-    fieldOptions:   body.fieldOptions  ?? old.fieldOptions  ?? {},
+    groupChatId:    body.groupChatId    ?? old.groupChatId,
+    template:       body.template       ?? old.template,
+    fieldLabels:    body.fieldLabels    ?? old.fieldLabels    ?? {},
+    fieldOptions:   body.fieldOptions   ?? old.fieldOptions   ?? {},
     optionalFields: body.optionalFields ?? old.optionalFields ?? [],
     fieldDefaults:  body.fieldDefaults  ?? old.fieldDefaults  ?? {},
+    autoFields:     body.autoFields     ?? old.autoFields     ?? ['sana'],
   };
   db.setZayavkaConfig(acc, cfg);
 

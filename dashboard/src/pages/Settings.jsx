@@ -103,17 +103,30 @@ function TariffCard({ tariff, onRename, onDelete, onAddPrice, onRemovePrice, the
 // ─────────────────────────────────────────────────────────────────────────────
 // Zayavka Bot Settings Tab
 // ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_TEMPLATE = `📋 *ZAYAVKA #{number}*
-━━━━━━━━━━━━━━━━━━━━
-📅 Sana: {sana}
-🚛 Mashina: {mashina}
-👤 Haydovchi: {haydovchi}
-⚖️ Tonna: {tonna} tn
-🏷 Marka: {marka}
-━━━━━━━━━━━━━━━━━━━━`;
+const DEFAULT_TEMPLATE = `Доверенность на получение цемента
+Наименование клиента: DAVR-SU MCHJ:
+Номер клиента: 401061
+Номер тикета - {tiket}
+Дата погрузки: {sana}
+Марка и вид цемента: {marka}
+Количество тонн {tonna}
+Номер машины {mashina}
+____________________________
 
-const DEFAULT_LABELS = { sana: 'Sana', mashina: 'Mashina raqami', haydovchi: 'Haydovchi ismi', tonna: 'Tonna', marka: 'Marka (450/550)' };
-const DEFAULT_OPTIONS = { tonna: ['20', '22', '25', '27', '30'], marka: ['450', '550'] };
+Имя получателя: сардор
+Телефон получателя 943731116
+Адрес доставки: Samarqand`;
+
+const DEFAULT_LABELS = {
+  tiket:   'Tiket raqami / Номер тикета',
+  marka:   'Sement markasi / Марка и вид цемента',
+  tonna:   'Tonna miqdori / Количество тонн',
+  mashina: 'Mashina raqami / Номер машины',
+};
+const DEFAULT_OPTIONS = {
+  marka: ['42.5H в россып', '42.5H в мешках', '32.5H в россып', '32.5H в мешках'],
+  tonna: ['20', '22', '25', '27', '30', '50'],
+};
 
 function ZayavkaBotSettings({ themeColor }) {
   const [cfg, setCfg] = useState(null);
@@ -130,6 +143,7 @@ function ZayavkaBotSettings({ themeColor }) {
     fieldLabels: DEFAULT_LABELS,
     fieldOptions: DEFAULT_OPTIONS,
     optionalFields: [],
+    autoFields: ['sana'],
   });
 
   // Option editing state
@@ -150,6 +164,7 @@ function ZayavkaBotSettings({ themeColor }) {
           fieldLabels: r.config.fieldLabels || DEFAULT_LABELS,
           fieldOptions: r.config.fieldOptions || DEFAULT_OPTIONS,
           optionalFields: r.config.optionalFields || [],
+          autoFields: r.config.autoFields || ['sana'],
         }));
       }
     }).catch(() => {}).finally(() => setLoading(false));
@@ -165,6 +180,7 @@ function ZayavkaBotSettings({ themeColor }) {
         fieldLabels: form.fieldLabels,
         fieldOptions: form.fieldOptions,
         optionalFields: form.optionalFields,
+        autoFields: form.autoFields,
       });
       setMsg('✅ Saqlandi! Bot qayta ishga tushdi.');
     } catch (e) {
@@ -201,14 +217,15 @@ function ZayavkaBotSettings({ themeColor }) {
         <strong style={{ color: '#1b5e20', fontSize: 14 }}>Zayavka Bot — qanday ishlaydi?</strong>
         <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
           <li>BotFather'dan yangi bot yarating → tokenini quyida kiriting</li>
-          <li>Botni maqsad guruhingizga admin qilib qo'shing</li>
+          <li>Botni maqsad guruhingizga <strong>admin</strong> qilib qo'shing</li>
           <li>Guruhda <code>/chatid</code> yozing → bot javob bergan ID ni "Guruh Chat ID" ga kiriting</li>
           <li>Shablon va maydon sozlamalarini to'ldiring → Saqlang</li>
-          <li>Xodimlar bot orqali <code>/zayavka</code> yozib zayavka yuborishadi</li>
+          <li>Xodimlar bot orqali <code>/zayavka</code> yozadi → 4 ta savol (sana avtomatik) → guruhga boradi</li>
         </ol>
-        <div style={{ marginTop: 8, color: '#666' }}>
-          <strong>Shablon'da</strong> <code>{`{sana}`}</code>, <code>{`{mashina}`}</code>, <code>{`{tonna}`}</code> kabi <code>{`{maydon}`}</code> formatda yozing.
-          <code>{`{number}`}</code> — tartib raqam (avtomatik).
+        <div style={{ marginTop: 8, color: '#555', background: '#f1f8e9', border: '1px solid #c5e1a5', borderRadius: 4, padding: '8px 12px' }}>
+          <strong>Shablon:</strong> o'zgaradigan joylarni <code>{`{tiket}`}</code>, <code>{`{marka}`}</code>, <code>{`{tonna}`}</code>, <code>{`{mashina}`}</code> kabi yozing.<br/>
+          <code>{`{sana}`}</code> — avtomatik (bugungi sana). <code>{`{number}`}</code> — tartib raqam. Qolgan matn doimiy turadi.<br/>
+          <strong>Savollar</strong> ikki tilda (O'zbek/Rus), <strong>natija</strong> shablon tilidadir (Rus).
         </div>
       </div>
 
@@ -266,53 +283,80 @@ function ZayavkaBotSettings({ themeColor }) {
               <thead>
                 <tr style={{ background: '#f5f5f5' }}>
                   <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', whiteSpace: 'nowrap' }}>Maydon</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>Yorliq (botda ko'rinadi)</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>Yorliq / Подпись (botda ko'rinadi)</th>
                   <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>Tez tugmalar (vergul bilan)</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', whiteSpace: 'nowrap' }}>Ixtiyoriy</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '2px solid #e0e0e0', whiteSpace: 'nowrap' }}>🤖 Auto</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '2px solid #e0e0e0', whiteSpace: 'nowrap' }}>Ixtiyoriy</th>
                 </tr>
               </thead>
               <tbody>
-                {templateFields.map((field, i) => (
-                  <tr key={field} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '7px 10px' }}>
-                      <code style={{ background: '#f0f4ff', padding: '2px 6px', borderRadius: 3, color: '#1565c0', fontSize: 12 }}>{`{${field}}`}</code>
-                    </td>
-                    <td style={{ padding: '7px 10px' }}>
-                      <input
-                        value={form.fieldLabels[field] || ''}
-                        onChange={e => setForm(f => ({ ...f, fieldLabels: { ...f.fieldLabels, [field]: e.target.value } }))}
-                        placeholder={field}
-                        style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, width: 150 }}
-                      />
-                    </td>
-                    <td style={{ padding: '7px 10px' }}>
-                      <input
-                        value={(form.fieldOptions[field] || []).join(', ')}
-                        onChange={e => {
-                          const opts = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                          setForm(f => ({ ...f, fieldOptions: { ...f.fieldOptions, [field]: opts } }));
-                        }}
-                        placeholder="20, 22, 25 ..."
-                        style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, width: 180 }}
-                      />
-                    </td>
-                    <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={(form.optionalFields || []).includes(field)}
-                        onChange={e => setForm(f => {
-                          const cur = f.optionalFields || [];
-                          return { ...f, optionalFields: e.target.checked ? [...cur, field] : cur.filter(x => x !== field) };
-                        })}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {templateFields.map((field, i) => {
+                  const isAuto     = (form.autoFields || []).includes(field);
+                  const isOptional = (form.optionalFields || []).includes(field);
+                  return (
+                    <tr key={field} style={{ borderBottom: '1px solid #f0f0f0', background: isAuto ? '#fffde7' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
+                      <td style={{ padding: '7px 10px' }}>
+                        <code style={{ background: '#f0f4ff', padding: '2px 6px', borderRadius: 3, color: '#1565c0', fontSize: 12 }}>{`{${field}}`}</code>
+                        {isAuto && <span style={{ marginLeft: 4, fontSize: 10, color: '#f57f17', fontWeight: 'bold' }}>AUTO</span>}
+                      </td>
+                      <td style={{ padding: '7px 10px' }}>
+                        {isAuto ? (
+                          <span style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>Bugungi sana (avtomatik)</span>
+                        ) : (
+                          <input
+                            value={form.fieldLabels[field] || ''}
+                            onChange={e => setForm(f => ({ ...f, fieldLabels: { ...f.fieldLabels, [field]: e.target.value } }))}
+                            placeholder={field}
+                            style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, width: 200 }}
+                          />
+                        )}
+                      </td>
+                      <td style={{ padding: '7px 10px' }}>
+                        {isAuto ? <span style={{ color: '#ccc', fontSize: 12 }}>—</span> : (
+                          <input
+                            value={(form.fieldOptions[field] || []).join(', ')}
+                            onChange={e => {
+                              const opts = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                              setForm(f => ({ ...f, fieldOptions: { ...f.fieldOptions, [field]: opts } }));
+                            }}
+                            placeholder="masalan: 20, 25, 50"
+                            style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, width: 200 }}
+                          />
+                        )}
+                      </td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isAuto}
+                          title="Avtomatik to'ldirish (so'ralmaydi)"
+                          onChange={e => setForm(f => {
+                            const cur = f.autoFields || [];
+                            return { ...f, autoFields: e.target.checked ? [...cur, field] : cur.filter(x => x !== field) };
+                          })}
+                        />
+                      </td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isOptional && !isAuto}
+                          disabled={isAuto}
+                          title="O'tkazib yuborish mumkin"
+                          onChange={e => setForm(f => {
+                            const cur = f.optionalFields || [];
+                            return { ...f, optionalFields: e.target.checked ? [...cur, field] : cur.filter(x => x !== field) };
+                          })}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>
-            Ixtiyoriy maydonlar uchun bot "O'tkazib yuborish" tugmasi ko'rsatadi. Tez tugmalar bo'lsa ham o'zi yoza oladi.
+          <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.6 }}>
+            <strong>🤖 Auto</strong> — maydon so'ralmaydi, avtomatik to'ldiriladi (<code>sana</code> = bugungi sana).<br/>
+            <strong>Ixtiyoriy</strong> — bot "O'tkazib yuborish" tugmasi ko'rsatadi.<br/>
+            Tez tugmalar bo'lsa ham foydalanuvchi o'zi ham yoza oladi.
           </div>
         </div>
       )}
