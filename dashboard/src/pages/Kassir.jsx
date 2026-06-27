@@ -289,8 +289,7 @@ export default function Kassir() {
       {/* ── BALANSLAR ── */}
       <div style={{
         display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14,
-        position: 'sticky', top: 0, zIndex: 100,
-        background: '#fff', paddingBottom: 10, borderBottom: '2px solid #eee',
+        paddingBottom: 10, borderBottom: '2px solid #eee',
       }}>
         {[
           { label: '💵 Naqd',  val: totalCashBalance,  color: '#1565c0', bg: '#e3f2fd' },
