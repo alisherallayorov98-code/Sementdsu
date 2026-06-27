@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('../db');
-const { DEFAULT_ACCOUNT } = require('../config');
+const { DEFAULT_ACCOUNT, ZAYAVKA_BOT_TOKEN } = require('../config');
 
 let bot = null;
 let running = false;
@@ -99,13 +99,15 @@ function confirmKeyboard() {
 
 function start(acc = DEFAULT_ACCOUNT) {
   const cfg = getConfig(acc);
-  if (!cfg.botToken || cfg.botToken.length < 10) {
-    console.log('ℹ️  Zayavka bot token yo\'q. Bot ishlamaydi.');
+  // Token: env o'zgaruvchisi birinchi, keyin DB (Settings UI dan saqlangan)
+  const token = ZAYAVKA_BOT_TOKEN || cfg.botToken || '';
+  if (!token || token.length < 10) {
+    console.log('ℹ️  Zayavka bot token yo\'q (ZAYAVKA_BOT_TOKEN). Bot ishlamaydi.');
     return null;
   }
 
   try {
-    bot = new TelegramBot(cfg.botToken, { polling: true });
+    bot = new TelegramBot(token, { polling: true });
   } catch (e) {
     console.error('[ZayavkaBot] Ulanish xatosi:', e.message);
     return null;

@@ -26,8 +26,9 @@ module.exports = {
   JWT_EXPIRES:     process.env.JWT_EXPIRES || '12h',
   // Vergul bilan ajratilgan ruxsat etilgan manzillar yoki '*' (barchasi)
   CORS_ORIGINS:    process.env.CORS_ORIGINS || '*',
-  TELEGRAM_TOKEN:    (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
-  TELEGRAM_BOT_USER: (process.env.TELEGRAM_BOT_USERNAME || 'sementchiuzbot').trim(),
+  TELEGRAM_TOKEN:      (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+  TELEGRAM_BOT_USER:  (process.env.TELEGRAM_BOT_USERNAME || 'sementchiuzbot').trim(),
+  ZAYAVKA_BOT_TOKEN:  (process.env.ZAYAVKA_BOT_TOKEN || '').trim(),
   // ── SMS (Eskiz.uz) ──────────────────────────────────────────────────────
   // Eskiz hisobidan: email + parol. Sender (from) tasdiqlangan nom yoki '4546'.
   ESKIZ_EMAIL:    (process.env.ESKIZ_EMAIL || '').trim(),
