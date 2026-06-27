@@ -91,6 +91,7 @@ export default function RecvTons({ lang }) {
     warehouses, defaultWhId, currentUser, appSettings,
     skladRows, addSkladKirim,
     salesRows, skladSourceIds,
+    cementTypes,
   } = useData();
   const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
   const myWh = currentUser?.warehouseId || defaultWhId;
@@ -104,6 +105,7 @@ export default function RecvTons({ lang }) {
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
     paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
+    cementType:'',
   });
   const [filterSource, setFilterSource] = useState('');
   const [filterBrand,  setFilterBrand]  = useState('');
@@ -129,9 +131,10 @@ export default function RecvTons({ lang }) {
       cardName: form.cardName, factoryTime: form.factoryTime,
       izoh: form.izoh,
       warehouseId: form.warehouseId || myWh,
+      cementType: form.cementType || '',
     });
     setForm({ source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
-              paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'' });
+              paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'', cementType:'' });
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
@@ -214,12 +217,13 @@ export default function RecvTons({ lang }) {
         date: verifyRow.factoryTime || verifyRow.date,
         factoryTime: verifyRow.factoryTime || '',
         note: `Zavod: ${verifyRow.source}`,
-        recvId: verifyRow.id, // RecvRow bilan bog'lanish (tahrirlash uchun)
+        recvId: verifyRow.id,
+        cementType: verifyRow.cementType || '',
       });
     }
     // 3) Asosiy skladga o'tkazish → ton × 1000 = kg
     if (toSklad && !sell.on) {
-      addSkladKirim(verifyRow.id, tons * 1000, `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`);
+      addSkladKirim(verifyRow.id, tons * 1000, `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`, verifyRow.cementType || '');
     }
     closeVerify();
   };
@@ -498,6 +502,10 @@ export default function RecvTons({ lang }) {
         <form onSubmit={handleAdd} style={{ display:'flex', gap:5, marginTop:8, alignItems:'center', flexWrap:'wrap' }}>
           <SupplierSelect value={form.source} onChange={val=>setForm({...form,source:val})} placeholder={L.manbaa[lang]} width={140} accentColor="#00695c" required />
           <input placeholder={L.marka[lang]}   value={form.brand}     onChange={e=>setForm({...form,brand:e.target.value})}     style={{ ...inp, width:130 }} />
+          <select value={form.cementType} onChange={e=>setForm({...form,cementType:e.target.value})} style={{ ...inp, width:130, color: form.cementType ? '#4a148c' : '#999' }} title="Sement turi">
+            <option value="">— tur —</option>
+            {cementTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
           <input placeholder={L.mashina[lang]} value={form.vehicleNo} onChange={e=>setForm({...form,vehicleNo:e.target.value})} style={{ ...inp, width:100 }} />
           <input type="number" placeholder={L.tonna[lang]} value={form.tons} onChange={e=>setForm({...form,tons:e.target.value})} style={{ ...inp, width:90 }} required />
           <input type="number" placeholder={L.narx[lang]}  value={form.pricePerTon} onChange={e=>setForm({...form,pricePerTon:e.target.value})} style={{ ...inp, width:110 }} />
@@ -626,6 +634,7 @@ export default function RecvTons({ lang }) {
                 <th style={{ width:85 }}>{L.sana[lang]}</th>
                 <th style={{ width:160 }}>{L.manbaa[lang]}</th>
                 <th style={{ width:130 }}>{L.marka[lang]}</th>
+                <th style={{ width:110 }}>Tur</th>
                 <th style={{ width:90 }}>{L.mashina[lang]}</th>
                 <th style={{ textAlign:'right', width:80 }}>{L.tonna[lang]}</th>
                 <th style={{ textAlign:'right', width:110 }}>{L.narx[lang]}</th>
@@ -660,6 +669,7 @@ export default function RecvTons({ lang }) {
                       </button>
                     </td>
                     <td style={{ color:'#006699', fontWeight:'bold', fontSize:12 }}>{r.brand||'—'}</td>
+                    <td style={{ fontSize:11, color: r.cementType ? '#4a148c' : '#bbb', fontWeight: r.cementType ? 'bold' : 'normal' }}>{r.cementType||'—'}</td>
                     <td style={{ fontSize:12 }}>{r.vehicleNo||'—'}</td>
                     <td style={{ textAlign:'right', fontWeight:'bold', fontFamily:'monospace' }}>{fmtT(r.tons)}</td>
                     <td style={{ textAlign:'right', fontFamily:'monospace' }}>{r.pricePerTon?fmt(r.pricePerTon):'—'}</td>
@@ -717,6 +727,7 @@ export default function RecvTons({ lang }) {
           row={editRecv}
           warehouses={warehouses}
           myWh={myWh}
+          cementTypesList={cementTypes}
           linkedSale={salesRows.find(s => s.recvId === editRecv.id) || null}
           onSave={(recvFields, saleFields) => {
             updateRecvRow(editRecv.id, recvFields);
@@ -744,6 +755,12 @@ export default function RecvTons({ lang }) {
               </Field>
               <Field label="Marka">
                 <input value={verifyRow.brand} onChange={e => setVerifyRow({ ...verifyRow, brand: e.target.value })} style={vInp} placeholder="Sement markasi" />
+              </Field>
+              <Field label="Sement turi *">
+                <select value={verifyRow.cementType || ''} onChange={e => setVerifyRow({ ...verifyRow, cementType: e.target.value })} style={vInp}>
+                  <option value="">— tanlang —</option>
+                  {cementTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </Field>
               <div style={{ display:'flex', gap:10 }}>
                 <Field label="Tonna *"><input type="number" value={verifyRow.tons} onChange={e => setVerifyRow({ ...verifyRow, tons: e.target.value })} style={vInp} /></Field>
@@ -825,14 +842,14 @@ function Field({ label, children }) {
 const vInp = { width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4, fontFamily:'Tahoma, sans-serif' };
 
 // ── RecvRow tahrirlash modali ─────────────────────────────────────────────────
-export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSale }) {
+export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSale, cementTypesList }) {
   const [f, setF]   = useState({ ...row });
   const [sf, setSf] = useState(linkedSale ? { ...linkedSale } : null);
   const sv = v => e => setF(p => ({ ...p, [v]: e.target.value }));
   const ss = v => e => setSf(p => ({ ...p, [v]: e.target.value }));
   const handle = e => {
     e.preventDefault();
-    const recvFields = { source: f.source, brand: f.brand, tons: f.tons, pricePerTon: f.pricePerTon, vehicleNo: f.vehicleNo, cardName: f.cardName, factoryTime: f.factoryTime, paymentChannel: f.paymentChannel, warehouseId: f.warehouseId, izoh: f.izoh };
+    const recvFields = { source: f.source, brand: f.brand, tons: f.tons, pricePerTon: f.pricePerTon, vehicleNo: f.vehicleNo, cardName: f.cardName, factoryTime: f.factoryTime, paymentChannel: f.paymentChannel, warehouseId: f.warehouseId, izoh: f.izoh, cementType: f.cementType };
     const saleFields = sf ? { customer: sf.customer, pricePerTon: sf.pricePerTon, paymentChannel: sf.paymentChannel, note: sf.note } : null;
     onSave(recvFields, saleFields);
   };
@@ -859,6 +876,12 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
               <input value={f.brand||''} onChange={sv('brand')} style={vInp} placeholder="Sement markasi" />
             </Field>
           </div>
+          <Field label="Sement turi">
+            <select value={f.cementType||''} onChange={sv('cementType')} style={vInp}>
+              <option value="">— tanlang —</option>
+              {(cementTypesList || []).map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Tonna *">
               <input type="number" value={f.tons||''} onChange={sv('tons')} style={vInp} required />

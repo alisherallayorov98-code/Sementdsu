@@ -239,6 +239,7 @@ export function DataProvider({ children }) {
       cardName: entry.cardName || '', factoryTime: entry.factoryTime || '',
       izoh: entry.izoh || '',
       warehouseId: entry.warehouseId || defaultWhId,
+      cementType: entry.cementType || '',
     };
     setRecvRows(p => [...p, row]);
     return row;
@@ -600,6 +601,16 @@ export function DataProvider({ children }) {
   };
   const totalSalesTons = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
+  // ── Sement turlari (admin tomonidan boshqariladi) ─────────────────────────────
+  const [cementTypes, setCementTypes] = useState(() => load('cement_types', ['450 Qoplik', '550 Qoplik', '450 Rasipnoy', '550 Rasipnoy']));
+  useEffect(() => save('cement_types', cementTypes), [cementTypes]);
+  const addCementType = (name) => {
+    const t = name.trim();
+    if (!t || cementTypes.includes(t)) return;
+    setCementTypes(p => [...p, t]);
+  };
+  const removeCementType = (name) => setCementTypes(p => p.filter(t => t !== name));
+
   // ── Asosiy sklad (kilogram hisob — CHAKANA) ──────────────────────────────────
   const [skladRows, setSkladRows] = useState(() => load('sklad_rows', []));
   useEffect(() => save('sklad_rows', skladRows), [skladRows]);
@@ -615,16 +626,17 @@ export function DataProvider({ children }) {
   const _ulgurjiRecvTons = recvRows.filter(r => !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
   const totalCementBalance = Number(cementOpening.tons) + _ulgurjiRecvTons - totalSoldTons - totalSalesTons;
 
-  const addSkladKirim = (recvRowId, kg, desc) => {
+  const addSkladKirim = (recvRowId, kg, desc, cementType) => {
     const ts = Date.now();
     setSkladRows(p => [...p, {
       id: ts, createdAt: ts, date: new Date().toLocaleDateString('ru-RU'),
       type: 'kirim', kg: Number(kg), sourceId: recvRowId,
       desc: desc || 'Zavoddan kirim', worker: currentWorker,
+      cementType: cementType || '',
     }]);
   };
 
-  const addSkladSotuv = ({ customer, kg, pricePerKg, channel, note }) => {
+  const addSkladSotuv = ({ customer, kg, pricePerKg, channel, note, cementType }) => {
     const ts = Date.now();
     const kgN  = Number(kg);
     const sum  = kgN * Number(pricePerKg);
@@ -637,7 +649,7 @@ export function DataProvider({ children }) {
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
       else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer, amount: sum, paid: 0, note: tag, payments: [] }]);
     }
-    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, customer, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker };
+    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, customer, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker, cementType: cementType || '' };
     setSkladRows(p => [...p, row]);
     return row;
   };
@@ -652,6 +664,22 @@ export function DataProvider({ children }) {
     setCashRows(rm); setBankRows(rm); setClickRows(rm);
     setDebtRows(p => p.filter(r => !(r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id)));
   };
+
+  // ── Tur bo'yicha balanslar ─────────────────────────────────────────────────────
+  const cementBalanceByType = Object.fromEntries(
+    cementTypes.map(type => {
+      const recv    = recvRows.filter(r => r.cementType === type && !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
+      const sold    = salesRows.filter(r => r.cementType === type).reduce((s, r) => s + Number(r.tons || 0), 0);
+      const soldOld = soldRows.filter(r => r.cementType === type).reduce((s, r) => s + Number(r.tons || 0), 0);
+      return [type, recv - sold - soldOld];
+    })
+  );
+  const skladKgByType = Object.fromEntries(
+    cementTypes.map(type => [
+      type,
+      (skladRows || []).filter(r => r.cementType === type).reduce((s, r) => s + Number(r.kg || 0), 0)
+    ])
+  );
 
   // ── Ulgurji sklad (ton) bo'yicha qoldiq ────────────────────────────────────
   // Chakana skladga (kg) o'tkazilgan recvRow'lar CHIQARIB TASHLANADI
@@ -933,6 +961,7 @@ export function DataProvider({ children }) {
     drivers:            setDrivers,
     driver_trips:       setDriverTrips,
     sklad_rows:         setSkladRows,
+    cement_types:       setCementTypes,
   };
 
   // Holatning joriy "suratini" yig'ish (serverga shu jo'natiladi)
@@ -967,6 +996,7 @@ export function DataProvider({ children }) {
     drivers:            drivers,
     driver_trips:       driverTrips,
     sklad_rows:         skladRows,
+    cement_types:       cementTypes,
   };
 
   // 1) Tizimga kirilgach (token bor) — serverdan butun holatni yuklab olish
@@ -1116,6 +1146,9 @@ export function DataProvider({ children }) {
     skladRows, addSkladKirim, addSkladSotuv, totalSkladKg, updateSkladRow, deleteSkladSotuv,
     // Qaysi recvRow'lar chakana skladga o'tkazilganligi (Set<id>)
     skladSourceIds: _skladSourceIds,
+    // Sement turlari
+    cementTypes, addCementType, removeCementType,
+    cementBalanceByType, skladKgByType,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

@@ -29,11 +29,37 @@ function PasswordCell({ workerId, onSave }) {
   );
 }
 
+function CementTypeAdder({ addCementType, cementTypes, themeColor }) {
+  const [val, setVal] = useState('');
+  const handle = () => {
+    const t = val.trim();
+    if (!t) return;
+    if (cementTypes.includes(t)) { alert('Bu tur allaqachon mavjud.'); return; }
+    addCementType(t);
+    setVal('');
+  };
+  return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      <input
+        value={val} onChange={e => setVal(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && handle()}
+        placeholder="Yangi tur nomi (masalan: 400 Qoplik)"
+        style={{ flex: 1, padding: '8px 12px', borderRadius: 5, border: '1px solid #ccc', fontSize: 13 }}
+      />
+      <button onClick={handle}
+        style={{ padding: '8px 18px', background: themeColor, color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+        + Qo'shish
+      </button>
+    </div>
+  );
+}
+
 export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
     customers, importCustomers, importDebts,
     warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
+    cementTypes, addCementType, removeCementType,
   } = useData();
   const [tab, setTab] = useState('workers');
   const [newWh, setNewWh] = useState('');
@@ -157,6 +183,12 @@ export default function Settings({ lang }) {
         >
           Zaxira (Backup)
         </button>
+        <button
+          onClick={() => setTab('cement')}
+          style={{ padding: '10px 20px', background: tab === 'cement' ? appSettings.themeColor : 'transparent', color: tab === 'cement' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Sement Turlari
+        </button>
       </div>
 
       {/* EXCEL IMPORT TABI */}
@@ -229,6 +261,41 @@ export default function Settings({ lang }) {
               ⚠️ <strong>Diqqat:</strong> "Tiklash" hozirgi barcha ma'lumotni faylga almashtiradi.
               Faqat ishonchli zaxira fayli bilan ishlating.
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEMENT TURLARI TABI */}
+      {tab === 'cement' && (
+        <div style={{ maxWidth: 560 }}>
+          <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #eee' }}>
+            <h3 style={{ marginTop: 0, color: appSettings.themeColor }}>Sement turlari boshqaruvi</h3>
+            <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>
+              Qo'shilgan turlar Kassir va Qabul sahifalarida tanlov sifatida ko'rinadi.
+            </p>
+
+            {/* Mavjud turlar ro'yxati */}
+            <div style={{ marginBottom: 20 }}>
+              {cementTypes.length === 0 && (
+                <div style={{ color: '#999', fontSize: 13, fontStyle: 'italic' }}>Hech qanday tur yo'q</div>
+              )}
+              {cementTypes.map(t => (
+                <div key={t} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', marginBottom: 6, background: '#fff', border: '1px solid #ddd', borderRadius: 6 }}>
+                  <span style={{ fontWeight: 'bold', color: '#4a148c', fontSize: 14 }}>{t}</span>
+                  <button
+                    onClick={() => {
+                      if (cementTypes.length <= 1) { alert("Kamida bitta tur bo'lishi kerak."); return; }
+                      if (window.confirm(`"${t}" turini o'chirasizmi?`)) removeCementType(t);
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#c62828', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
+                    title="O'chirish"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+
+            {/* Yangi tur qo'shish */}
+            <CementTypeAdder addCementType={addCementType} cementTypes={cementTypes} themeColor={appSettings.themeColor} />
           </div>
         </div>
       )}

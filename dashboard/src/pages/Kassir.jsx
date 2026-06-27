@@ -108,6 +108,7 @@ export default function Kassir() {
     salesRows,
     appSettings, currentWorker, setCurrentWorker, workers,
     addSkladSotuv, totalSkladKg, skladRows, updateSkladRow, deleteSkladSotuv,
+    cementTypes, skladKgByType,
   } = data;
 
   // ── Tab holati ────────────────────────────────────────────────────────────────
@@ -118,7 +119,7 @@ export default function Kassir() {
   // ── Formalar ─────────────────────────────────────────────────────────────────
   const [kirim,  setKirim]  = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
   const [chiqim, setChiqim] = useState({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
-  const [sklad,  setSklad]  = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
+  const [sklad,  setSklad]  = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
 
   // ── Modallar ──────────────────────────────────────────────────────────────────
   const [notifyRow,    setNotifyRow]    = useState(null);
@@ -193,7 +194,7 @@ export default function Kassir() {
     if (totalSkladKg < Number(sklad.kg)) {
       alert(`Sklad qoldig'i yetarli emas. Qoldiq: ${fmt(totalSkladKg)} kg`); return;
     }
-    const created = addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note });
+    const created = addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note, cementType: sklad.cementType });
     showToast(`${sklad.kg} kg sotildi — ${fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm`);
     if (created && sklad.channel !== 'nasiya') {
       const kgAbs = Math.abs(Number(sklad.kg));
@@ -206,7 +207,7 @@ export default function Kassir() {
         date: created.date, worker: currentWorker,
       }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
     }
-    setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
+    setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
   };
 
   // ── Sklad cheki ──────────────────────────────────────────────────────────────
@@ -424,14 +425,32 @@ export default function Kassir() {
         {tab === 'sotuv' && (
           <form onSubmit={submitSklad}>
             <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 13 }}>
-              🏗 Sklad qoldig'i:
-              <b style={{ color: totalSkladKg < 0 ? '#c62828' : '#4e342e', fontFamily: 'monospace', fontSize: 16, marginLeft: 6 }}>{fmt(totalSkladKg)} kg</b>
-              <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>({(totalSkladKg / 1000).toFixed(3)} tn)</span>
+              <div style={{ marginBottom: 4 }}>
+                🏗 Jami sklad qoldig'i:
+                <b style={{ color: totalSkladKg < 0 ? '#c62828' : '#4e342e', fontFamily: 'monospace', fontSize: 16, marginLeft: 6 }}>{fmt(totalSkladKg)} kg</b>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {cementTypes.map(t => {
+                  const kgVal = skladKgByType[t] || 0;
+                  return (
+                    <span key={t} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, border: `1px solid ${kgVal > 0 ? '#4e342e' : '#ddd'}`, background: kgVal > 0 ? '#efebe9' : '#f9f9f9', color: kgVal > 0 ? '#4e342e' : '#bbb', fontFamily: 'monospace', fontWeight: kgVal > 0 ? 'bold' : 'normal' }}>
+                      {t}: {fmt(kgVal)} kg
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             <FRow>
               <Field label="Mijoz *">
                 <CustomerSelect value={sklad.customer} onChange={v => setSklad({ ...sklad, customer: v })}
                   placeholder="Mijoz (izlash...)" accentColor="#4e342e" />
+              </Field>
+              <Field label="Sement turi *">
+                <select value={sklad.cementType} onChange={e => setSklad({ ...sklad, cementType: e.target.value })}
+                  style={{ ...inp, width: 160, color: sklad.cementType ? '#4a148c' : '#999', fontWeight: sklad.cementType ? 'bold' : 'normal' }} required>
+                  <option value="">— tanlang —</option>
+                  {cementTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </Field>
               <Field label="Kilogram *">
                 <input type="number" step="0.01" value={sklad.kg} onChange={e => setSklad({ ...sklad, kg: e.target.value })}
@@ -478,6 +497,7 @@ export default function Kassir() {
               columns={[
                 { header: 'Sana',       value: r => r.date },
                 { header: 'Mijoz',      value: r => r.customer },
+                { header: 'Tur',        value: r => r.cementType || '' },
                 { header: 'Kg',         value: r => Math.abs(Number(r.kg || 0)) },
                 { header: 'Narx/kg',    value: r => Number(r.pricePerKg || 0) },
                 { header: 'Jami summa', value: r => Math.abs(Number(r.kg || 0)) * Number(r.pricePerKg || 0) },
@@ -512,6 +532,7 @@ export default function Kassir() {
                     <th style={{ width: 30 }}>#</th>
                     <th style={{ width: 90 }}>Sana</th>
                     <th>Mijoz</th>
+                    <th style={{ width: 110 }}>Tur</th>
                     <th>Izoh</th>
                     <th style={{ width: 90 }}>To'lov</th>
                     <th style={{ textAlign: 'right', width: 80 }}>Kg</th>
@@ -532,6 +553,7 @@ export default function Kassir() {
                           {r.customer}
                         </div>
                       </td>
+                      <td style={{ fontSize: 11, color: '#4a148c', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{r.cementType || '—'}</td>
                       <td style={{ fontSize: 12, color: '#555', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.note || '—'}</td>
                       <td>{chBadge(r.channel)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace' }}>{fmt(Math.abs(Number(r.kg || 0)))}</td>
