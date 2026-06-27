@@ -596,12 +596,21 @@ export function DataProvider({ children }) {
     setDebtRows(p   => p.filter(r => r.sourceId !== id));
   };
   const totalSalesTons = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
-  // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
-  const totalCementBalance = Number(cementOpening.tons) + totalRecvTons - totalSoldTons - totalSalesTons;
 
-  // ── Asosiy sklad (kilogram hisob) ────────────────────────────────────────────
+  // ── Asosiy sklad (kilogram hisob — CHAKANA) ──────────────────────────────────
   const [skladRows, setSkladRows] = useState(() => load('sklad_rows', []));
   useEffect(() => save('sklad_rows', skladRows), [skladRows]);
+
+  // Qaysi recvRow'lar chakana skladga o'tkazilganini aniqlaymiz (sourceId orqali)
+  // Bu retroaktiv ishlaydi — eski ma'lumotlar ham to'g'ri hisoblanadi.
+  const _skladSourceIds = new Set(
+    skladRows.filter(r => r.type === 'kirim' && r.sourceId).map(r => r.sourceId)
+  );
+
+  // ULGURJI qoldig'i (tonnada) = faqat skladga o'tkazilmagan recvRow'lar asosida
+  // Sementni chakana skladga (kg) o'tkazilsa — u yerda alohida hisob bo'ladi
+  const _ulgurjiRecvTons = recvRows.filter(r => !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
+  const totalCementBalance = Number(cementOpening.tons) + _ulgurjiRecvTons - totalSoldTons - totalSalesTons;
 
   const addSkladKirim = (recvRowId, kg, desc) => {
     const ts = Date.now();
@@ -632,10 +641,11 @@ export function DataProvider({ children }) {
 
   const totalSkladKg = skladRows.reduce((s, r) => s + Number(r.kg || 0), 0);
 
-  // ── Sklad bo'yicha qoldiq ──────────────────────────────────────────────────
-  // Ochilish faqat standart skladga tegishli. Olingan(+) / sotilgan,sotuv(−).
+  // ── Ulgurji sklad (ton) bo'yicha qoldiq ────────────────────────────────────
+  // Chakana skladga (kg) o'tkazilgan recvRow'lar CHIQARIB TASHLANADI
+  // chunki ularning hisobi totalSkladKg orqali alohida yuritiladi.
   const cementByWarehouse = warehouses.map(w => {
-    const recv  = recvRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
+    const recv  = recvRows.filter(r => whOf(r) === w.id && !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
     const sales = salesRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
     const sold  = soldRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
     const opening = w.id === defaultWhId ? Number(cementOpening.tons || 0) : 0;
@@ -1090,8 +1100,10 @@ export function DataProvider({ children }) {
     // Haydovchilar
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
-    // Asosiy sklad (kg)
+    // Asosiy sklad (kg — CHAKANA)
     skladRows, addSkladKirim, addSkladSotuv, totalSkladKg,
+    // Qaysi recvRow'lar chakana skladga o'tkazilganligi (Set<id>)
+    skladSourceIds: _skladSourceIds,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

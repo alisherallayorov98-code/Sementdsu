@@ -90,6 +90,7 @@ export default function RecvTons({ lang }) {
     currentWorker, setCurrentWorker,
     warehouses, defaultWhId, currentUser, appSettings,
     skladRows, addSkladKirim,
+    salesRows, skladSourceIds,
   } = useData();
   const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
   const myWh = currentUser?.warehouseId || defaultWhId;
@@ -213,6 +214,7 @@ export default function RecvTons({ lang }) {
         date: verifyRow.factoryTime || verifyRow.date,
         factoryTime: verifyRow.factoryTime || '',
         note: `Zavod: ${verifyRow.source}`,
+        recvId: verifyRow.id, // RecvRow bilan bog'lanish (tahrirlash uchun)
       });
     }
     // 3) Asosiy skladga o'tkazish → ton × 1000 = kg
@@ -674,8 +676,11 @@ export default function RecvTons({ lang }) {
                           style={{ fontSize:11, cursor:'pointer', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
                         >✓ Tekshirish</button>
                       )}
-                      {!r.pending && skladRows.some(s => s.sourceId === r.id) && (
-                        <span title="Asosiy skladga qo'shilgan" style={{ fontSize:11, color:'#2e7d32', fontWeight:'bold', marginRight:4 }}>📦✓</span>
+                      {!r.pending && skladSourceIds.has(r.id) && (
+                        <span title="Asosiy skladga (chakana) qo'shilgan" style={{ fontSize:11, color:'#2e7d32', fontWeight:'bold', marginRight:4 }}>📦✓</span>
+                      )}
+                      {!r.pending && !skladSourceIds.has(r.id) && salesRows.some(s => s.recvId === r.id) && (
+                        <span title="Ulgurji sotilgan (birdan sotish)" style={{ fontSize:11, color:'#1565c0', fontWeight:'bold', marginRight:4 }}>🛒✓</span>
                       )}
                       <button
                         onClick={() => setEditRecv({ ...r })}
