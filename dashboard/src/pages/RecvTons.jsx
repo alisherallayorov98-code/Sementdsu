@@ -86,7 +86,7 @@ const downloadTemplate = () => {
 export default function RecvTons({ lang }) {
   const {
     recvRows, addRecvRow, updateRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow,
-    addSaleRow, addSupplier,
+    addSaleRow, updateSaleRow, addSupplier,
     currentWorker, setCurrentWorker,
     warehouses, defaultWhId, currentUser, appSettings,
     skladRows, addSkladKirim,
@@ -717,7 +717,15 @@ export default function RecvTons({ lang }) {
           row={editRecv}
           warehouses={warehouses}
           myWh={myWh}
-          onSave={(fields) => { updateRecvRow(editRecv.id, fields); setEditRecv(null); }}
+          linkedSale={salesRows.find(s => s.recvId === editRecv.id) || null}
+          onSave={(recvFields, saleFields) => {
+            updateRecvRow(editRecv.id, recvFields);
+            if (saleFields) {
+              const linked = salesRows.find(s => s.recvId === editRecv.id);
+              if (linked) updateSaleRow(linked.id, saleFields);
+            }
+            setEditRecv(null);
+          }}
           onClose={() => setEditRecv(null)}
         />
       )}
@@ -817,10 +825,17 @@ function Field({ label, children }) {
 const vInp = { width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4, fontFamily:'Tahoma, sans-serif' };
 
 // ── RecvRow tahrirlash modali ─────────────────────────────────────────────────
-export function RecvEditModal({ row, warehouses, myWh, onSave, onClose }) {
-  const [f, setF] = useState({ ...row });
-  const s = v => e => setF(p => ({ ...p, [v]: e.target.value }));
-  const handle = e => { e.preventDefault(); onSave(f); };
+export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSale }) {
+  const [f, setF]   = useState({ ...row });
+  const [sf, setSf] = useState(linkedSale ? { ...linkedSale } : null);
+  const sv = v => e => setF(p => ({ ...p, [v]: e.target.value }));
+  const ss = v => e => setSf(p => ({ ...p, [v]: e.target.value }));
+  const handle = e => {
+    e.preventDefault();
+    const recvFields = { source: f.source, brand: f.brand, tons: f.tons, pricePerTon: f.pricePerTon, vehicleNo: f.vehicleNo, cardName: f.cardName, factoryTime: f.factoryTime, paymentChannel: f.paymentChannel, warehouseId: f.warehouseId, izoh: f.izoh };
+    const saleFields = sf ? { customer: sf.customer, pricePerTon: sf.pricePerTon, paymentChannel: sf.paymentChannel, note: sf.note } : null;
+    onSave(recvFields, saleFields);
+  };
   return createPortal(
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9100, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:16, overflowY:'auto' }}>
       <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:520, marginTop:20, fontFamily:'Tahoma, sans-serif' }}>
@@ -834,36 +849,38 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose }) {
               ⚠ Tasdiqlangan yozuv — tonnani o'zgartirish yetkazib beruvchi qarziga ta'sir qilmaydi (qo'lda tekshiring)
             </div>
           )}
+          {/* ── Kirim (RecvRow) ma'lumotlari ── */}
+          <div style={{ fontWeight:'bold', fontSize:12, color:'#1565c0', borderBottom:'1px solid #e3f2fd', paddingBottom:4 }}>📦 Kirim ma'lumotlari</div>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Zavod / Manba *">
-              <input value={f.source||''} onChange={s('source')} style={vInp} placeholder="Zavod nomi" required />
+              <input value={f.source||''} onChange={sv('source')} style={vInp} placeholder="Zavod nomi" required />
             </Field>
             <Field label="Marka">
-              <input value={f.brand||''} onChange={s('brand')} style={vInp} placeholder="Sement markasi" />
+              <input value={f.brand||''} onChange={sv('brand')} style={vInp} placeholder="Sement markasi" />
             </Field>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Tonna *">
-              <input type="number" value={f.tons||''} onChange={s('tons')} style={vInp} required />
+              <input type="number" value={f.tons||''} onChange={sv('tons')} style={vInp} required />
             </Field>
             <Field label="Narx (1 tn)">
-              <input type="number" value={f.pricePerTon||''} onChange={s('pricePerTon')} style={vInp} />
+              <input type="number" value={f.pricePerTon||''} onChange={sv('pricePerTon')} style={vInp} />
             </Field>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Mashina №">
-              <input value={f.vehicleNo||''} onChange={s('vehicleNo')} style={vInp} />
+              <input value={f.vehicleNo||''} onChange={sv('vehicleNo')} style={vInp} />
             </Field>
             <Field label="Karta nomi">
-              <input value={f.cardName||''} onChange={s('cardName')} style={vInp} />
+              <input value={f.cardName||''} onChange={sv('cardName')} style={vInp} />
             </Field>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Vaqt (zavod)">
-              <input value={f.factoryTime||''} onChange={s('factoryTime')} style={vInp} placeholder="2026-06-24 20:57:13" />
+              <input value={f.factoryTime||''} onChange={sv('factoryTime')} style={vInp} placeholder="2026-06-24 20:57:13" />
             </Field>
             <Field label="To'lov usuli">
-              <select value={f.paymentChannel||'naqd'} onChange={s('paymentChannel')} style={vInp}>
+              <select value={f.paymentChannel||'naqd'} onChange={sv('paymentChannel')} style={vInp}>
                 <option value="naqd">💵 Naqd</option>
                 <option value="bank">🏦 Bank</option>
                 <option value="click">📱 Click</option>
@@ -872,14 +889,48 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose }) {
           </div>
           {warehouses?.length > 1 && (
             <Field label="Sklad">
-              <select value={f.warehouseId||myWh} onChange={s('warehouseId')} style={vInp}>
+              <select value={f.warehouseId||myWh} onChange={sv('warehouseId')} style={vInp}>
                 {warehouses.map(w => <option key={w.id} value={w.id}>🏬 {w.name}</option>)}
               </select>
             </Field>
           )}
           <Field label="Izoh">
-            <input value={f.izoh||''} onChange={s('izoh')} style={vInp} placeholder="Ixtiyoriy" />
+            <input value={f.izoh||''} onChange={sv('izoh')} style={vInp} placeholder="Ixtiyoriy" />
           </Field>
+
+          {/* ── Sotuv (birdan sotish) ma'lumotlari — faqat bog'liq savdo bo'lsa ── */}
+          {sf && (
+            <>
+              <div style={{ fontWeight:'bold', fontSize:12, color:'#2e7d32', borderBottom:'1px solid #e8f5e9', paddingBottom:4, marginTop:4 }}>
+                🛒 Ulgurji sotuv ma'lumotlari
+              </div>
+              <div style={{ fontSize:11, color:'#555', background:'#f1f8e9', padding:'6px 10px', borderRadius:4 }}>
+                Mijoz: <b>{sf.customer}</b> · {sf.tons} tn × {fmt(sf.pricePerTon)} = <b>{fmt(Number(sf.tons||0)*Number(sf.pricePerTon||0))} so'm</b>
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <Field label="Mijoz *">
+                  <input value={sf.customer||''} onChange={ss('customer')} style={vInp} placeholder="Mijoz ismi" required />
+                </Field>
+                <Field label="Sotish narxi (1 tn)">
+                  <input type="number" value={sf.pricePerTon||''} onChange={ss('pricePerTon')} style={vInp} />
+                </Field>
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <Field label="To'lov turi">
+                  <select value={sf.paymentChannel||'naqd'} onChange={ss('paymentChannel')} style={vInp}>
+                    <option value="naqd">💵 Naqd</option>
+                    <option value="bank">🏦 Bank</option>
+                    <option value="click">📱 Click</option>
+                    <option value="nasiya">⚠️ Nasiya</option>
+                  </select>
+                </Field>
+                <Field label="Izoh">
+                  <input value={sf.note||''} onChange={ss('note')} style={vInp} placeholder="Ixtiyoriy" />
+                </Field>
+              </div>
+            </>
+          )}
+
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
             <button type="button" onClick={onClose} style={{ padding:'8px 20px', border:'1px solid #ccc', borderRadius:6, cursor:'pointer', background:'#f5f5f5' }}>Bekor</button>
             <button type="submit" style={{ padding:'8px 28px', background:'#1565c0', color:'#fff', border:'none', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:14 }}>✓ Saqlash</button>

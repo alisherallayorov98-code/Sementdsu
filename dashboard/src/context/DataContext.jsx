@@ -585,6 +585,9 @@ export function DataProvider({ children }) {
 
     return sale; // chek chiqarish uchun
   };
+  // Savdoni tahrirlash (faqat meta-maydonlar: customer, note, vehicleNo va h.k.)
+  // Narx va tonna o'zgarsa — cashRow/debtRow lar manual yangilanishi kerak!
+  const updateSaleRow = (id, fields) => setSalesRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
   // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi
   const deleteSaleRow = (id) => {
     const sale = salesRows.find(r => r.id === id);
@@ -1078,7 +1081,7 @@ export function DataProvider({ children }) {
     // 12. Avanslar
     advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     // 13. Sotish
-    salesRows, addSaleRow, deleteSaleRow,
+    salesRows, addSaleRow, updateSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank
     bankIncomeRows, addBankIncomeRow, deleteBankIncomeRow, totalBankIncome,
     importBankIncomeRows, verifyBankIncomeRow, pendingBankCount,
