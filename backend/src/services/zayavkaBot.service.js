@@ -355,10 +355,20 @@ function start(acc = DEFAULT_ACCOUNT) {
           try {
             await bot.deleteMessage(cancelled.groupChatId, cancelled.groupMessageId);
             deleteMsg = '\n🗑 Guruhdan o\'chirildi.';
-          } catch {
-            // Bot admin emas yoki xabar juda eski (48 soatdan ko'p)
-            deleteMsg = '\n⚠️ Guruhdan o\'chirib bo\'lmadi (bot admin emas yoki xabar 48 soatdan eski).';
+          } catch (delErr) {
+            // Bot guruhda "Delete messages" huquqiga ega admin bo'lishi kerak.
+            // Admin bo'lsa — istalgan vaqtda o'chiriladi (vaqt cheklov yo'q).
+            const hint = delErr?.response?.body?.description || delErr.message || '';
+            if (hint.includes('not enough rights') || hint.includes('MESSAGE_DELETE_FORBIDDEN')) {
+              deleteMsg = '\n⚠️ O\'chirib bo\'lmadi: botni guruhda "Xabarlarni o\'chirish" huquqi bilan admin qiling.';
+            } else if (hint.includes('message to delete not found')) {
+              deleteMsg = '\n⚠️ Xabar allaqachon o\'chirilgan.';
+            } else {
+              deleteMsg = `\n⚠️ O\'chirib bo\'lmadi: ${hint}`;
+            }
           }
+        } else {
+          deleteMsg = '\n⚠️ Xabar ID saqlanmagan (eski zayavka bo\'lishi mumkin).';
         }
 
         // Tiket qoldig'ini tiklash

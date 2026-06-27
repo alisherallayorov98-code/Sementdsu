@@ -217,7 +217,7 @@ function ZayavkaBotSettings({ themeColor }) {
         <strong style={{ color: '#1b5e20', fontSize: 14 }}>Zayavka Bot — qanday ishlaydi?</strong>
         <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
           <li>BotFather'dan yangi bot yarating → tokenini quyida kiriting</li>
-          <li>Botni maqsad guruhingizga <strong>admin</strong> qilib qo'shing</li>
+          <li>Botni maqsad guruhingizga <strong>admin</strong> qilib qo'shing va <strong>"Xabarlarni o'chirish"</strong> huquqini bering — shunda /bekor istalgan vaqtda ishlaydi</li>
           <li>Guruhda <code>/chatid</code> yozing → bot javob bergan ID ni "Guruh Chat ID" ga kiriting</li>
           <li>Shablon va maydon sozlamalarini to'ldiring → Saqlang</li>
           <li>Xodimlar bot orqali <code>/zayavka</code> yozadi → 4 ta savol (sana avtomatik) → guruhga boradi</li>
