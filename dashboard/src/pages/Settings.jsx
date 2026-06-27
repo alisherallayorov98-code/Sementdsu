@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
@@ -96,6 +96,258 @@ function TariffCard({ tariff, onRename, onDelete, onAddPrice, onRemovePrice, the
         <button onClick={() => { onAddPrice(newPrice); setNewPrice(''); }}
           style={{ padding: '4px 10px', background: themeColor, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>+</button>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Zayavka Bot Settings Tab
+// ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_TEMPLATE = `📋 *ZAYAVKA #{number}*
+━━━━━━━━━━━━━━━━━━━━
+📅 Sana: {sana}
+🚛 Mashina: {mashina}
+👤 Haydovchi: {haydovchi}
+⚖️ Tonna: {tonna} tn
+🏷 Marka: {marka}
+━━━━━━━━━━━━━━━━━━━━`;
+
+const DEFAULT_LABELS = { sana: 'Sana', mashina: 'Mashina raqami', haydovchi: 'Haydovchi ismi', tonna: 'Tonna', marka: 'Marka (450/550)' };
+const DEFAULT_OPTIONS = { tonna: ['20', '22', '25', '27', '30'], marka: ['450', '550'] };
+
+function ZayavkaBotSettings({ themeColor }) {
+  const [cfg, setCfg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [log, setLog] = useState([]);
+  const [showLog, setShowLog] = useState(false);
+
+  const [form, setForm] = useState({
+    botToken: '',
+    groupChatId: '',
+    template: DEFAULT_TEMPLATE,
+    fieldLabels: DEFAULT_LABELS,
+    fieldOptions: DEFAULT_OPTIONS,
+    optionalFields: [],
+  });
+
+  // Option editing state
+  const [optField, setOptField] = useState('');
+  const [optVal, setOptVal] = useState('');
+  const [labelField, setLabelField] = useState('');
+  const [labelVal, setLabelVal] = useState('');
+
+  useEffect(() => {
+    api.getZayavkaConfig().then(r => {
+      if (r.ok) {
+        setCfg(r.config);
+        setForm(f => ({
+          ...f,
+          botToken: r.config.hasToken ? '***' : '',
+          groupChatId: r.config.groupChatId || '',
+          template: r.config.template || DEFAULT_TEMPLATE,
+          fieldLabels: r.config.fieldLabels || DEFAULT_LABELS,
+          fieldOptions: r.config.fieldOptions || DEFAULT_OPTIONS,
+          optionalFields: r.config.optionalFields || [],
+        }));
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const save = async () => {
+    setSaving(true); setMsg('');
+    try {
+      await api.saveZayavkaConfig({
+        botToken: form.botToken === '***' ? undefined : form.botToken,
+        groupChatId: form.groupChatId,
+        template: form.template,
+        fieldLabels: form.fieldLabels,
+        fieldOptions: form.fieldOptions,
+        optionalFields: form.optionalFields,
+      });
+      setMsg('✅ Saqlandi! Bot qayta ishga tushdi.');
+    } catch (e) {
+      setMsg('❌ Xato: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadLog = async () => {
+    try { const r = await api.getZayavkaLog(20); setLog(r.log || []); setShowLog(true); } catch { /* */ }
+  };
+
+  // Extract fields from template for label/options editing
+  const extractFields = (tmpl) => {
+    const seen = new Set(); const fields = [];
+    for (const m of (tmpl || '').matchAll(/\{(\w+)\}/g)) {
+      if (!seen.has(m[1]) && m[1] !== 'number') { seen.add(m[1]); fields.push(m[1]); }
+    }
+    return fields;
+  };
+
+  const templateFields = extractFields(form.template);
+
+  const sInput = { padding: '8px 12px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, width: '100%', boxSizing: 'border-box' };
+  const sBtn   = { padding: '8px 16px', background: themeColor, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 };
+
+  if (loading) return <div style={{ padding: 24, color: '#888' }}>Yuklanmoqda...</div>;
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      {/* Yo'riqnoma */}
+      <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.7 }}>
+        <strong style={{ color: '#1b5e20', fontSize: 14 }}>Zayavka Bot — qanday ishlaydi?</strong>
+        <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
+          <li>BotFather'dan yangi bot yarating → tokenini quyida kiriting</li>
+          <li>Botni maqsad guruhingizga admin qilib qo'shing</li>
+          <li>Guruhda <code>/chatid</code> yozing → bot javob bergan ID ni "Guruh Chat ID" ga kiriting</li>
+          <li>Shablon va maydon sozlamalarini to'ldiring → Saqlang</li>
+          <li>Xodimlar bot orqali <code>/zayavka</code> yozib zayavka yuborishadi</li>
+        </ol>
+        <div style={{ marginTop: 8, color: '#666' }}>
+          <strong>Shablon'da</strong> <code>{`{sana}`}</code>, <code>{`{mashina}`}</code>, <code>{`{tonna}`}</code> kabi <code>{`{maydon}`}</code> formatda yozing.
+          <code>{`{number}`}</code> — tartib raqam (avtomatik).
+        </div>
+      </div>
+
+      {/* Token va Chat ID */}
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 20, marginBottom: 16 }}>
+        <h4 style={{ margin: '0 0 14px', color: themeColor }}>Bot sozlamalari</h4>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>Bot Token (BotFather'dan)</div>
+            <input
+              type="password"
+              value={form.botToken}
+              onChange={e => setForm(f => ({ ...f, botToken: e.target.value }))}
+              placeholder={cfg?.hasToken ? '(o\'zgartirilmaydi — yangi token kiriting)' : '1234567890:AAFxxxxxxx...'}
+              style={sInput}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>Guruh Chat ID (botni guruhga qo'shib /chatid yozing)</div>
+            <input
+              value={form.groupChatId}
+              onChange={e => setForm(f => ({ ...f, groupChatId: e.target.value }))}
+              placeholder="-1001234567890"
+              style={sInput}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Shablon */}
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 20, marginBottom: 16 }}>
+        <h4 style={{ margin: '0 0 4px', color: themeColor }}>Xabar shabloni</h4>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>Markdown qo'llashingiz mumkin (*qalin*, _kursiv_). {`{number}`} = tartib raqam. Har safar /zayavka bosganda maydonlar ketma-ket so'raladi.</div>
+        <textarea
+          value={form.template}
+          onChange={e => setForm(f => ({ ...f, template: e.target.value }))}
+          rows={8}
+          style={{ ...sInput, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+        />
+        <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+          <strong>Shablon dagi maydonlar:</strong>{' '}
+          {templateFields.length === 0
+            ? <span style={{ color: '#c62828' }}>Hech qanday maydon topilmadi. {`{sana}`} kabi yozing.</span>
+            : templateFields.map(f => <code key={f} style={{ marginRight: 6, background: '#f0f4ff', padding: '1px 5px', borderRadius: 3, color: '#1565c0' }}>{`{${f}}`}</code>)
+          }
+        </div>
+      </div>
+
+      {/* Maydon sozlamalari */}
+      {templateFields.length > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 20, marginBottom: 16 }}>
+          <h4 style={{ margin: '0 0 14px', color: themeColor }}>Maydon sozlamalari</h4>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f5f5f5' }}>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', whiteSpace: 'nowrap' }}>Maydon</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>Yorliq (botda ko'rinadi)</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>Tez tugmalar (vergul bilan)</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', whiteSpace: 'nowrap' }}>Ixtiyoriy</th>
+                </tr>
+              </thead>
+              <tbody>
+                {templateFields.map((field, i) => (
+                  <tr key={field} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding: '7px 10px' }}>
+                      <code style={{ background: '#f0f4ff', padding: '2px 6px', borderRadius: 3, color: '#1565c0', fontSize: 12 }}>{`{${field}}`}</code>
+                    </td>
+                    <td style={{ padding: '7px 10px' }}>
+                      <input
+                        value={form.fieldLabels[field] || ''}
+                        onChange={e => setForm(f => ({ ...f, fieldLabels: { ...f.fieldLabels, [field]: e.target.value } }))}
+                        placeholder={field}
+                        style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, width: 150 }}
+                      />
+                    </td>
+                    <td style={{ padding: '7px 10px' }}>
+                      <input
+                        value={(form.fieldOptions[field] || []).join(', ')}
+                        onChange={e => {
+                          const opts = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                          setForm(f => ({ ...f, fieldOptions: { ...f.fieldOptions, [field]: opts } }));
+                        }}
+                        placeholder="20, 22, 25 ..."
+                        style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, width: 180 }}
+                      />
+                    </td>
+                    <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={(form.optionalFields || []).includes(field)}
+                        onChange={e => setForm(f => {
+                          const cur = f.optionalFields || [];
+                          return { ...f, optionalFields: e.target.checked ? [...cur, field] : cur.filter(x => x !== field) };
+                        })}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>
+            Ixtiyoriy maydonlar uchun bot "O'tkazib yuborish" tugmasi ko'rsatadi. Tez tugmalar bo'lsa ham o'zi yoza oladi.
+          </div>
+        </div>
+      )}
+
+      {/* Saqlash */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+        <button onClick={save} disabled={saving} style={{ ...sBtn, opacity: saving ? 0.7 : 1 }}>
+          {saving ? 'Saqlanmoqda...' : '💾 Saqlash va Botni Ishga Tushirish'}
+        </button>
+        <button onClick={loadLog} style={{ ...sBtn, background: '#455a64' }}>
+          📋 Oxirgi zayavkalar
+        </button>
+      </div>
+      {msg && (
+        <div style={{ background: msg.startsWith('✅') ? '#e8f5e9' : '#ffebee', border: `1px solid ${msg.startsWith('✅') ? '#a5d6a7' : '#ef9a9a'}`, borderRadius: 6, padding: '10px 14px', marginBottom: 16, fontWeight: 'bold', color: msg.startsWith('✅') ? '#1b5e20' : '#c62828' }}>
+          {msg}
+        </div>
+      )}
+
+      {/* Zayavkalar tarixi */}
+      {showLog && (
+        <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 20 }}>
+          <h4 style={{ margin: '0 0 12px', color: themeColor }}>Oxirgi 20 ta zayavka</h4>
+          {log.length === 0 && <div style={{ color: '#999', fontSize: 13 }}>Hali zayavka yuborilmagan.</div>}
+          {log.map((z, i) => (
+            <div key={i} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 10, marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontWeight: 'bold', color: '#1565c0' }}>#{z.id} — {z.date}</span>
+                <span style={{ fontSize: 11, color: '#999' }}>{z.sentAt ? new Date(z.sentAt).toLocaleString('uz-UZ') : ''}</span>
+              </div>
+              <pre style={{ margin: 0, fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', background: '#f5f5f5', padding: 8, borderRadius: 4, color: '#333' }}>{z.text}</pre>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -292,6 +544,12 @@ export default function Settings({ lang }) {
         >
           Reys Tariflar
         </button>
+        <button
+          onClick={() => setTab('zayavka')}
+          style={{ padding: '10px 20px', background: tab === 'zayavka' ? appSettings.themeColor : 'transparent', color: tab === 'zayavka' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Zayavka Bot
+        </button>
       </div>
 
       {/* EXCEL IMPORT TABI */}
@@ -434,6 +692,11 @@ export default function Settings({ lang }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ZAYAVKA BOT TABI */}
+      {tab === 'zayavka' && (
+        <ZayavkaBotSettings themeColor={appSettings.themeColor} />
       )}
 
       {/* XODIMLAR TABI */}

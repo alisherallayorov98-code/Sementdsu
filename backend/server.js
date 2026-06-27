@@ -13,6 +13,7 @@ require('dotenv').config();
 const cron           = require('node-cron');
 const createApp      = require('./src/app');
 const telegram       = require('./src/services/telegram.service');
+const zayavkaBot     = require('./src/services/zayavkaBot.service');
 const debtReminder   = require('./src/services/debtReminder.service');
 const db             = require('./src/db');
 const { PORT, NODE_ENV, DEFAULT_ACCOUNT } = require('./src/config');
@@ -20,6 +21,7 @@ const { PORT, NODE_ENV, DEFAULT_ACCOUNT } = require('./src/config');
 const app = createApp();
 const bot = telegram.start();
 if (bot) debtReminder.start(bot);
+zayavkaBot.start(DEFAULT_ACCOUNT);
 
 // ── 6 oydan eski reys rasmlari o'chiriladi (lekin yozuv qoladi) ────────────
 cron.schedule('0 3 * * *', () => {

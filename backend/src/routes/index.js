@@ -109,4 +109,47 @@ router.get('/driver_trips/photo_url/:fileId', authenticate, async (req, res) => 
   }
 });
 
+// ── Zayavka bot konfiguratsiyasi ───────────────────────────────────────────
+// GET /zayavka_config — konfiguratsiyani olish
+router.get('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
+  const cfg = db.getZayavkaConfig(req.user.account) || {};
+  // botToken ni response dan olib tashlaymiz (xavfsizlik)
+  const { botToken: _, ...safe } = cfg;
+  res.json({ ok: true, config: { ...safe, hasToken: !!(cfg.botToken) } });
+});
+
+// PUT /zayavka_config — konfiguratsiyani saqlash
+router.put('/zayavka_config', authenticate, authorize('admin'), (req, res) => {
+  const acc = req.user.account;
+  const old = db.getZayavkaConfig(acc) || {};
+  const body = req.body || {};
+  // Token berilmagan bo'lsa yoki '***' bo'lsa — eskisini saqlaymiz
+  const botToken = (body.botToken && body.botToken !== '***')
+    ? body.botToken.trim()
+    : old.botToken;
+  const cfg = {
+    botToken,
+    groupChatId:    body.groupChatId   ?? old.groupChatId,
+    template:       body.template      ?? old.template,
+    fieldLabels:    body.fieldLabels   ?? old.fieldLabels   ?? {},
+    fieldOptions:   body.fieldOptions  ?? old.fieldOptions  ?? {},
+    optionalFields: body.optionalFields ?? old.optionalFields ?? [],
+    fieldDefaults:  body.fieldDefaults  ?? old.fieldDefaults  ?? {},
+  };
+  db.setZayavkaConfig(acc, cfg);
+
+  // Bot ni restart qilish (token yoki config o'zgardi)
+  const zbSvc = require('../services/zayavkaBot.service');
+  zbSvc.stop();
+  setTimeout(() => zbSvc.start(acc), 500);
+
+  res.json({ ok: true });
+});
+
+// GET /zayavka_log — oxirgi zayavkalar tarixi
+router.get('/zayavka_log', authenticate, (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  res.json({ ok: true, log: db.getZayavkaLog(req.user.account, limit) });
+});
+
 module.exports = router;

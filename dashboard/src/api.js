@@ -72,6 +72,11 @@ export const api = {
   approveDriverTrip: (id) => req(`/api/driver_trips/approve/${id}`, { method: 'POST' }),
   rejectDriverTrip:  (id, reason = '') => req(`/api/driver_trips/reject/${id}`, { method: 'POST', body: JSON.stringify({ reason }) }),
   getDriverPhotoUrl: (fileId) => req(`/api/driver_trips/photo_url/${encodeURIComponent(fileId)}`),
+
+  // Zayavka bot
+  getZayavkaConfig: () => req('/api/zayavka_config'),
+  saveZayavkaConfig: (cfg) => req('/api/zayavka_config', { method: 'PUT', body: JSON.stringify(cfg) }),
+  getZayavkaLog: (limit = 50) => req(`/api/zayavka_log?limit=${limit}`),
 };
 
 export { API_URL };

@@ -36,7 +36,7 @@ const lastBackup = {};
 const accDir    = (acc) => path.join(ACCOUNTS_DIR, sanitize(acc));
 const dbFile    = (acc) => path.join(accDir(acc), 'db.json');
 const backupDir = (acc) => path.join(accDir(acc), 'backups');
-const emptyDb   = () => ({ state: {}, botOrders: [], tgContacts: [], pendingDriverTrips: [], updatedAt: null });
+const emptyDb   = () => ({ state: {}, botOrders: [], tgContacts: [], pendingDriverTrips: [], zayavkaConfig: null, zayavkaLog: [], zayavkaCounter: 0, updatedAt: null });
 
 // Telefonni solishtirish uchun normallashtirish — faqat oxirgi 9 raqam (UZ)
 const normPhone = (p) => String(p || '').replace(/\D/g, '').slice(-9);
@@ -75,6 +75,8 @@ function load(acc) {
   if (!db.botOrders)           db.botOrders = [];
   if (!db.tgContacts)          db.tgContacts = [];
   if (!db.pendingDriverTrips)  db.pendingDriverTrips = [];
+  if (!db.zayavkaLog)          db.zayavkaLog = [];
+  if (db.zayavkaCounter == null) db.zayavkaCounter = 0;
   cache[acc] = db;
   return db;
 }
@@ -232,5 +234,33 @@ module.exports = {
     const earned = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
     const paid   = trips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
     return earned - paid;
+  },
+
+  // ── Zayavka bot konfiguratsiyasi ─────────────────────────────────────────
+  getZayavkaConfig(acc)      { return load(acc).zayavkaConfig || null; },
+  setZayavkaConfig(acc, cfg) {
+    const db = load(acc);
+    db.zayavkaConfig = cfg;
+    persist(acc);
+  },
+  // Tartib raqam (har zayavkada oshib boradi)
+  nextZayavkaCounter(acc) {
+    const db = load(acc);
+    db.zayavkaCounter = (db.zayavkaCounter || 0) + 1;
+    persist(acc);
+    return db.zayavkaCounter;
+  },
+  // Yuborilgan zayavkalar tarixi
+  saveZayavka(acc, record) {
+    const db = load(acc);
+    if (!db.zayavkaLog) db.zayavkaLog = [];
+    db.zayavkaLog.push({ ...record, sentAt: Date.now() });
+    // Oxirgi 500 ta yozuv saqlanadi
+    if (db.zayavkaLog.length > 500) db.zayavkaLog = db.zayavkaLog.slice(-500);
+    persist(acc);
+  },
+  getZayavkaLog(acc, limit = 50) {
+    const log = load(acc).zayavkaLog || [];
+    return log.slice(-limit).reverse();
   },
 };
