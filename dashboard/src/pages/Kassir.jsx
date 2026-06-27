@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
+import { printSaleReceipt } from '../lib/receipt';
+import { customerSummary } from '../lib/customerSummary';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(3); };
@@ -78,14 +80,15 @@ function ChannelBtns({ value, onChange, extra = [] }) {
 }
 
 // ── Asosiy komponent ──────────────────────────────────────────────────────────
-export default function Kassir({ lang }) {
+export default function Kassir() {
+  const data = useData();
   const {
     cashOpening, cashRows, addCashRow,
     bankOpening, bankRows, addBankRow,
     clickOpening, clickRows, addClickRow,
-    payCustomerDebt, addAdvanceRow, addSaleRow, addDebtRow,
-    debtRows, customers, currentWorker, setCurrentWorker, workers,
-  } = useData();
+    payCustomerDebt, addAdvanceRow, addSaleRow,
+    debtRows, salesRows, appSettings, currentWorker, setCurrentWorker, workers,
+  } = data;
 
   const [tab, setTab]   = useState('qarz');
   const [toast, setToast] = useState('');
@@ -149,7 +152,7 @@ export default function Kassir({ lang }) {
   const submitSotuv = (e) => {
     e.preventDefault();
     if (!sotuv.customer || !sotuv.tons || !sotuv.pricePerTon) return;
-    addSaleRow({
+    const created = addSaleRow({
       customer: sotuv.customer,
       tons: sotuv.tons,
       pricePerTon: sotuv.pricePerTon,
@@ -159,6 +162,16 @@ export default function Kassir({ lang }) {
       date: today,
     });
     showToast(`${fmtT(sotuv.tons)} tn sotildi — ${fmt(Number(sotuv.tons)*Number(sotuv.pricePerTon))} so'm`);
+    if (created) {
+      const s = customerSummary(created.customer, data);
+      const extraDebt = created.paymentChannel === 'nasiya' ? Number(created.tons||0)*Number(created.pricePerTon||0) : 0;
+      printSaleReceipt(created, {
+        appName: appSettings?.appName || 'SEMENT',
+        phone: appSettings?.companyPhone || '',
+        address: appSettings?.companyAddress || '',
+        qolganQarz: s.qolganQarz + extraDebt,
+      });
+    }
     setSotuv({ customer: '', tons: '', pricePerTon: '', channel: 'naqd', vehicleNo: '', note: '' });
   };
 
@@ -187,8 +200,6 @@ export default function Kassir({ lang }) {
     const opt = TRANSFER_OPTS.find(o => o.v === otkazma.dir);
     if (!opt) return;
     const amt = Number(otkazma.amount);
-    const desc = otkazma.note || `O'tkazma: ${opt.label}`;
-    const ts = Date.now();
     const tag = `↔️ ${opt.label}`;
     addRow(opt.from, -amt, tag);
     addRow(opt.to,   +amt, tag);
@@ -462,7 +473,26 @@ export default function Kassir({ lang }) {
                       {amt >= 0 ? '+' : ''}{fmt(amt)}
                     </td>
                     <td style={{ fontSize: 11, color: ch?.color || '#555' }}>{ch?.icon} {ch?.label || r.channel}</td>
-                    <td style={{ fontSize: 11, color: '#888' }}>{r.worker || '—'}</td>
+                    <td style={{ fontSize: 11, color: '#888' }}>
+                      {r.worker || '—'}
+                      {r.sourceType === 'sale' && (() => {
+                        const sale = (salesRows || []).find(s => s.id === r.sourceId);
+                        if (!sale) return null;
+                        return (
+                          <button type="button" onClick={() => {
+                            const s = customerSummary(sale.customer, data);
+                            printSaleReceipt(sale, {
+                              appName: appSettings?.appName || 'SEMENT',
+                              phone: appSettings?.companyPhone || '',
+                              address: appSettings?.companyAddress || '',
+                              qolganQarz: s.qolganQarz,
+                            });
+                          }} style={{ marginLeft: 4, padding: '2px 6px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
+                            🧾
+                          </button>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 );
               })}
