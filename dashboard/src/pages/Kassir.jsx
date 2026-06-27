@@ -88,11 +88,15 @@ export default function Kassir() {
     clickOpening, clickRows, addClickRow,
     payCustomerDebt, addAdvanceRow, addSaleRow,
     debtRows, salesRows, appSettings, currentWorker, setCurrentWorker, workers,
+    addSkladSotuv, totalSkladKg,
   } = data;
 
   const [tab, setTab]   = useState('qarz');
   const [toast, setToast] = useState('');
   const showToast = useCallback((msg) => setToast(msg), []);
+
+  // ── Sklad qoldiq (kg) ───────────────────────────────────────────────────────
+  const skladKgBal = totalSkladKg;
 
   // ── Qoldiqlar ───────────────────────────────────────────────────────────────
   const cashBal  = Number(cashOpening?.amount  || 0) + cashRows.reduce((s,r)  => s + Number(r.amount  || 0), 0);
@@ -118,6 +122,7 @@ export default function Kassir() {
   const [kirim,   setKirim]  = useState({ desc: '', amount: '', channel: 'naqd' });
   const [chiqim,  setChiqim] = useState({ cat: 'boshqa', desc: '', amount: '', channel: 'naqd' });
   const [otkazma, setOtkazma]= useState({ dir: 'bank_to_naqd', amount: '', note: '' });
+  const [sklad,   setSklad]  = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
 
   // Mijoz qolgan qarzi (qarz tab uchun)
   const custRemaining = qarz.customer
@@ -194,6 +199,15 @@ export default function Kassir() {
     setChiqim({ cat: 'boshqa', desc: '', amount: '', channel: 'naqd' });
   };
 
+  const submitSklad = (e) => {
+    e.preventDefault();
+    if (!sklad.customer || !sklad.kg || !sklad.pricePerKg) return;
+    if (skladKgBal < Number(sklad.kg)) { alert(`Sklad qoldig'i yetarli emas. Qoldiq: ${skladKgBal} kg`); return; }
+    addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note });
+    showToast(`${sklad.kg} kg sotildi — ${fmt(Number(sklad.kg)*Number(sklad.pricePerKg))} so'm`);
+    setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '' });
+  };
+
   const submitOtkazma = (e) => {
     e.preventDefault();
     if (!otkazma.amount) return;
@@ -214,6 +228,7 @@ export default function Kassir() {
     { v: 'kirim',   label: '➕ Kirim',         color: '#00695c', bg: '#e0f2f1' },
     { v: 'chiqim',  label: '➖ Chiqim',        color: '#c62828', bg: '#ffebee' },
     { v: 'otkazma', label: '↔️ O\'tkazma',    color: '#6a1b9a', bg: '#f3e5f5' },
+    { v: 'sklad',   label: '🏗 Sklad (kg)',   color: '#4e342e', bg: '#efebe9' },
   ];
   const activeTab = TABS.find(t => t.v === tab);
 
@@ -230,12 +245,13 @@ export default function Kassir() {
         {[
           { label: '💵 Naqd', val: cashBal,  color: '#1565c0', bg: '#e3f2fd' },
           { label: '🏦 Bank', val: bankBal,  color: '#2e7d32', bg: '#e8f5e9' },
-          { label: '📱 Click', val: clickBal, color: '#6a1b9a', bg: '#f3e5f5' },
+          { label: '📱 Click', val: clickBal,   color: '#6a1b9a', bg: '#f3e5f5' },
+          { label: '🏗 Sklad', val: skladKgBal, color: '#4e342e', bg: '#efebe9', unit: 'kg' },
         ].map(c => (
           <div key={c.label} style={{ flex: 1, minWidth: 150, padding: '10px 16px', background: c.bg, borderLeft: `5px solid ${c.color}`, borderRadius: 6 }}>
             <div style={{ fontSize: 11, color: '#666', fontWeight: 'bold' }}>{c.label} qoldig'i</div>
             <div style={{ fontSize: 20, fontWeight: 'bold', color: c.val < 0 ? '#c62828' : c.color, fontFamily: 'monospace', marginTop: 2 }}>
-              {fmt(c.val)} so'm
+              {fmt(c.val)} {c.unit || 'so\'m'}
             </div>
           </div>
         ))}
@@ -432,6 +448,45 @@ export default function Kassir() {
               </div>
             )}
             <SubmitBtn color="#6a1b9a" label="✓ O'tkazma" />
+          </form>
+        )}
+
+        {/* ─ SKLAD SOTUV (kg) ─ */}
+        {tab === 'sklad' && (
+          <form onSubmit={submitSklad}>
+            <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 13 }}>
+              🏗 Sklad qoldig'i: <b style={{ color: skladKgBal < 0 ? '#c62828' : '#4e342e', fontFamily: 'monospace', fontSize: 16 }}>{fmt(skladKgBal)} kg</b>
+              <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>({(skladKgBal/1000).toFixed(3)} tn)</span>
+            </div>
+            <Row>
+              <Field label="Mijoz *">
+                <CustomerSelect value={sklad.customer} onChange={v => setSklad({...sklad, customer: v})} placeholder="Mijoz (izlash...)" accentColor="#4e342e" />
+              </Field>
+              <Field label="Kilogram *">
+                <input type="number" step="0.01" value={sklad.kg} onChange={e => setSklad({...sklad, kg: e.target.value})}
+                  placeholder="0" style={inp} required />
+              </Field>
+              <Field label="Narx (1 kg) *">
+                <input type="number" value={sklad.pricePerKg} onChange={e => setSklad({...sklad, pricePerKg: e.target.value})}
+                  placeholder="0" style={inp} required />
+              </Field>
+            </Row>
+            {sklad.kg && sklad.pricePerKg && (
+              <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 14 }}>
+                💰 Jami: <b style={{ color: '#4e342e', fontSize: 16 }}>{fmt(Number(sklad.kg)*Number(sklad.pricePerKg))} so'm</b>
+                <span style={{ fontSize: 11, color: '#888', marginLeft: 12 }}>Qoldiq: {fmt(skladKgBal - Number(sklad.kg||0))} kg</span>
+              </div>
+            )}
+            <Row>
+              <Field label="Izoh">
+                <input value={sklad.note} onChange={e => setSklad({...sklad, note: e.target.value})} placeholder="Ixtiyoriy" style={inp} />
+              </Field>
+            </Row>
+            <Field label="To'lov turi">
+              <ChannelBtns value={sklad.channel} onChange={v => setSklad({...sklad, channel: v})}
+                extra={[{ v: 'nasiya', icon: '⚠️', label: 'Nasiya (Qarz)', color: '#c62828' }]} />
+            </Field>
+            <SubmitBtn color="#4e342e" label="✓ Sklad sotuv" />
           </form>
         )}
       </div>

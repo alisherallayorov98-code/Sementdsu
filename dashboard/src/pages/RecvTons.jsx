@@ -89,6 +89,7 @@ export default function RecvTons({ lang }) {
     addSaleRow, addSupplier,
     currentWorker, setCurrentWorker,
     warehouses, defaultWhId, currentUser, appSettings,
+    skladRows, addSkladKirim,
   } = useData();
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
@@ -667,6 +668,18 @@ export default function RecvTons({ lang }) {
                           style={{ fontSize:11, cursor:'pointer', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
                         >✓ Tekshirish</button>
                       )}
+                      {!r.pending && (() => {
+                        const alreadyIn = skladRows.some(s => s.sourceId === r.id);
+                        return alreadyIn ? (
+                          <span title="Asosiy skladga qo'shilgan" style={{ fontSize:11, color:'#2e7d32', fontWeight:'bold', marginRight:4 }}>📦✓</span>
+                        ) : (
+                          <button
+                            onClick={() => { addSkladKirim(r.id, Number(r.tons||0)*1000, `${r.source}${r.brand?' · '+r.brand:''}`); }}
+                            title="Asosiy skladga kilogramda kirim qilish"
+                            style={{ fontSize:11, cursor:'pointer', background:'#e65100', color:'#fff', border:'none', borderRadius:3, padding:'3px 8px', marginRight:4, fontWeight:'bold' }}
+                          >📦 Sklad</button>
+                        );
+                      })()}
                       <button
                         onClick={() => { if(window.confirm("O'chirilsinmi?")) deleteRecvRow(r.id); }}
                         style={{ fontSize:10, cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', padding:'2px 5px' }}

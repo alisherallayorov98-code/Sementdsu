@@ -595,6 +595,39 @@ export function DataProvider({ children }) {
   // Sement qoldig'i = ochilish + olingan − (eski sotilgan + yangi sotuv)
   const totalCementBalance = Number(cementOpening.tons) + totalRecvTons - totalSoldTons - totalSalesTons;
 
+  // ── Asosiy sklad (kilogram hisob) ────────────────────────────────────────────
+  const [skladRows, setSkladRows] = useState(() => load('sklad_rows', []));
+  useEffect(() => save('sklad_rows', skladRows), [skladRows]);
+
+  const addSkladKirim = (recvRowId, kg, desc) => {
+    const ts = Date.now();
+    setSkladRows(p => [...p, {
+      id: ts, createdAt: ts, date: new Date().toLocaleDateString('ru-RU'),
+      type: 'kirim', kg: Number(kg), sourceId: recvRowId,
+      desc: desc || 'Zavoddan kirim', worker: currentWorker,
+    }]);
+  };
+
+  const addSkladSotuv = ({ customer, kg, pricePerKg, channel, note }) => {
+    const ts = Date.now();
+    const kgN  = Number(kg);
+    const sum  = kgN * Number(pricePerKg);
+    const td   = new Date().toLocaleDateString('ru-RU');
+    const tag  = `🏗 Sklad: ${customer} (${kgN} kg)`;
+    const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td };
+    if (sum > 0) {
+      if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
+      else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
+      else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
+      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+    }
+    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, customer, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker };
+    setSkladRows(p => [...p, row]);
+    return row;
+  };
+
+  const totalSkladKg = skladRows.reduce((s, r) => s + Number(r.kg || 0), 0);
+
   // ── Sklad bo'yicha qoldiq ──────────────────────────────────────────────────
   // Ochilish faqat standart skladga tegishli. Olingan(+) / sotilgan,sotuv(−).
   const cementByWarehouse = warehouses.map(w => {
@@ -873,6 +906,7 @@ export function DataProvider({ children }) {
     customers:          setCustomers,
     drivers:            setDrivers,
     driver_trips:       setDriverTrips,
+    sklad_rows:         setSkladRows,
   };
 
   // Holatning joriy "suratini" yig'ish (serverga shu jo'natiladi)
@@ -906,6 +940,7 @@ export function DataProvider({ children }) {
     customers:          customers,
     drivers:            drivers,
     driver_trips:       driverTrips,
+    sklad_rows:         skladRows,
   };
 
   // 1) Tizimga kirilgach (token bor) — serverdan butun holatni yuklab olish
@@ -954,7 +989,7 @@ export function DataProvider({ children }) {
     appSettings, cashOpening, cashRows, bankOpening, bankRows, clickOpening, clickRows,
     cementOpening, incomeRows, expenseRows, soldRows, recvRows, debtRows, advanceRows,
     salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
-    workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips,
+    workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips, skladRows,
   ]);
 
   // 3) Telegram botiga tushgan yangi zakazlarni backend navbatidan o'qib olish
@@ -1051,6 +1086,8 @@ export function DataProvider({ children }) {
     // Haydovchilar
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
+    // Asosiy sklad (kg)
+    skladRows, addSkladKirim, addSkladSotuv, totalSkladKg,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
