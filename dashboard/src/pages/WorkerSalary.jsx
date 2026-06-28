@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
+import api from '../api';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
@@ -277,6 +278,23 @@ function DriversTab() {
   const [search, setSearch]     = useState('');
   const [page2, setPage2] = useState(1);
   const PAGE_SIZE2 = 100;
+  const [botUsername, setBotUsername] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
+
+  useEffect(() => {
+    api.getBotInfo().then(r => { if (r?.botUsername) setBotUsername(r.botUsername); }).catch(() => {});
+  }, []);
+
+  const driverLink = (id) => botUsername ? `https://t.me/${botUsername}?start=driver_${id}` : '';
+
+  const copyLink = (id) => {
+    const link = driverLink(id);
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
 
   const handleAdd = (e) => { e.preventDefault(); if (!form.name) return; addDriver(form.name, form.carNumber, form.phone); setForm({ name: '', carNumber: '', phone: '' }); setShowForm(false); };
   const saveEdit = (id) => { if (!editData.name) return; updateDriver(id, editData); setEditId(null); };
@@ -348,7 +366,7 @@ function DriversTab() {
           <thead>
             <tr>
               <th style={{ width: 35 }}>#</th><th>Ism</th><th style={{ width: 130 }}>Mashina raqami</th><th style={{ width: 130 }}>Telefon</th>
-              <th style={{ textAlign: 'center', width: 100 }}>Qatnovlar</th><th style={{ textAlign: 'right', width: 140, color: '#c62828' }}>Qarzimiz</th><th style={{ width: 160 }}>Amal</th>
+              <th style={{ textAlign: 'center', width: 100 }}>Qatnovlar</th><th style={{ textAlign: 'right', width: 140, color: '#c62828' }}>Qarzimiz</th><th style={{ width: 80 }}>Bot</th><th style={{ width: 130 }}>Amal</th>
             </tr>
           </thead>
           <tbody>
@@ -362,7 +380,7 @@ function DriversTab() {
                       <td><input value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} style={{ ...inp, width: '100%' }} /></td>
                       <td><input value={editData.carNumber} onChange={e => setEditData({...editData, carNumber: e.target.value})} style={{ ...inp, width: '100%' }} /></td>
                       <td><input value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} style={{ ...inp, width: '100%' }} /></td>
-                      <td colSpan={2}></td>
+                      <td colSpan={3}></td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}><button onClick={() => saveEdit(d.id)} style={greenBtn}>✓</button><button onClick={() => setEditId(null)} style={redBtn}>✕</button></div>
                       </td>
@@ -374,6 +392,19 @@ function DriversTab() {
                       <td style={{ fontSize: 12 }}>{d.phone ? <a href={`tel:${d.phone}`} style={{ color: '#1565c0', textDecoration: 'none' }}>📞 {d.phone}</a> : '—'}</td>
                       <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{st.count} ta</td>
                       <td style={{ textAlign: 'right', fontWeight: 'bold', color: st.balance > 0 ? '#c62828' : '#2e7d32', fontSize: 14, fontFamily: 'monospace' }}>{st.balance > 0 ? fmt(st.balance) : '✓ Yo\'q'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {d.telegramChatId ? (
+                          <span title="Telegram ulangan" style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: 13 }}>✓ Ulangan</span>
+                        ) : botUsername ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+                            <button onClick={() => copyLink(d.id)}
+                              title={`Ssilkani nusxalash: t.me/${botUsername}?start=driver_${d.id}`}
+                              style={{ padding: '3px 8px', background: copiedId === d.id ? '#2e7d32' : '#0288d1', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}>
+                              {copiedId === d.id ? '✓ Nusxalandi' : '🔗 Ssilka'}
+                            </button>
+                          </div>
+                        ) : <span style={{ color: '#bbb', fontSize: 11 }}>—</span>}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button onClick={() => setModalDriver(d.id)} style={{ ...infoBtn, fontWeight: 'bold', borderColor: ACC_D, color: ACC_D }}>+ Qatnov</button>

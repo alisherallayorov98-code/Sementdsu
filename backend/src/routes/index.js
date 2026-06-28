@@ -52,6 +52,12 @@ router.post('/notify', authenticate, notify.send);
 router.post('/notify_sale', authenticate, notify.notifySale);
 router.post('/notify_order_done', authenticate, notify.notifyOrderDone);
 
+// ── Bot username (haydovchi ssilkasi uchun) ────────────────────────────────
+router.get('/bot_info', authenticate, (req, res) => {
+  const { TELEGRAM_BOT_USER } = require('../config');
+  res.json({ botUsername: TELEGRAM_BOT_USER });
+});
+
 // ── Haydovchi pending reyslari ─────────────────────────────────────────────
 // GET /driver_trips/pending — kutilayotgan reyslari ro'yxati
 router.get('/driver_trips/pending', authenticate, (req, res) => {
