@@ -217,6 +217,51 @@ export default function Drivers({ lang }) {
             </div>
           </div>
 
+          {/* ── Pending reyslari (tasdiqlash kutilmoqda) ── */}
+          {(() => {
+            const myPending = pending.filter(t => t.driverId === d.id);
+            if (!myPending.length) return null;
+            return (
+              <div style={{ margin: '0 0 0 0', background: '#fff8e1', borderBottom: '2px solid #fbc02d', padding: '12px 20px' }}>
+                <div style={{ fontWeight: 'bold', color: '#e65100', marginBottom: 10, fontSize: 13 }}>
+                  ⏳ Tasdiqlash kutilayotgan reyslari ({myPending.length} ta)
+                </div>
+                {myPending.map(t => {
+                  const loading = approving[t.id];
+                  return (
+                    <div key={t.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', border: '1px solid #ffe082', borderRadius: 6, padding: '10px 12px', marginBottom: 8, flexWrap: 'wrap' }}>
+                      {/* Rasm */}
+                      {photoUrls[t.id] ? (
+                        <a href={photoUrls[t.id]} target="_blank" rel="noreferrer">
+                          <img src={photoUrls[t.id]} alt="yuk xati" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd', flexShrink: 0 }} />
+                        </a>
+                      ) : t.photoFileId ? (
+                        <div style={{ width: 72, height: 72, background: '#eee', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#888' }}>📷</div>
+                      ) : null}
+                      {/* Ma'lumotlar */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: '#555' }}>📅 {t.date}</div>
+                        <div style={{ fontWeight: 'bold', marginTop: 2 }}>📍 {t.destination}</div>
+                        <div style={{ color: '#2e7d32', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14 }}>💰 {fmt(t.price)} so'm</div>
+                      </div>
+                      {/* Tugmalar */}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => handleApprove(t.id)} disabled={!!loading}
+                          style={{ padding: '6px 14px', background: loading ? '#ccc' : '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+                          {loading === 'approving' ? '...' : '✅ Tasdiqlash'}
+                        </button>
+                        <button onClick={() => handleReject(t.id)} disabled={!!loading}
+                          style={{ padding: '6px 12px', background: loading ? '#ccc' : '#c62828', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+                          {loading === 'rejecting' ? '...' : '✕ Rad'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {/* Forma */}
           <div style={{ padding: '16px 20px' }}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
@@ -305,50 +350,7 @@ export default function Drivers({ lang }) {
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13 }}>
 
-      {/* ── PENDING REYSLARI (tasdiqlash kutilmoqda) ─────────────────────── */}
-      {pending.length > 0 && (
-        <div style={{ marginBottom: 20, background: '#fff8e1', border: '2px solid #fbc02d', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontWeight: 'bold', fontSize: 14, color: '#e65100', marginBottom: 12 }}>
-            ⏳ Tasdiqlash kutilayotgan reyslari ({pending.length} ta)
-          </div>
-          {pending.map(t => {
-            const drv = drivers.find(d => d.id === t.driverId);
-            const loading = approving[t.id];
-            return (
-              <div key={t.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: '#fff', border: '1px solid #ffe082', borderRadius: 6, padding: '10px 14px', marginBottom: 8, flexWrap: 'wrap' }}>
-                {/* Rasm */}
-                {photoUrls[t.id] ? (
-                  <a href={photoUrls[t.id]} target="_blank" rel="noreferrer">
-                    <img src={photoUrls[t.id]} alt="yuk xati" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd', flexShrink: 0 }} />
-                  </a>
-                ) : t.photoFileId ? (
-                  <div style={{ width: 80, height: 80, background: '#eee', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#888' }}>📷 Yukl...</div>
-                ) : null}
-                {/* Ma'lumotlar */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold', fontSize: 14 }}>🚚 {t.driverName || drv?.name || '?'}</div>
-                  <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>🔢 {t.carNumber || drv?.carNumber || '—'} &nbsp;|&nbsp; 📅 {t.date}</div>
-                  <div style={{ marginTop: 4 }}>
-                    <span style={{ fontWeight: 'bold', marginRight: 10 }}>📍 {t.destination}</span>
-                    <span style={{ fontWeight: 'bold', color: '#2e7d32', fontFamily: 'monospace', fontSize: 15 }}>💰 {fmt(t.price)} so'm</span>
-                  </div>
-                </div>
-                {/* Tugmalar */}
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button onClick={() => handleApprove(t.id)} disabled={!!loading}
-                    style={{ padding: '6px 16px', background: loading ? '#ccc' : '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
-                    {loading === 'approving' ? '...' : '✅ Tasdiqlash'}
-                  </button>
-                  <button onClick={() => handleReject(t.id)} disabled={!!loading}
-                    style={{ padding: '6px 14px', background: loading ? '#ccc' : '#c62828', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
-                    {loading === 'rejecting' ? '...' : '❌ Rad'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Pending reyslari endi modal ichida ko'rinadi */}
 
       {/* ── STATISTIKA PANELI ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
