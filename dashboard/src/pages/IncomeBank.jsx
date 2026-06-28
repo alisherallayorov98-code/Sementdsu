@@ -3,617 +3,545 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
-import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
-const bankExportColumns = [
-  { header: 'Sana', value: (r) => r.date || '' },
-  { header: 'Xodim', value: (r) => r.worker || '' },
-  { header: 'Mijoz', value: (r) => r.customer || '' },
-  { header: 'Izoh', value: (r) => r.desc || '' },
-  { header: "Summa (so'm)", value: (r) => Number(r.amount || 0) },
-  { header: 'Holat', value: (r) => (r.pending ? 'Tekshirilmagan' : 'Tasdiqlangan') },
-];
-
-const fmtTime = (ts) => {
-  if (!ts || ts < 1e10) return '—';
-  const d = new Date(ts);
-  return [
-    String(d.getHours()).padStart(2, '0'),
-    String(d.getMinutes()).padStart(2, '0'),
-    String(d.getSeconds()).padStart(2, '0'),
-  ].join(':');
-};
-
 const todayStr = () => {
   const d = new Date();
-  return [
-    String(d.getDate()).padStart(2, '0'),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    d.getFullYear(),
-  ].join('.');
+  return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
 };
 
-const parseDate = (s) => {
-  if (!s) return 0;
-  const [d, m, y] = s.split('.').map(Number);
-  return new Date(y, m - 1, d).getTime();
-};
+const parseNum = (v) =>
+  Number(String(v ?? '').replace(/\s/g, '').replace(/,/g, '.')) || 0;
 
-const XODIMLAR = [
-  'Botir aka', 'Alisher aka', 'Ganisher aka', 'Sharofidin',
-  'Saloh', 'Qosim', 'Anvarjon',
-];
-
-const L = {
-  kirim:        { latn: 'Kirim bank',        cyrl: 'Кирим банк'         },
-  chiqim:       { latn: 'Chiqim bank',       cyrl: 'Чиқим банк'         },
-  summa:        { latn: 'Summa',             cyrl: 'Сумма'               },
-  izoh:         { latn: 'Izoh / Kontragent', cyrl: 'Изоҳ / Контрагент'  },
-  izohChiqim:   { latn: 'Izoh / Maqsad',    cyrl: 'Изоҳ / Мақсад'      },
-  qoshish:      { latn: "Qo'shish",          cyrl: 'Қўшиш'               },
-  sana:         { latn: 'Sana',              cyrl: 'Сана'                 },
-  vaqt:         { latn: 'Vaqt',              cyrl: 'Вақт'                 },
-  xodim:        { latn: 'Xodim',             cyrl: 'Ходим'                },
-  jami:         { latn: 'JAMI',              cyrl: 'ЖАМИ'                 },
-  bugun:        { latn: 'Bugun',             cyrl: 'Бугун'                },
-  barchasi:     { latn: 'Barchasi',          cyrl: 'Барчаси'              },
-  hammasi:      { latn: 'Hammasi',           cyrl: 'Ҳаммаси'              },
-  yoq:          { latn: 'Yozuv topilmadi.',  cyrl: 'Ёзув топилмади.'     },
-  ochilish:     { latn: "Ochilish qoldig'i", cyrl: 'Очилиш қолдиғи'     },
-  netBalans:    { latn: "Bank qoldig'i (jami)", cyrl: 'Банк қолдиғи (жами)' },
-  jamiKirim:    { latn: 'Jami kirim',        cyrl: 'Жами кирим'           },
-  jamiChiqim:   { latn: 'Jami chiqim',       cyrl: 'Жами чиқим'           },
-  bugunKirim:   { latn: 'Bugungi kirim',     cyrl: 'Бугунги кирим'        },
-  bugunChiqim:  { latn: 'Bugungi chiqim',    cyrl: 'Бугунги чиқим'        },
-  filter_sana:  { latn: 'Sana:',             cyrl: 'Сана:'                },
-  filter_xod:   { latn: 'Xodim:',            cyrl: 'Ходим:'               },
-  kim:          { latn: 'Kim:',              cyrl: 'Ким:'                  },
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ASOSIY KOMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function IncomeBank({ lang }) {
   const {
     bankOpening, setBankOpening,
     bankIncomeRows,  addBankIncomeRow,  deleteBankIncomeRow,  totalBankIncome,
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
     totalBankBalance,
-    importBankIncomeRows, verifyBankIncomeRow,
-    currentWorker, setCurrentWorker,
+    bankPendingRows, importOborotka, confirmBankPendingRow, deleteBankPendingRow,
   } = useData();
 
-  // Excel import (bank o'tkazmalari) + tekshirish modali
-  const [importPreview, setImportPreview] = useState(null); // [{date,amount,desc}]
-  const [verifyBank, setVerifyBank] = useState(null);       // tasdiqlanayotgan qator
+  const [activeTab,    setActiveTab]    = useState('pending'); // pending | kirim | chiqim
+  const [range,        setRange]        = useState({ from: '', to: '' });
+  const [editOpening,  setEditOpening]  = useState(false);
+  const [openingVal,   setOpeningVal]   = useState(String(bankOpening.amount));
 
-  // Bank ko'chirma Excel'ini o'qish (ustunlar: sana, summa, izoh)
-  const handleBankExcel = (e) => {
+  // Balans tekshiruvi (oborotka faylidan olingan)
+  const [oborotBal, setOborotBal] = useState(null); // { opening, closing }
+
+  // Pending qatorlar uchun lokal tahrir holati
+  const [pendingEdits, setPendingEdits] = useState({}); // { [id]: { customer, izoh } }
+  const getEdit = (id) => pendingEdits[id] || { customer: '', izoh: '' };
+  const setEdit = (id, patch) => setPendingEdits(p => ({ ...p, [id]: { ...getEdit(id), ...patch } }));
+
+  // Qo'lda kiritish formalari
+  const [incForm, setIncForm] = useState({ amount: '', desc: '', customer: '' });
+  const [expForm, setExpForm] = useState({ amount: '', desc: '', customer: '' });
+
+  // Filterlar
+  const [incPage, setIncPage] = useState(1);
+  const [expPage, setExpPage] = useState(1);
+  const PAGE = 100;
+
+  // ── Oborotka Excel parser ─────────────────────────────────────────────────
+  const handleOborotka = (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        const norm = (k) => String(k).toLowerCase().trim();
-        const pick = (row, keys) => { for (const k of Object.keys(row)) { if (keys.includes(norm(k))) return row[k]; } return ''; };
-        const rows = json.map(r => ({
-          date: String(pick(r, ['sana','date','дата']) || '').trim(),
-          amount: Number(String(pick(r, ['summa','amount','сумма','сумма прихода'])).replace(/\s/g,'').replace(/,/g,'')) || 0,
-          desc: String(pick(r, ['izoh','desc','назначение','описание','отправитель','kontragent','контрагент']) || '').trim(),
-        })).filter(r => r.amount > 0);
-        if (!rows.length) { alert("Excel'da summa topilmadi. Ustunlar: sana, summa, izoh."); return; }
-        setImportPreview(rows);
-      } catch { alert("Excel o'qishda xato."); }
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+        // Ochilish va yopilish qoldig'i
+        let openingBal = 0, closingBal = 0;
+        for (const row of raw) {
+          const text = String(row.join(' '));
+          const mO = text.match(/нач[^:]*[:\s]+([0-9][0-9\s,.]+)/i);
+          if (mO) openingBal = parseNum(mO[1].replace(/\s/g,''));
+          const mC = text.match(/кон[^:]*[:\s]+([0-9][0-9\s,.]+)/i);
+          if (mC) closingBal = parseNum(mC[1].replace(/\s/g,''));
+        }
+
+        // Sarlavha qatorini topish
+        let hIdx = -1;
+        for (let i = 0; i < raw.length; i++) {
+          if (raw[i].some(c => /дата|date/i.test(String(c)))) { hIdx = i; break; }
+        }
+        if (hIdx < 0) { alert('Jadval boshi (Дата ustuni) topilmadi'); return; }
+
+        const hdrs = raw[hIdx].map(c => String(c).toLowerCase().replace(/\s+/g,' ').trim());
+        const col = (...keys) => {
+          for (const k of keys) {
+            const i = hdrs.findIndex(h => h.includes(k));
+            if (i >= 0) return i;
+          }
+          return -1;
+        };
+
+        const iDate   = col('дата', 'date');
+        const iOrg    = col('счет', 'инн', 'контраг', 'отправ', 'получат');
+        const iDebet  = col('дебет', 'debet', 'расход');
+        const iKredit = col('кредит', 'kredit', 'приход');
+        const iNazn   = col('назначение', 'описание', 'izoh', 'наз');
+
+        const rows = [];
+        for (let i = hIdx + 1; i < raw.length; i++) {
+          const row = raw[i];
+          const rawDate = row[iDate];
+          if (!rawDate && !row.some(c => c !== '')) continue;
+
+          const debet  = iDebet  >= 0 ? parseNum(row[iDebet])  : 0;
+          const kredit = iKredit >= 0 ? parseNum(row[iKredit]) : 0;
+          if (!debet && !kredit) continue;
+
+          // Tashkilot nomini ajratish: "12345/INN/TASHKILOT NOMI" → "TASHKILOT NOMI"
+          const orgFull = String(row[iOrg] ?? '').trim();
+          const parts   = orgFull.split('/');
+          const orgName = parts.length >= 3 ? parts.slice(2).join('/').trim() : orgFull;
+          const naznachenie = iNazn >= 0 ? String(row[iNazn] ?? '').trim() : '';
+
+          // Sanani formatlash
+          let dateStr = '';
+          if (typeof rawDate === 'number' && rawDate > 1000) {
+            // Excel serial sana
+            const info = XLSX.SSF.parse_date_code(rawDate);
+            dateStr = `${String(info.d).padStart(2,'0')}.${String(info.m).padStart(2,'0')}.${info.y}`;
+          } else {
+            // "01.06.2026 9:07" → "01.06.2026"
+            dateStr = String(rawDate).trim().slice(0, 10).replace(/\s.*/,'');
+          }
+
+          // Bizning oborotkada: Kredit = kirim, Debet = chiqim
+          if (kredit > 0) rows.push({ date: dateStr, orgName, amount: kredit, type: 'kirim',  naznachenie });
+          if (debet  > 0) rows.push({ date: dateStr, orgName, amount: debet,  type: 'chiqim', naznachenie });
+        }
+
+        if (!rows.length) { alert("Oborotkadan hech qanday summa topilmadi.\nDebet/Kredit ustunlari nomi to'g'rimi?"); return; }
+
+        setOborotBal({ opening: openingBal, closing: closingBal });
+        importOborotka(rows);
+        setActiveTab('pending');
+      } catch (err) {
+        console.error(err);
+        alert("Excel o'qishda xato: " + err.message);
+      }
     };
     reader.readAsArrayBuffer(file);
   };
-  const confirmBankImport = () => { importBankIncomeRows(importPreview); setImportPreview(null); };
 
-  // Aktiv tab: 'kirim' | 'chiqim'
-  const [activeTab, setActiveTab] = useState('kirim');
-
-  // Formalar
-  const [incForm, setIncForm] = useState({ amount: '', desc: '' });
-  const [expForm, setExpForm] = useState({ amount: '', desc: '' });
-
-  // Filterlar (alohida kirim va chiqim uchun)
-  const [incFilterDate,   setIncFilterDate]   = useState('');
-  const [incShowAll,      setIncShowAll]       = useState(true);
-  const [incFilterWorker, setIncFilterWorker]  = useState('');
-  const [expFilterDate,   setExpFilterDate]    = useState('');
-  const [expShowAll,      setExpShowAll]       = useState(true);
-  const [expFilterWorker, setExpFilterWorker]  = useState('');
-  const [range, setRange] = useState({ from: '', to: '' }); // umumiy sana oralig'i
-
-  // Ochilish tahrirlash
-  const [editOpening, setEditOpening]   = useState(false);
-  const [openingVal,  setOpeningVal]    = useState(String(bankOpening.amount));
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleAddIncome = (e) => {
-    e.preventDefault();
-    if (!incForm.amount || !incForm.desc) return;
-    addBankIncomeRow(incForm.amount, incForm.desc);
-    setIncForm({ amount: '', desc: '' });
-  };
-
-  const handleAddExpense = (e) => {
-    e.preventDefault();
-    if (!expForm.amount || !expForm.desc) return;
-    addBankExpenseRow(expForm.amount, expForm.desc);
-    setExpForm({ amount: '', desc: '' });
-  };
-
-  const handleDelIncome  = (id) => { if (window.confirm("O'chirasizmi?")) deleteBankIncomeRow(id); };
-  const handleDelExpense = (id) => { if (window.confirm("O'chirasizmi?")) deleteBankExpenseRow(id); };
-
-  // ── Saralash va filtrlash ─────────────────────────────────────────────────
-  const sortRows = (rows) =>
-    [...rows].sort((a, b) => {
-      const ta = a.createdAt || (a.id > 1e10 ? a.id : parseDate(a.date));
-      const tb = b.createdAt || (b.id > 1e10 ? b.id : parseDate(b.date));
-      return tb - ta;
+  // Hamma pendinglarni tasdiqlash (mijoz tanlanmaganlari ham)
+  const confirmAll = () => {
+    bankPendingRows.forEach(r => {
+      const e = getEdit(r.id);
+      confirmBankPendingRow(r.id, { customer: e.customer, izoh: e.izoh });
     });
-
-  const applyFilter = (rows, showAll, filterDate, filterWorker) => {
-    let r = rows;
-    if (!showAll && filterDate) r = r.filter(x => x.date === filterDate);
-    if (filterWorker)            r = r.filter(x => x.worker === filterWorker);
-    return r;
+    setPendingEdits({});
   };
 
-  const sortedInc = sortRows(bankIncomeRows);
-  const sortedExp = sortRows(bankExpenseRows);
+  // ── Statistika ─────────────────────────────────────────────────────────────
+  const todayS = todayStr();
+  const todayInc = bankIncomeRows.filter(r => r.date === todayS).reduce((s,r) => s + Number(r.amount||0), 0);
+  const todayExp = bankExpenseRows.filter(r => r.date === todayS).reduce((s,r) => s + Number(r.amount||0), 0);
 
-  const filteredInc = filterByRange(applyFilter(sortedInc, incShowAll, incFilterDate, incFilterWorker), range);
-  const filteredExp = filterByRange(applyFilter(sortedExp, expShowAll, expFilterDate, expFilterWorker), range);
+  // Balans hisob
+  const computedBal = Number(bankOpening.amount) + totalBankIncome - totalBankExpense;
+  const balDiff     = oborotBal ? computedBal - oborotBal.closing : null;
 
-  const incWorkers = [...new Set(sortedInc.map(r => r.worker).filter(Boolean))];
-  const expWorkers = [...new Set(sortedExp.map(r => r.worker).filter(Boolean))];
+  // Pending jami
+  const pendKirim  = bankPendingRows.filter(r => r.type === 'kirim').reduce((s,r) => s + r.amount, 0);
+  const pendChiqim = bankPendingRows.filter(r => r.type === 'chiqim').reduce((s,r) => s + r.amount, 0);
 
-  const filteredIncTotal = filteredInc.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const filteredExpTotal = filteredExp.reduce((s, r) => s + Number(r.amount || 0), 0);
+  // Filterlangan jadvallar
+  const sortedInc = [...bankIncomeRows].sort((a,b) => (b.createdAt||b.id) - (a.createdAt||a.id));
+  const sortedExp = [...bankExpenseRows].sort((a,b) => (b.createdAt||b.id) - (a.createdAt||a.id));
+  const filtInc   = filterByRange(sortedInc, range);
+  const filtExp   = filterByRange(sortedExp, range);
+  const filtIncTotal = filtInc.reduce((s,r) => s + Number(r.amount||0), 0);
+  const filtExpTotal = filtExp.reduce((s,r) => s + Number(r.amount||0), 0);
 
-  const todayInc = bankIncomeRows.filter(r => r.date === todayStr()).reduce((s, r) => s + Number(r.amount || 0), 0);
-  const todayExp = bankExpenseRows.filter(r => r.date === todayStr()).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const inp = { padding:'4px 6px', fontSize:12, fontFamily:'Tahoma,sans-serif', border:'1px solid #ccc', borderRadius:3 };
 
-  // ── Stil yordamchilar ─────────────────────────────────────────────────────
-  const inp = {
-    padding: '4px 6px', fontFamily: 'Tahoma, sans-serif',
-    fontSize: 12, border: '1px solid #ccc', borderRadius: 3,
-  };
-  const btnS = (active) => ({
-    padding: '3px 10px', fontFamily: 'Tahoma, sans-serif', fontSize: 12,
-    cursor: 'pointer',
-    border: active ? '2px inset #ffffff' : '2px outset #ffffff',
-    background: active ? '#003366' : '#f0f0f0',
-    color: active ? '#fff' : '#333',
-    fontWeight: active ? 'bold' : 'normal',
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13 }}>
+    <div style={{ fontFamily:'Tahoma,Verdana,Arial,sans-serif', fontSize:13 }}>
 
-      {/* ── YUQORI STATISTIKA PANELI ──────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        {/* Ochilish */}
-        <StatCard
-          label={L.ochilish[lang]}
-          value={fmt(bankOpening.amount)}
-          color="#555" bg="#f5f5f5"
-          sub={bankOpening.date}
-          clickable onEdit={() => setEditOpening(v => !v)}
-        />
-        {/* Jami kirim */}
-        <StatCard label={L.jamiKirim[lang]}  value={fmt(totalBankIncome)}  color="#0d47a1" bg="#e3f2fd"
-          sub={`Bugun: ${fmt(todayInc)}`} arrow="↑" />
-        {/* Jami chiqim */}
-        <StatCard label={L.jamiChiqim[lang]} value={fmt(totalBankExpense)} color="#b71c1c" bg="#ffebee"
-          sub={`Bugun: ${fmt(todayExp)}`} arrow="↓" />
-        {/* Sof balans */}
-        <StatCard
-          label={L.netBalans[lang]}
-          value={fmt(totalBankBalance)}
-          color={totalBankBalance >= 0 ? '#1b5e20' : '#b71c1c'}
-          bg={totalBankBalance >= 0 ? '#e8f5e9' : '#ffebee'}
-          sub="Sotuv/qarz + qo'lda — jami"
-          bold
-        />
+      {/* ── STATISTIKA PANELI ──────────────────────────────────────────────── */}
+      <div style={{ display:'flex', gap:10, marginBottom:12, flexWrap:'wrap' }}>
+        <StatCard label="Ochilish qoldig'i" value={fmt(bankOpening.amount)} color="#555" bg="#f5f5f5"
+          sub={bankOpening.date} onEdit={() => setEditOpening(v => !v)} />
+        <StatCard label="Jami kirim" value={fmt(totalBankIncome)} color="#0d47a1" bg="#e3f2fd"
+          arrow="↑" sub={`Bugun: ${fmt(todayInc)}`} />
+        <StatCard label="Jami chiqim" value={fmt(totalBankExpense)} color="#b71c1c" bg="#ffebee"
+          arrow="↓" sub={`Bugun: ${fmt(todayExp)}`} />
+        <StatCard label="Bank qoldig'i" value={fmt(computedBal)}
+          color={computedBal >= 0 ? '#1b5e20' : '#b71c1c'}
+          bg={computedBal >= 0 ? '#e8f5e9' : '#ffebee'}
+          sub="Ochilish + kirim − chiqim" bold />
+        {bankPendingRows.length > 0 && (
+          <StatCard label={`Tasdiqlanmagan (${bankPendingRows.length} ta)`}
+            value={`+${fmt(pendKirim)} / −${fmt(pendChiqim)}`}
+            color="#e65100" bg="#fff3e0" sub="Tasdiqlash kutmoqda" />
+        )}
       </div>
 
-      {/* ── Ochilish tahrirlash ───────────────────────────────────────────── */}
+      {/* ── OCHILISH TAHRIRLASH ───────────────────────────────────────────── */}
       {editOpening && (
-        <div style={{
-          marginBottom: 12, padding: '8px 12px',
-          background: '#fff8e1', border: '1px solid #fbc02d', borderRadius: 4,
-          display: 'flex', gap: 8, alignItems: 'center',
-        }}>
-          <span style={{ fontSize: 12, fontWeight: 'bold' }}>{L.ochilish[lang]}:</span>
-          <input type="number" value={openingVal} onChange={e => setOpeningVal(e.target.value)}
-            style={{ ...inp, width: 150 }} />
-          <button
-            onClick={() => { setBankOpening({ ...bankOpening, amount: Number(openingVal) }); setEditOpening(false); }}
-            style={{ ...inp, background: '#003366', color: '#fff', border: 'none', cursor: 'pointer', padding: '4px 14px' }}
-          >✓ Saqlash</button>
+        <div style={{ marginBottom:12, padding:'8px 12px', background:'#fff8e1', border:'1px solid #fbc02d', borderRadius:4, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          <span style={{ fontSize:12, fontWeight:'bold' }}>Kun boshi qoldig'i (bir marta kiritiladi):</span>
+          <input type="text" placeholder="dd.mm.yyyy" value={bankOpening.date}
+            onChange={e => setBankOpening(p => ({ ...p, date: e.target.value }))}
+            style={{ ...inp, width:100 }} />
+          <input type="number" placeholder="Summa" value={openingVal}
+            onChange={e => setOpeningVal(e.target.value)}
+            style={{ ...inp, width:160 }} />
+          <button onClick={() => { setBankOpening({ date: bankOpening.date, amount: Number(openingVal) }); setEditOpening(false); }}
+            style={{ ...inp, background:'#003366', color:'#fff', border:'none', cursor:'pointer', padding:'4px 14px', fontWeight:'bold' }}>
+            ✓ Saqlash
+          </button>
           <button onClick={() => setEditOpening(false)}
-            style={{ ...inp, background: '#ffcccc', border: '1px solid #c00', cursor: 'pointer' }}>✕</button>
+            style={{ ...inp, background:'#ffcccc', border:'1px solid #c00', cursor:'pointer' }}>✕</button>
         </div>
       )}
 
-      {/* ── UMUMIY SANA ORALIG'I FILTRI ───────────────────────────────────── */}
+      {/* ── OBOROTKA BALANS TEKSHIRUVI ────────────────────────────────────── */}
+      {oborotBal && (
+        <div style={{ marginBottom:12, padding:'10px 14px', background: balDiff === 0 ? '#e8f5e9' : '#fff3e0', border:`1px solid ${balDiff === 0 ? '#4caf50' : '#ff9800'}`, borderRadius:4 }}>
+          <div style={{ fontWeight:'bold', marginBottom:4, color: balDiff === 0 ? '#2e7d32' : '#e65100' }}>
+            {balDiff === 0 ? '✓ Balans to\'g\'ri' : '⚠ Balans farqi bor'}
+          </div>
+          <div style={{ fontSize:12, color:'#555', display:'flex', gap:24, flexWrap:'wrap' }}>
+            <span>Oborotka boshi: <b>{fmt(oborotBal.opening)}</b></span>
+            <span>Oborotka oxiri: <b>{fmt(oborotBal.closing)}</b></span>
+            <span>Hisoblangan: <b>{fmt(computedBal)}</b></span>
+            {balDiff !== 0 && <span style={{ color:'#c62828' }}>Farq: <b>{fmt(Math.abs(balDiff))}</b></span>}
+          </div>
+          <button onClick={() => setOborotBal(null)} style={{ marginTop:6, fontSize:11, cursor:'pointer', background:'none', border:'none', color:'#888', textDecoration:'underline' }}>Yopish</button>
+        </div>
+      )}
+
+      {/* ── OBOROTKA IMPORT TUGMASI ───────────────────────────────────────── */}
+      <div style={{ marginBottom:12, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+        <label style={{ background:'#00695c', color:'#fff', padding:'7px 16px', borderRadius:4, cursor:'pointer', fontWeight:'bold', fontSize:12, display:'inline-flex', alignItems:'center', gap:6 }}>
+          📥 Bank oborotkasini yuklash (Excel)
+          <input type="file" accept=".xlsx,.xls" onChange={handleOborotka} style={{ display:'none' }} />
+        </label>
+        <span style={{ fontSize:11, color:'#888' }}>Ustunlar: Дата, Счет/ИНН, Оборот Дебет, Оборот Кредит, Назначение — avtomatik aniqlanadi</span>
+      </div>
+
+      {/* ── SANA FILTRI ───────────────────────────────────────────────────── */}
       <DateRangeFilter value={range} onChange={setRange} color="#0d47a1" />
 
       {/* ── TAB TUGMALARI ─────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 0, borderBottom: '2px solid #ccc' }}>
-        <TabBtn
-          active={activeTab === 'kirim'}
-          onClick={() => setActiveTab('kirim')}
-          color="#0d47a1"
-          label={`↑ ${L.kirim[lang]} (${fmt(totalBankIncome)})`}
-        />
-        <TabBtn
-          active={activeTab === 'chiqim'}
-          onClick={() => setActiveTab('chiqim')}
-          color="#b71c1c"
-          label={`↓ ${L.chiqim[lang]} (${fmt(totalBankExpense)})`}
-        />
+      <div style={{ display:'flex', gap:0, borderBottom:'2px solid #ccc', marginBottom:0 }}>
+        <TabBtn active={activeTab==='pending'} onClick={() => setActiveTab('pending')} color="#e65100"
+          label={`⏳ Tasdiqlash navbati (${bankPendingRows.length})`} />
+        <TabBtn active={activeTab==='kirim'}  onClick={() => setActiveTab('kirim')}  color="#0d47a1"
+          label={`↑ Kirim bank (${fmt(totalBankIncome)})`} />
+        <TabBtn active={activeTab==='chiqim'} onClick={() => setActiveTab('chiqim')} color="#b71c1c"
+          label={`↓ Chiqim bank (${fmt(totalBankExpense)})`} />
       </div>
+
+      {/* ══ PENDING TAB ═══════════════════════════════════════════════════════ */}
+      {activeTab === 'pending' && (
+        <div style={{ border:'1px solid #ccc', borderTop:'none', padding:14 }}>
+          {bankPendingRows.length === 0 ? (
+            <div style={{ color:'#888', fontStyle:'italic', padding:'20px 0', textAlign:'center' }}>
+              Tasdiqlash navbati bo'sh.<br/>
+              <span style={{ fontSize:12 }}>Bank oborotkasini yuklang — kirim va chiqim tranzaksiyalar shu yerga tushadi.</span>
+            </div>
+          ) : (
+            <>
+              {/* Bulk amallar */}
+              <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center', flexWrap:'wrap' }}>
+                <span style={{ fontSize:12, color:'#555' }}>
+                  Jami: <b style={{ color:'#0d47a1' }}>↑ {fmt(pendKirim)}</b> kirim ·
+                  <b style={{ color:'#b71c1c' }}> ↓ {fmt(pendChiqim)}</b> chiqim
+                </span>
+                <button onClick={confirmAll}
+                  style={{ padding:'4px 14px', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, cursor:'pointer', fontSize:12, fontWeight:'bold' }}>
+                  ✓ Hammasini tasdiqlash
+                </button>
+                <button onClick={() => { if(window.confirm('Barcha kutayotgan yozuvlarni o\'chirasizmi?')) { bankPendingRows.forEach(r => deleteBankPendingRow(r.id)); setPendingEdits({}); }}}
+                  style={{ padding:'4px 14px', background:'#ffebee', color:'#c62828', border:'1px solid #ef9a9a', borderRadius:3, cursor:'pointer', fontSize:12 }}>
+                  ✕ Hammasini bekor qilish
+                </button>
+              </div>
+
+              {/* Pending jadval */}
+              <table className="data-table" style={{ width:'100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width:30 }}>#</th>
+                    <th style={{ width:85 }}>Sana</th>
+                    <th style={{ width:60 }}>Tur</th>
+                    <th>Tashkilot nomi</th>
+                    <th style={{ textAlign:'right', width:130 }}>Summa</th>
+                    <th style={{ width:180 }}>Mijoz (ixtiyoriy)</th>
+                    <th style={{ width:200 }}>Izoh (ixtiyoriy)</th>
+                    <th style={{ width:90 }}>Amal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bankPendingRows.map((r, i) => {
+                    const ed = getEdit(r.id);
+                    const isKirim = r.type === 'kirim';
+                    return (
+                      <tr key={r.id} style={{ background: isKirim ? '#f0f7ff' : '#fff5f5' }}>
+                        <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{i+1}</td>
+                        <td style={{ fontSize:12 }}>{r.date || '—'}</td>
+                        <td>
+                          <span style={{ display:'inline-block', padding:'2px 7px', borderRadius:10, fontSize:11, fontWeight:'bold',
+                            background: isKirim ? '#0d47a1' : '#b71c1c', color:'#fff' }}>
+                            {isKirim ? '↑ Kirim' : '↓ Chiqim'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize:12 }}>
+                          <div style={{ fontWeight:'bold', color:'#333' }}>{r.orgName || '—'}</div>
+                          {r.naznachenie && <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{r.naznachenie.slice(0,80)}{r.naznachenie.length>80?'…':''}</div>}
+                        </td>
+                        <td style={{ textAlign:'right', fontFamily:'monospace', fontWeight:'bold',
+                          color: isKirim ? '#0d47a1' : '#b71c1c', fontSize:13 }}>
+                          {fmt(r.amount)}
+                        </td>
+                        <td>
+                          <CustomerSelect
+                            value={ed.customer}
+                            onChange={v => setEdit(r.id, { customer: v })}
+                            placeholder="Mijoz (ixtiyoriy)"
+                            accentColor={isKirim ? '#0d47a1' : '#b71c1c'}
+                          />
+                        </td>
+                        <td>
+                          <input value={ed.izoh} onChange={e => setEdit(r.id, { izoh: e.target.value })}
+                            placeholder={r.naznachenie ? r.naznachenie.slice(0,40) : 'Izoh...'}
+                            style={{ ...inp, width:'100%', boxSizing:'border-box' }} />
+                        </td>
+                        <td style={{ whiteSpace:'nowrap' }}>
+                          <button onClick={() => { confirmBankPendingRow(r.id, { customer: ed.customer, izoh: ed.izoh }); setPendingEdits(p => { const n={...p}; delete n[r.id]; return n; }); }}
+                            style={{ padding:'3px 10px', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, cursor:'pointer', fontSize:12, fontWeight:'bold', marginRight:4 }}>
+                            ✓
+                          </button>
+                          <button onClick={() => deleteBankPendingRow(r.id)}
+                            style={{ padding:'3px 8px', background:'#ffebee', color:'#c62828', border:'1px solid #ef9a9a', borderRadius:3, cursor:'pointer', fontSize:12 }}>
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ══ KIRIM BANK TAB ════════════════════════════════════════════════════ */}
       {activeTab === 'kirim' && (
-        <div style={{ border: '1px solid #ccc', borderTop: 'none', padding: 14 }}>
+        <div style={{ border:'1px solid #ccc', borderTop:'none', padding:14 }}>
 
-          {/* Forma */}
-          <form onSubmit={handleAddIncome} style={{
-            display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap',
-            padding: '8px 10px', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 4,
-          }}>
+          {/* Qo'lda kiritish */}
+          <form onSubmit={e => { e.preventDefault(); if(!incForm.amount) return; addBankIncomeRow(incForm.amount, incForm.desc, todayS, incForm.customer); setIncForm({ amount:'', desc:'', customer:'' }); }}
+            style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', padding:'8px 10px', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:4 }}>
             <input type="number" placeholder="Summa" value={incForm.amount}
-              onChange={e => setIncForm({ ...incForm, amount: e.target.value })}
-              style={{ ...inp, width: 140 }} required />
-            <input type="text" placeholder={L.izoh[lang]} value={incForm.desc}
-              onChange={e => setIncForm({ ...incForm, desc: e.target.value })}
-              style={{ ...inp, width: 230 }} required />
-            <span style={{ fontSize: 12, fontWeight: 'bold', color: '#003366', alignSelf: 'center' }}>{L.kim[lang]}</span>
-            <select value={currentWorker} onChange={e => setCurrentWorker(e.target.value)}
-              style={{ ...inp, color: currentWorker ? '#003366' : '#999', fontWeight: currentWorker ? 'bold' : 'normal' }}>
-              <option value="">— xodim —</option>
-              {XODIMLAR.map(x => <option key={x} value={x}>{x}</option>)}
-            </select>
+              onChange={e => setIncForm(p => ({...p, amount:e.target.value}))}
+              style={{ ...inp, width:130 }} required />
+            <div style={{ width:180 }}>
+              <CustomerSelect value={incForm.customer} onChange={v => setIncForm(p=>({...p,customer:v}))}
+                placeholder="Mijoz (ixtiyoriy)" accentColor="#0d47a1" />
+            </div>
+            <input type="text" placeholder="Izoh (ixtiyoriy)" value={incForm.desc}
+              onChange={e => setIncForm(p => ({...p, desc:e.target.value}))}
+              style={{ ...inp, width:200 }} />
             <button type="submit"
-              style={{ ...inp, background: '#0d47a1', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', padding: '4px 18px' }}>
-              ↑ {L.qoshish[lang]}
+              style={{ ...inp, background:'#0d47a1', color:'#fff', border:'none', cursor:'pointer', fontWeight:'bold', padding:'4px 16px' }}>
+              ↑ Qo'shish
             </button>
           </form>
 
-          {/* Excel import (bank ko'chirma) */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-            <label style={{ background: '#00695c', color: '#fff', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold', fontSize: 12 }}>
-              📥 Bank ko'chirmasini Excel'dan yuklash
-              <input type="file" accept=".xlsx,.xls" onChange={handleBankExcel} style={{ display: 'none' }} />
-            </label>
-            <span style={{ fontSize: 11, color: '#888' }}>Ustunlar: sana, summa, izoh. Yuklangach sariq bo'lib turadi — tekshirib tasdiqlaysiz.</span>
+          {/* Excel hisobot */}
+          <div style={{ marginBottom:10 }}>
+            <button onClick={() => exportExcel(filtInc, filtExp, 'kirim')}
+              style={{ padding:'4px 12px', background:'#1b5e20', color:'#fff', border:'none', borderRadius:3, cursor:'pointer', fontSize:12, fontWeight:'bold' }}>
+              ⬇ Excel hisobot
+            </button>
+            <span style={{ marginLeft:8, fontSize:11, color:'#888' }}>
+              {filtInc.length} ta · <b style={{ color:'#0d47a1' }}>{fmt(filtIncTotal)}</b> so'm
+            </span>
           </div>
 
-          {/* Filter */}
-          <FilterBar lang={lang} L={L}
-            showAll={incShowAll} setShowAll={setIncShowAll}
-            filterDate={incFilterDate} setFilterDate={setIncFilterDate}
-            filterWorker={incFilterWorker} setFilterWorker={setIncFilterWorker}
-            workerList={incWorkers} filteredCount={filteredInc.length}
-            filteredTotal={filteredIncTotal} color="#0d47a1" btnS={btnS} inp={inp}
-          />
-
-          <div style={{ marginBottom: 10 }}>
-            <ExcelExport filename="Bank_kirim" sheetName="Bank kirim" title="Kirim (Bank)"
-              columns={bankExportColumns} rows={filteredInc} />
-          </div>
-
-          {/* Jadval */}
-          <RowsTable
-            rows={filteredInc} color="#0d47a1" total={filteredIncTotal}
-            onDelete={handleDelIncome} onVerify={(r) => setVerifyBank({ ...r })} lang={lang} L={L} jami={L.jami[lang]}
-            amountColor="#0d47a1" todayStr={todayStr()}
-          />
+          <RowsTable rows={filtInc} page={incPage} setPage={setIncPage}
+            onDelete={id => { if(window.confirm("O'chirasizmi?")) deleteBankIncomeRow(id); }}
+            amountColor="#0d47a1" total={filtIncTotal} />
         </div>
       )}
 
       {/* ══ CHIQIM BANK TAB ═══════════════════════════════════════════════════ */}
       {activeTab === 'chiqim' && (
-        <div style={{ border: '1px solid #ccc', borderTop: 'none', padding: 14 }}>
+        <div style={{ border:'1px solid #ccc', borderTop:'none', padding:14 }}>
 
-          {/* Forma */}
-          <form onSubmit={handleAddExpense} style={{
-            display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap',
-            padding: '8px 10px', background: '#ffebee', border: '1px solid #ef9a9a', borderRadius: 4,
-          }}>
+          {/* Qo'lda kiritish */}
+          <form onSubmit={e => { e.preventDefault(); if(!expForm.amount) return; addBankExpenseRow(expForm.amount, expForm.desc, todayS, expForm.customer); setExpForm({ amount:'', desc:'', customer:'' }); }}
+            style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', padding:'8px 10px', background:'#ffebee', border:'1px solid #ef9a9a', borderRadius:4 }}>
             <input type="number" placeholder="Summa" value={expForm.amount}
-              onChange={e => setExpForm({ ...expForm, amount: e.target.value })}
-              style={{ ...inp, width: 140 }} required />
-            <input type="text" placeholder={L.izohChiqim[lang]} value={expForm.desc}
-              onChange={e => setExpForm({ ...expForm, desc: e.target.value })}
-              style={{ ...inp, width: 230 }} required />
-            <span style={{ fontSize: 12, fontWeight: 'bold', color: '#b71c1c', alignSelf: 'center' }}>{L.kim[lang]}</span>
-            <select value={currentWorker} onChange={e => setCurrentWorker(e.target.value)}
-              style={{ ...inp, color: currentWorker ? '#b71c1c' : '#999', fontWeight: currentWorker ? 'bold' : 'normal' }}>
-              <option value="">— xodim —</option>
-              {XODIMLAR.map(x => <option key={x} value={x}>{x}</option>)}
-            </select>
+              onChange={e => setExpForm(p => ({...p, amount:e.target.value}))}
+              style={{ ...inp, width:130 }} required />
+            <div style={{ width:180 }}>
+              <CustomerSelect value={expForm.customer} onChange={v => setExpForm(p=>({...p,customer:v}))}
+                placeholder="Mijoz (ixtiyoriy)" accentColor="#b71c1c" />
+            </div>
+            <input type="text" placeholder="Izoh (ixtiyoriy)" value={expForm.desc}
+              onChange={e => setExpForm(p => ({...p, desc:e.target.value}))}
+              style={{ ...inp, width:200 }} />
             <button type="submit"
-              style={{ ...inp, background: '#b71c1c', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', padding: '4px 18px' }}>
-              ↓ {L.qoshish[lang]}
+              style={{ ...inp, background:'#b71c1c', color:'#fff', border:'none', cursor:'pointer', fontWeight:'bold', padding:'4px 16px' }}>
+              ↓ Qo'shish
             </button>
           </form>
 
-          {/* Filter */}
-          <FilterBar lang={lang} L={L}
-            showAll={expShowAll} setShowAll={setExpShowAll}
-            filterDate={expFilterDate} setFilterDate={setExpFilterDate}
-            filterWorker={expFilterWorker} setFilterWorker={setExpFilterWorker}
-            workerList={expWorkers} filteredCount={filteredExp.length}
-            filteredTotal={filteredExpTotal} color="#b71c1c" btnS={btnS} inp={inp}
-          />
-
-          <div style={{ marginBottom: 10 }}>
-            <ExcelExport filename="Bank_chiqim" sheetName="Bank chiqim" title="Chiqim (Bank)"
-              columns={bankExportColumns} rows={filteredExp} />
+          {/* Excel hisobot */}
+          <div style={{ marginBottom:10 }}>
+            <button onClick={() => exportExcel(filtInc, filtExp, 'chiqim')}
+              style={{ padding:'4px 12px', background:'#1b5e20', color:'#fff', border:'none', borderRadius:3, cursor:'pointer', fontSize:12, fontWeight:'bold' }}>
+              ⬇ Excel hisobot
+            </button>
+            <span style={{ marginLeft:8, fontSize:11, color:'#888' }}>
+              {filtExp.length} ta · <b style={{ color:'#b71c1c' }}>{fmt(filtExpTotal)}</b> so'm
+            </span>
           </div>
 
-          {/* Jadval */}
-          <RowsTable
-            rows={filteredExp} color="#b71c1c" total={filteredExpTotal}
-            onDelete={handleDelExpense} lang={lang} L={L} jami={L.jami[lang]}
-            amountColor="#b71c1c" todayStr={todayStr()}
-          />
+          <RowsTable rows={filtExp} page={expPage} setPage={setExpPage}
+            onDelete={id => { if(window.confirm("O'chirasizmi?")) deleteBankExpenseRow(id); }}
+            amountColor="#b71c1c" total={filtExpTotal} />
         </div>
       )}
-
-      {/* ── IMPORT PREVIEW ─────────────────────────────────────────────────── */}
-      {importPreview && createPortal(
-        <div onClick={() => setImportPreview(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:560, maxHeight:'80vh', overflow:'auto', fontFamily:'Tahoma, sans-serif' }}>
-            <div style={{ background:'#00695c', color:'#fff', padding:'12px 16px', fontWeight:'bold' }}>
-              📥 Yuklanadigan bank o'tkazmalari ({importPreview.length} ta)
-            </div>
-            <div style={{ padding:16 }}>
-              <p style={{ fontSize:12, color:'#666', margin:'0 0 10px' }}>Bular <b style={{color:'#e65100'}}>sariq (tekshirilmagan)</b> bo'lib qo'shiladi. Keyin har birini ochib mijozni biriktirib tasdiqlaysiz.</p>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead><tr style={{ background:'#f0f0f0' }}><th style={tdMini}>Sana</th><th style={{...tdMini, textAlign:'right'}}>Summa</th><th style={tdMini}>Izoh</th></tr></thead>
-                <tbody>
-                  {importPreview.slice(0, 50).map((r, i) => (
-                    <tr key={i}><td style={tdMini}>{r.date || '—'}</td><td style={{...tdMini, textAlign:'right', fontFamily:'monospace'}}>{fmt(r.amount)}</td><td style={tdMini}>{r.desc || '—'}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              {importPreview.length > 50 && <p style={{ fontSize:11, color:'#888' }}>...va yana {importPreview.length - 50} ta</p>}
-              <div style={{ display:'flex', gap:8, marginTop:12 }}>
-                <button onClick={confirmBankImport} style={{ flex:1, padding:'9px 0', background:'#00695c', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>✓ Yuklash ({importPreview.length} ta)</button>
-                <button onClick={() => setImportPreview(null)} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* ── TEKSHIRISH (mijoz biriktirish) ─────────────────────────────────── */}
-      {verifyBank && createPortal(
-        <div onClick={() => setVerifyBank(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:8, width:'100%', maxWidth:440, fontFamily:'Tahoma, sans-serif' }}>
-            <div style={{ background:'#0d47a1', color:'#fff', padding:'12px 16px', borderRadius:'8px 8px 0 0', fontWeight:'bold' }}>
-              ✓ O'tkazmani tekshirib tasdiqlash
-            </div>
-            <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-              <div style={{ fontSize:13 }}>Sana: <b>{verifyBank.date}</b> · Summa: <b style={{ color:'#0d47a1' }}>{fmt(verifyBank.amount)} so'm</b></div>
-              <div>
-                <label style={{ display:'block', fontSize:11, fontWeight:'bold', color:'#555', marginBottom:4 }}>Qaysi mijoz puli? *</label>
-                <CustomerSelect value={verifyBank.customer || ''} onChange={v => setVerifyBank({ ...verifyBank, customer: v })} placeholder="Mijozni tanlang" accentColor="#0d47a1" />
-              </div>
-              <div>
-                <label style={{ display:'block', fontSize:11, fontWeight:'bold', color:'#555', marginBottom:4 }}>Izoh (bankdan)</label>
-                <input value={verifyBank.desc || ''} onChange={e => setVerifyBank({ ...verifyBank, desc: e.target.value })} style={{ width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4 }} />
-              </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={() => { if(!verifyBank.customer){ alert('Mijozni tanlang'); return; } verifyBankIncomeRow(verifyBank.id, { customer: verifyBank.customer, desc: verifyBank.desc }); setVerifyBank(null); }}
-                  style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>✓ Tasdiqlash</button>
-                <button onClick={() => setVerifyBank(null)} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TAB TUGMASI
-// ─────────────────────────────────────────────────────────────────────────────
-function TabBtn({ active, onClick, label, color }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '8px 22px', cursor: 'pointer', border: 'none',
-        borderBottom: active ? `3px solid ${color}` : '3px solid transparent',
-        background: active ? '#fff' : '#f5f5f5',
-        color: active ? color : '#555',
-        fontFamily: 'Tahoma, sans-serif', fontSize: 13,
-        fontWeight: active ? 'bold' : 'normal',
-        marginBottom: active ? -2 : 0,
-        transition: 'all 0.15s',
-      }}
-    >{label}</button>
-  );
+// ─── Excel hisobot ───────────────────────────────────────────────────────────
+function exportExcel(incRows, expRows, tab) {
+  const XLSX = window.XLSX || (typeof require !== 'undefined' ? require('xlsx') : null);
+  // XLSX import qilingan, window.XLSX emas — shuning uchun modulni ishlatamiz
+  import('xlsx').then(X => {
+    const rows = (tab === 'kirim' ? incRows : expRows).map(r => ({
+      'Sana':    r.date   || '—',
+      'Mijoz':   r.customer || '—',
+      'Izoh':    r.desc   || '—',
+      'Tur':     tab === 'kirim' ? 'Kirim' : 'Chiqim',
+      "Summa (so'm)": Number(r.amount || 0),
+    }));
+    const ws = X.utils.json_to_sheet(rows);
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, tab === 'kirim' ? 'Kirim bank' : 'Chiqim bank');
+    X.writeFile(wb, `bank-${tab}-${new Date().toISOString().slice(0,10)}.xlsx`);
+  });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FILTER BAR
-// ─────────────────────────────────────────────────────────────────────────────
-function FilterBar({ lang, L, showAll, setShowAll, filterDate, setFilterDate, filterWorker, setFilterWorker, workerList, filteredCount, filteredTotal, color, btnS, inp }) {
-  const todayS = (() => {
-    const d = new Date();
-    return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
-  })();
-  return (
-    <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 12, fontWeight: 'bold' }}>{L.filter_sana[lang]}</span>
-      <input type="text" placeholder="dd.mm.yyyy" value={filterDate}
-        onChange={e => { setFilterDate(e.target.value); setShowAll(false); }}
-        disabled={showAll}
-        style={{ ...inp, width: 90, background: showAll ? '#e0e0e0' : '#fff' }}
-      />
-      <button onClick={() => { setFilterDate(todayS); setShowAll(false); }} style={btnS(!showAll && filterDate === todayS)}>
-        {L.bugun[lang]}
-      </button>
-      <button onClick={() => setShowAll(v => !v)} style={btnS(showAll)}>
-        {L.barchasi[lang]}
-      </button>
-      {workerList.length > 0 && (
-        <>
-          <span style={{ fontSize: 12, fontWeight: 'bold', marginLeft: 8 }}>{L.filter_xod[lang]}</span>
-          <select value={filterWorker} onChange={e => setFilterWorker(e.target.value)} style={inp}>
-            <option value="">{L.hammasi[lang]}</option>
-            {workerList.map(w => <option key={w} value={w}>{w}</option>)}
-          </select>
-        </>
-      )}
-      <span style={{ marginLeft: 6, color: '#888', fontSize: 11 }}>
-        ({filteredCount} ta · <b style={{ color }}>{(Number(filteredTotal)||0).toLocaleString('ru-RU').replace(/,/g,' ')}</b> so'm)
-      </span>
-    </div>
-  );
-}
+// ─── Jadval ──────────────────────────────────────────────────────────────────
+function RowsTable({ rows, page, setPage, onDelete, amountColor, total }) {
+  const PAGE = 100;
+  const paged = rows.slice((page-1)*PAGE, page*PAGE);
+  const fmt2  = (n) => Number(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+  const today = todayStr();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JADVAL
-// ─────────────────────────────────────────────────────────────────────────────
-function RowsTable({ rows, total, onDelete, onVerify, L, jami, amountColor, todayStr: today }) {
-  const PAGE_SIZE = 100;
-  const [page, setPage] = useState(1);
-  const paged = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  if (rows.length === 0)
-    return <p style={{ color: '#888', fontStyle: 'italic', marginTop: 16 }}>{L.yoq?.latn || 'Yozuv topilmadi.'}</p>;
-
-  const fmt2 = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
-  const fmtT = (ts) => {
-    if (!ts || ts < 1e10) return '—';
-    const d = new Date(ts);
-    return [String(d.getHours()).padStart(2,'0'), String(d.getMinutes()).padStart(2,'0'), String(d.getSeconds()).padStart(2,'0')].join(':');
-  };
+  if (!rows.length)
+    return <p style={{ color:'#888', fontStyle:'italic', marginTop:16 }}>Yozuv topilmadi.</p>;
 
   return (
     <>
-    <table className="data-table" style={{ width: '100%', maxWidth: 820 }}>
+    <table className="data-table" style={{ width:'100%' }}>
       <thead>
         <tr>
-          <th style={{ width: 30 }}>#</th>
-          <th style={{ width: 68 }}>Vaqt</th>
-          <th style={{ width: 88 }}>Sana</th>
-          <th style={{ width: 110 }}>Xodim</th>
+          <th style={{ width:30 }}>#</th>
+          <th style={{ width:88 }}>Sana</th>
+          <th style={{ width:160 }}>Mijoz</th>
           <th>Izoh</th>
-          <th style={{ textAlign: 'right', width: 140 }}>Summa</th>
-          <th style={{ width: 40 }}></th>
+          <th style={{ textAlign:'right', width:140 }}>Summa</th>
+          <th style={{ width:36 }}></th>
         </tr>
       </thead>
       <tbody>
         {paged.map((r, i) => {
           const isToday = r.date === today;
-          const absIdx = (page - 1) * PAGE_SIZE + i;
+          const absIdx  = (page-1)*PAGE + i;
           return (
-            <tr key={r.id} style={{ background: r.pending ? '#fff8c4' : (isToday ? (amountColor === '#0d47a1' ? '#e8f0ff' : '#fff0f0') : (i % 2 === 0 ? '#fff' : '#f9f9f9')) }}>
-              <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{r.pending ? <span title="Tekshirilmagan" style={{ color: '#e65100' }}>⚠</span> : absIdx + 1}</td>
-              <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', color: '#555' }}>
-                {fmtT(r.createdAt || (r.id > 1e10 ? r.id : null))}
-              </td>
-              <td style={{ fontSize: 12 }}>
+            <tr key={r.id} style={{ background: isToday ? (amountColor==='#0d47a1'?'#e8f0ff':'#fff0f0') : (i%2===0?'#fff':'#f9f9f9') }}>
+              <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{absIdx+1}</td>
+              <td style={{ fontSize:12 }}>
                 {r.date || '—'}
-                {isToday && (
-                  <span style={{
-                    marginLeft: 3, fontSize: 9, padding: '1px 4px',
-                    background: amountColor, color: '#fff', borderRadius: 8,
-                  }}>bugun</span>
-                )}
+                {isToday && <span style={{ marginLeft:3, fontSize:9, padding:'1px 4px', background:amountColor, color:'#fff', borderRadius:8 }}>bugun</span>}
               </td>
-              <td style={{ fontSize: 12, color: '#003366', fontWeight: r.worker ? 'bold' : 'normal' }}>
-                {r.worker || '—'}
+              <td style={{ fontSize:12, color:'#1565c0', fontWeight: r.customer ? 'bold' : 'normal' }}>
+                {r.customer || <span style={{ color:'#bbb' }}>—</span>}
               </td>
-              <td style={{ fontSize: 13 }}>
-                {r.customer && <b style={{ color: '#1565c0' }}>👤 {r.customer}</b>}
-                {r.customer && r.desc ? ' · ' : ''}
-                {r.desc || (!r.customer ? '—' : '')}
-                {r.pending && !r.customer && <span style={{ color: '#e65100', fontSize: 11 }}> ⚠ mijoz biriktirilmagan</span>}
-              </td>
-              <td style={{ textAlign: 'right', fontWeight: 'bold', color: amountColor, fontFamily: 'monospace', fontSize: 13 }}>
+              <td style={{ fontSize:12, color:'#555' }}>{r.desc || '—'}</td>
+              <td style={{ textAlign:'right', fontFamily:'monospace', fontWeight:'bold', color:amountColor, fontSize:13 }}>
                 {fmt2(r.amount)}
               </td>
-              <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                {r.pending && onVerify && (
-                  <button onClick={() => onVerify(r)} title="Tekshirib tasdiqlash"
-                    style={{ fontSize: 11, cursor: 'pointer', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', marginRight: 4, fontWeight: 'bold' }}>
-                    ✓ Tekshirish
-                  </button>
-                )}
+              <td style={{ textAlign:'center' }}>
                 <button onClick={() => onDelete(r.id)}
-                  style={{ fontSize: 10, cursor: 'pointer', background: '#ffebee', border: '1px solid #e53935', padding: '2px 6px', borderRadius: 3, color: '#c62828' }}>
+                  style={{ fontSize:10, cursor:'pointer', background:'#ffebee', border:'1px solid #e53935', padding:'2px 6px', borderRadius:3, color:'#c62828' }}>
                   ✕
                 </button>
               </td>
             </tr>
           );
         })}
-        <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-          <td colSpan={5} style={{ textAlign: 'right', paddingRight: 8 }}>{jami}</td>
-          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: amountColor, fontSize: 14 }}>
-            {fmt2(total)}
-          </td>
+        <tr style={{ background:'#ffff00', fontWeight:'bold' }}>
+          <td colSpan={4} style={{ textAlign:'right', paddingRight:8 }}>JAMI</td>
+          <td style={{ textAlign:'right', fontFamily:'monospace', color:amountColor, fontSize:14 }}>{fmt2(total)}</td>
           <td />
         </tr>
       </tbody>
     </table>
-    <Paginator total={rows.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
+    <Paginator total={rows.length} page={page} setPage={setPage} pageSize={PAGE} />
     </>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATISTIKA KARTOCHKASI
-// ─────────────────────────────────────────────────────────────────────────────
-const tdMini = { border: '1px solid #e0e0e0', padding: '5px 8px', fontSize: 12, textAlign: 'left' };
-
-function StatCard({ label, value, color, bg, sub, bold, arrow, clickable, onEdit }) {
+// ─── Tab tugmasi ─────────────────────────────────────────────────────────────
+function TabBtn({ active, onClick, label, color }) {
   return (
-    <div
-      style={{
-        padding: '8px 14px', background: bg,
-        border: `1px solid ${color}33`,
-        borderLeft: `4px solid ${color}`,
-        borderRadius: 4, minWidth: 155,
-        cursor: clickable ? 'pointer' : 'default',
-      }}
-      onClick={onEdit}
-      title={clickable ? 'Bosib tahrirlash' : undefined}
-    >
-      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>
-        {label}
-        {clickable && <span style={{ marginLeft: 4, fontSize: 10, color: '#999' }}>✎</span>}
+    <button onClick={onClick} style={{
+      padding:'8px 20px', cursor:'pointer', border:'none',
+      borderBottom: active ? `3px solid ${color}` : '3px solid transparent',
+      background: active ? '#fff' : '#f5f5f5',
+      color: active ? color : '#555',
+      fontFamily:'Tahoma,sans-serif', fontSize:13,
+      fontWeight: active ? 'bold' : 'normal',
+      marginBottom: active ? -2 : 0,
+    }}>{label}</button>
+  );
+}
+
+// ─── Statistika kartochkasi ───────────────────────────────────────────────────
+function StatCard({ label, value, color, bg, sub, bold, arrow, onEdit }) {
+  return (
+    <div onClick={onEdit} style={{
+      padding:'8px 14px', background:bg,
+      border:`1px solid ${color}33`,
+      borderLeft:`4px solid ${color}`,
+      borderRadius:4, minWidth:150,
+      cursor: onEdit ? 'pointer' : 'default',
+    }} title={onEdit ? 'Bosib tahrirlash' : undefined}>
+      <div style={{ fontSize:11, color:'#666', marginBottom:2 }}>
+        {label}{onEdit && <span style={{ marginLeft:4, fontSize:10, color:'#999' }}>✎</span>}
       </div>
-      <div style={{ fontSize: 15, fontWeight: bold ? 700 : 'bold', color, fontFamily: 'monospace' }}>
-        {arrow && <span style={{ marginRight: 3 }}>{arrow}</span>}
+      <div style={{ fontSize:15, fontWeight: bold ? 700 : 'bold', color, fontFamily:'monospace' }}>
+        {arrow && <span style={{ marginRight:3 }}>{arrow}</span>}
         {value} so'm
       </div>
-      {sub && <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>{sub}</div>}
+      {sub && <div style={{ fontSize:10, color:'#999', marginTop:2 }}>{sub}</div>}
     </div>
   );
 }

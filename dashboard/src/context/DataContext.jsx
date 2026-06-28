@@ -695,9 +695,9 @@ export function DataProvider({ children }) {
 
   const [bankIncomeRows, setBankIncomeRows] = useState(() => load('bank_income_rows', []));
   useEffect(() => save('bank_income_rows', bankIncomeRows), [bankIncomeRows]);
-  const addBankIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+  const addBankIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = Date.now();
-    setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer }]);
   };
   const deleteBankIncomeRow = (id) => setBankIncomeRows(p => p.filter(r => r.id !== id));
   // Excel'dan bank o'tkazmalarini import — TEKSHIRILMAGAN (pending) holatda.
@@ -722,11 +722,44 @@ export function DataProvider({ children }) {
   // ── 14b. Chiqim bank ─────────────────────────────────────────────────────
   const [bankExpenseRows, setBankExpenseRows] = useState(() => load('bank_expense_rows', []));
   useEffect(() => save('bank_expense_rows', bankExpenseRows), [bankExpenseRows]);
-  const addBankExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+  const addBankExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = Date.now();
-    setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer }]);
   };
   const deleteBankExpenseRow = (id) => setBankExpenseRows(p => p.filter(r => r.id !== id));
+
+  // ── 14c. Bank oborotka pending (kirim + chiqim aralash) ──────────────────
+  const [bankPendingRows, setBankPendingRows] = useState(() => load('bank_pending_rows', []));
+  useEffect(() => save('bank_pending_rows', bankPendingRows), [bankPendingRows]);
+
+  const importOborotka = (rows) => {
+    const base = Date.now();
+    setBankPendingRows(p => [...p, ...rows.map((r, i) => ({
+      id: base + i,
+      date: r.date || new Date().toLocaleDateString('ru-RU'),
+      orgName: r.orgName || '',
+      amount: Number(r.amount) || 0,
+      type: r.type, // 'kirim' | 'chiqim'
+      naznachenie: r.naznachenie || '',
+      customer: '',
+      izoh: '',
+    }))]);
+  };
+
+  const confirmBankPendingRow = (id, { customer = '', izoh = '' } = {}) => {
+    const row = bankPendingRows.find(r => r.id === id);
+    if (!row) return;
+    const ts = Date.now();
+    const desc = izoh || row.naznachenie || '';
+    if (row.type === 'kirim') {
+      setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, customer, worker: currentWorker }]);
+    } else {
+      setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, customer, worker: currentWorker }]);
+    }
+    setBankPendingRows(p => p.filter(r => r.id !== id));
+  };
+
+  const deleteBankPendingRow = (id) => setBankPendingRows(p => p.filter(r => r.id !== id));
   const totalBankExpense = bankExpenseRows.reduce((s, r) => s + Number(r.amount || 0), 0);
   // Bank sof balansi (faqat Kirim/Chiqim Bank sahifasi uchun)
   const bankNetBalance   = Number(bankOpening.amount) + totalBankIncome - totalBankExpense;
@@ -1008,6 +1041,7 @@ export function DataProvider({ children }) {
     supplier_payments:  setSupplierPayments,
     bank_income_rows:   setBankIncomeRows,
     bank_expense_rows:  setBankExpenseRows,
+    bank_pending_rows:  setBankPendingRows,
     click_income_rows:  setClickIncomeRows,
     click_expense_rows: setClickExpenseRows,
     workers:            setWorkers,
@@ -1045,6 +1079,7 @@ export function DataProvider({ children }) {
     supplier_payments:  supplierPayments,
     bank_income_rows:   bankIncomeRows,
     bank_expense_rows:  bankExpenseRows,
+    bank_pending_rows:  bankPendingRows,
     click_income_rows:  clickIncomeRows,
     click_expense_rows: clickExpenseRows,
     workers:            workers,
@@ -1105,7 +1140,7 @@ export function DataProvider({ children }) {
   }, [
     appSettings, cashOpening, cashRows, bankOpening, bankRows, clickOpening, clickRows,
     cementOpening, incomeRows, expenseRows, soldRows, recvRows, debtRows, advanceRows,
-    salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
+    salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, bankPendingRows, clickIncomeRows, clickExpenseRows,
     workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips, skladRows,
     tickets,
   ]);
@@ -1187,6 +1222,7 @@ export function DataProvider({ children }) {
     bankIncomeRows, addBankIncomeRow, deleteBankIncomeRow, totalBankIncome,
     importBankIncomeRows, verifyBankIncomeRow, pendingBankCount,
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
+    bankPendingRows, importOborotka, confirmBankPendingRow, deleteBankPendingRow,
     bankNetBalance,
     // 15. Kirim click + Chiqim click
     clickIncomeRows, addClickIncomeRow, deleteClickIncomeRow, totalClickIncome,
