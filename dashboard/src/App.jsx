@@ -40,7 +40,6 @@ const FULL_MENU = [
   { path: '/sold_tons',      latn: "Sotilgan tonna (Eski)", cyrl: "Сотилган тонна (Эски)",roles: ['admin'] },
   { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",        roles: ['admin', 'omborchi'] },
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
-  { path: '/advances',       latn: "Avanslar",              cyrl: "Аванслар",             roles: ['admin'] },
   { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
   { path: '/tiketlar',       latn: "🎫 Tiketlar",             cyrl: "🎫 Тикетлар",            roles: ['admin', 'sotuvchi'] },
   { path: '/distribution',   latn: "🚛 Yuk taqsimlash",      cyrl: "🚛 Юк тақсимлаш",       roles: ['admin', 'sotuvchi', 'omborchi'] },

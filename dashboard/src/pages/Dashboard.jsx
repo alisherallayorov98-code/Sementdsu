@@ -24,6 +24,7 @@ export default function Dashboard() {
     totalDebts, salesRows, soldRows, incomeRows, expenseRows, tgOrders, debtRows, currentUser,
     customers, appSettings, pendingRecvCount, pendingBankCount,
     cashRows, bankRows, clickRows,
+    advanceRows, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
   } = data;
   const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
 
@@ -130,6 +131,50 @@ export default function Dashboard() {
         </Panel>
       </div>
 
+      {/* Avanslar holati */}
+      {totalAdvancesAll > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ background: '#003366', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13, borderRadius: '4px 4px 0 0' }}>
+            Avanslar holati
+          </div>
+          <div style={{ border: '1px solid #e0e0e0', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '10px 12px' }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+              <MiniStat label="Jami avans"      value={`${fmt(totalAdvancesAll)} so'm`}  color="#333"    />
+              <MiniStat label="Ishlatildi"       value={`${fmt(totalAdvancesUsed)} so'm`} color="#e65100" />
+              <MiniStat label="Qolgan avans"     value={`${fmt(totalAdvances)} so'm`}     color="#2e7d32" />
+            </div>
+            {(() => {
+              const active = advanceRows.filter(r => Math.max(0, Number(r.amount) - Number(r.used)) > 0)
+                .sort((a, b) => (Number(b.amount) - Number(b.used)) - (Number(a.amount) - Number(a.used)))
+                .slice(0, 5);
+              if (!active.length) return null;
+              return (
+                <table className="data-table" style={{ width: '100%', maxWidth: 600 }}>
+                  <thead>
+                    <tr>
+                      <th>Mijoz</th>
+                      <th style={{ textAlign: 'right' }}>Avans</th>
+                      <th style={{ textAlign: 'right', color: '#2e7d32' }}>Qolgan</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {active.map(r => (
+                      <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => setCard(r.customer)}>
+                        <td style={{ fontWeight: 'bold' }}>👤 {r.customer}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.amount)}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#2e7d32' }}>
+                          {fmt(Math.max(0, Number(r.amount) - Number(r.used)))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         {/* Eng katta qarzdorlar */}
         <div style={{ flex: 1, minWidth: 320 }}>
@@ -201,6 +246,15 @@ function Panel({ title, children }) {
     <div style={{ flex: 1, minWidth: 280, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
       <div style={{ background: '#003366', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13 }}>{title}</div>
       <div style={{ padding: '8px 12px' }}>{children}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div style={{ padding: '6px 14px', borderLeft: `4px solid ${color}`, background: '#f9f9f9', borderRadius: 3, minWidth: 160 }}>
+      <div style={{ fontSize: 11, color: '#666' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 'bold', color, fontFamily: 'monospace' }}>{value}</div>
     </div>
   );
 }
