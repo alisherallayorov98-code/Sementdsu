@@ -25,26 +25,39 @@ export default function CustomerSelect({
   accentColor = '#283593',
   inputId,
 }) {
-  const { customers, addCustomer } = useData();
+  const { customers, addCustomer, drivers = [], workers = [] } = useData();
 
   const [open,    setOpen]    = useState(false);
   const [modal,   setModal]   = useState(false);
   const [newCust, setNewCust] = useState({ name: '', phone: '', address: '', note: '' });
 
-  // ── Suggestion hisoblash ──────────────────────────────────────────────────
-  // Mijozlar ro'yxati ko'p bo'lishi mumkin — shuning uchun FAQAT kamida 2 ta
-  // harf yozilganda eng mos variantlar ko'rsatiladi (hammasi emas).
+  // ── Suggestion hisoblash ─────────────────────────────────────────────────
   const query = value.trim();
-  const suggestions = query.length >= 2
-    ? customers.filter(c =>
-        c.name.toLowerCase().includes(query.toLowerCase()) ||
-        (c.phone || '').includes(query)
-      ).slice(0, 12)
-    : [];
-  // Yozilgan nom bazada bormi (xuddi shu nomli mijoz)?
-  const exactMatch = customers.some(c => c.name.trim().toLowerCase() === query.toLowerCase());
-  // Yangi mijoz: kamida 2 harf yozilgan va bunday nom hali yo'q
-  const isNewName = query.length >= 2 && !exactMatch;
+
+  const allEntries = query.length >= 2 ? [
+    ...customers.filter(c =>
+      c.name.toLowerCase().includes(query.toLowerCase()) ||
+      (c.phone || '').includes(query)
+    ).slice(0, 8).map(c => ({ key: 'c' + c.id, name: c.name, sub: c.phone || '', badge: '👤', badgeColor: '#1565c0' })),
+
+    ...drivers.filter(d =>
+      d.name.toLowerCase().includes(query.toLowerCase()) ||
+      (d.carNumber || '').toLowerCase().includes(query.toLowerCase()) ||
+      (d.phone || '').includes(query)
+    ).slice(0, 4).map(d => ({ key: 'd' + d.id, name: d.name, sub: d.carNumber || d.phone || '', badge: '🚚', badgeColor: '#4e342e' })),
+
+    ...workers.filter(w =>
+      w.name.toLowerCase().includes(query.toLowerCase()) ||
+      (w.phone || '').includes(query)
+    ).slice(0, 4).map(w => ({ key: 'w' + w.id, name: w.name, sub: w.role || w.phone || '', badge: '👷', badgeColor: '#e65100' })),
+  ] : [];
+
+  const suggestions = allEntries;
+
+  // Yozilgan nom bazada bormi?
+  const allNames = [...customers, ...drivers, ...workers];
+  const exactMatch = allNames.some(x => x.name.trim().toLowerCase() === query.toLowerCase());
+  const isNewName  = query.length >= 2 && !exactMatch;
 
   const highlight = (text, q) => {
     if (!q || q.length < 2) return text;
@@ -120,38 +133,34 @@ export default function CustomerSelect({
             }}>
               {/* Qidiruv natijalari */}
               {suggestions.length > 0 ? (
-                suggestions.map(c => (
+                suggestions.map(entry => (
                   <div
-                    key={c.id}
-                    onMouseDown={() => select(c.name)}
+                    key={entry.key}
+                    onMouseDown={() => select(entry.name)}
                     style={{
-                      padding: '6px 10px', cursor: 'pointer',
+                      padding: '5px 10px', cursor: 'pointer',
                       borderBottom: '1px solid #f0f0f0',
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#e8eaf6'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f5f5f5'}
                     onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                   >
-                    <span>
-                      <b style={{ color: accentColor, fontSize: 13 }}>
-                        {highlight(c.name, query)}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 14 }}>{entry.badge}</span>
+                      <b style={{ color: entry.badgeColor, fontSize: 13 }}>
+                        {highlight(entry.name, query)}
                       </b>
-                      {c.address && (
-                        <span style={{ color: '#888', fontSize: 10, display: 'block' }}>
-                          📍 {c.address}
-                        </span>
-                      )}
                     </span>
-                    {c.phone && (
-                      <span style={{ color: '#555', fontSize: 10, marginLeft: 8, whiteSpace: 'nowrap' }}>
-                        📞 {c.phone}
+                    {entry.sub && (
+                      <span style={{ color: '#888', fontSize: 10, marginLeft: 8, whiteSpace: 'nowrap' }}>
+                        {entry.sub}
                       </span>
                     )}
                   </div>
                 ))
               ) : (
                 <div style={{ padding: '8px 10px', color: '#aaa', fontSize: 12, fontStyle: 'italic' }}>
-                  {query.length < 2 ? 'Izlash uchun kamida 2 ta harf yozing…' : 'Mijoz topilmadi'}
+                  {query.length < 2 ? 'Izlash uchun kamida 2 ta harf yozing…' : 'Topilmadi'}
                 </div>
               )}
 
