@@ -79,6 +79,8 @@ export const api = {
   getZayavkaLog: (limit = 50) => req(`/api/zayavka_log?limit=${limit}`),
   regenerateInvite: (revokeUsers = false) => req('/api/zayavka_config/regenerate_invite', { method: 'POST', body: JSON.stringify({ revokeUsers }) }),
   getBotInfo: () => req('/api/bot_info'),
+  notifyDriverPayment: (driverName, amount, channel) =>
+    req('/api/driver_payment_notify', { method: 'POST', body: JSON.stringify({ driverName, amount, channel }) }),
 };
 
 export { API_URL };

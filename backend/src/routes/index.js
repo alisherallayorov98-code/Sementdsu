@@ -58,6 +58,56 @@ router.get('/bot_info', authenticate, (req, res) => {
   res.json({ botUsername: TELEGRAM_BOT_USER });
 });
 
+// ── Haydovchiga to'lov xabari ─────────────────────────────────────────────
+// POST /driver_payment_notify — kassir haydovchiga pul berganda Telegram xabar
+router.post('/driver_payment_notify', authenticate, async (req, res) => {
+  try {
+    const acc        = req.user.account;
+    const { driverName, amount, channel } = req.body;
+    if (!driverName || !amount) return res.json({ ok: false, error: 'driverName va amount kerak' });
+
+    const state   = db.getState(acc);
+    const drivers = state.drivers || [];
+    const trips   = state.driver_trips || [];
+    const driver  = drivers.find(d => d.name.trim().toLowerCase() === String(driverName).trim().toLowerCase());
+
+    if (!driver) return res.json({ ok: false, error: 'Haydovchi topilmadi' });
+    if (!driver.telegramChatId) return res.json({ ok: false, error: 'Haydovchi Telegram ga ulanmagan' });
+
+    // Balans hisoblash
+    const driverTrips = trips.filter(t => t.driverId === driver.id);
+    const earned  = driverTrips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+    const paid    = driverTrips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+    const balance = earned - paid;
+
+    const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+    const chStr = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[channel] || '';
+
+    const text = [
+      `💰 *To'lov qabul qilindi!*`,
+      ``,
+      `📥 Miqdor: *${fmt(amount)} so'm* ${chStr}`,
+      ``,
+      `📊 *Hisob holati:*`,
+      `  • Jami ishladi: ${fmt(earned)} so'm`,
+      `  • Jami to'landi: ${fmt(paid)} so'm`,
+      balance > 0
+        ? `  • 💸 Sizga qarz: *${fmt(balance)} so'm*`
+        : balance < 0
+          ? `  • ✅ Oshiqcha berildi: *${fmt(Math.abs(balance))} so'm*`
+          : `  • ✅ Hisob-kitob tengdir`,
+    ].join('\n');
+
+    const tg = require('../services/telegram.service');
+    if (!tg.isRunning()) return res.json({ ok: false, error: 'Bot ishlamayapti' });
+    const bot = tg.getBot();
+    await bot.sendMessage(driver.telegramChatId, text, { parse_mode: 'Markdown' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Haydovchi pending reyslari ─────────────────────────────────────────────
 // GET /driver_trips/pending — kutilayotgan reyslari ro'yxati
 router.get('/driver_trips/pending', authenticate, (req, res) => {

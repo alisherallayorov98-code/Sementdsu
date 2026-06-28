@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
+import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
@@ -183,6 +184,14 @@ export default function Kassir() {
       const fullDesc = chiqim.note;
       addRow(chiqim.channel, -amt, fullDesc, chiqim.customer);
       showToast(`-${fmt(amt)} so'm chiqim`);
+      // Haydovchiga Telegram xabari (agar mijoz haydovchi bo'lsa)
+      if (chiqim.customer) {
+        const { drivers = [] } = data;
+        const isDriver = drivers.some(d => d.name.trim().toLowerCase() === chiqim.customer.trim().toLowerCase());
+        if (isDriver) {
+          api.notifyDriverPayment(chiqim.customer, amt, chiqim.channel).catch(() => {});
+        }
+      }
     }
     setChiqim({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
   };
