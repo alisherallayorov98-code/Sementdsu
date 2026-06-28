@@ -189,7 +189,9 @@ export default function Kassir() {
         const { drivers = [] } = data;
         const isDriver = drivers.some(d => d.name.trim().toLowerCase() === chiqim.customer.trim().toLowerCase());
         if (isDriver) {
-          api.notifyDriverPayment(chiqim.customer, amt, chiqim.channel).catch(() => {});
+          api.notifyDriverPayment(chiqim.customer, amt, chiqim.channel)
+            .then(r => { if (!r.ok) showToast(`⚠️ Bot xabari: ${r.error || 'Yuborilmadi'}`); })
+            .catch(() => {});
         }
       }
     }
