@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
-import api from '../api';
+import { api } from '../api';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (ts) => {
