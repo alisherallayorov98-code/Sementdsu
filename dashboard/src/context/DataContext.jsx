@@ -1107,6 +1107,7 @@ export function DataProvider({ children }) {
     cementOpening, incomeRows, expenseRows, soldRows, recvRows, debtRows, advanceRows,
     salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
     workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips, skladRows,
+    tickets,
   ]);
 
   // 3) Telegram botiga tushgan yangi zakazlarni backend navbatidan o'qib olish
