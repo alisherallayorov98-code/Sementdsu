@@ -76,8 +76,18 @@ router.post('/driver_payment_notify', authenticate, async (req, res) => {
 
     // Balans hisoblash
     const driverTrips = trips.filter(t => t.driverId === driver.id);
-    const earned  = driverTrips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
-    const paid    = driverTrips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+    const earned = driverTrips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+
+    // To'lovlar: driver_trips (isPayment) + kassir chiqim yozuvlari (cashRows/bankRows/clickRows)
+    const tripPaid = driverTrips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+    const driverNameLc = driver.name.trim().toLowerCase();
+    const kassiPaid = ['cashRows', 'bankRows', 'clickRows'].reduce((sum, key) => {
+      const rows = state[key] || [];
+      return sum + rows
+        .filter(r => Number(r.amount) < 0 && (r.customer || '').trim().toLowerCase() === driverNameLc)
+        .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
+    }, 0);
+    const paid    = tripPaid + kassiPaid;
     const balance = earned - paid;
 
     const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
