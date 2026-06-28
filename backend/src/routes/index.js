@@ -87,7 +87,8 @@ router.post('/driver_payment_notify', authenticate, async (req, res) => {
         .filter(r => Number(r.amount) < 0 && (r.customer || '').trim().toLowerCase() === driverNameLc)
         .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
     }, 0);
-    const paid    = tripPaid + kassiPaid;
+    // amount — hozir berilgan to'lov, state hali saqlanmagan bo'lishi mumkin
+    const paid    = tripPaid + kassiPaid + Number(amount);
     const balance = earned - paid;
 
     const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
