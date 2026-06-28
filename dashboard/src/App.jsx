@@ -19,7 +19,6 @@ import Income        from './pages/Income';
 import Expense       from './pages/Expense';
 import SoldTons      from './pages/SoldTons';
 import RecvTons      from './pages/RecvTons';
-import SupplierDebts  from './pages/SupplierDebts';
 import Debts         from './pages/Debts';
 import Advances      from './pages/Advances';
 import IncomeBank    from './pages/IncomeBank';
@@ -40,7 +39,6 @@ const FULL_MENU = [
   { path: '/expense',        latn: "Chiqim (Naqd)",         cyrl: "Чиқим (Нақд)",         roles: ['admin', 'sotuvchi'] },
   { path: '/sold_tons',      latn: "Sotilgan tonna (Eski)", cyrl: "Сотилган тонна (Эски)",roles: ['admin'] },
   { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",        roles: ['admin', 'omborchi'] },
-  { path: '/supplier_debts', latn: "Yetkazib beruvchi qarzi", cyrl: "Етказиб берувчи қарзи", roles: ['admin', 'sotuvchi'] },
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
   { path: '/advances',       latn: "Avanslar",              cyrl: "Аванслар",             roles: ['admin'] },
   { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
@@ -146,7 +144,6 @@ function App() {
               <Route path="/expense"        element={<Expense        lang={lang} />} />
               <Route path="/sold_tons"      element={<SoldTons       lang={lang} />} />
               <Route path="/recv_tons"      element={<RecvTons       lang={lang} />} />
-              <Route path="/supplier_debts" element={<SupplierDebts  lang={lang} />} />
               <Route path="/debts"          element={<Debts          lang={lang} />} />
               <Route path="/advances"       element={<Advances       lang={lang} />} />
               <Route path="/kassir"         element={<Kassir         lang={lang} />} />
