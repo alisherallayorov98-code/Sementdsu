@@ -30,6 +30,7 @@ import Customers     from './pages/Customers';
 import DayBalance    from './pages/DayBalance';
 import Kassir       from './pages/Kassir';
 import Tiketlar     from './pages/Tiketlar';
+import Drivers      from './pages/Drivers';
 
 // ─── Menyu ro'yxati ──────────────────────────────────────────────────────────
 const FULL_MENU = [
@@ -39,6 +40,7 @@ const FULL_MENU = [
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
   { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
   { path: '/tiketlar',       latn: "🎫 Tiketlar",             cyrl: "🎫 Тикетлар",            roles: ['admin', 'sotuvchi'] },
+  { path: '/drivers',        latn: "🚚 Haydovchilar",         cyrl: "🚚 Ҳайдовчилар",         roles: ['admin'] },
   { path: '/distribution',   latn: "🚛 Yuk taqsimlash",      cyrl: "🚛 Юк тақсимлаш",       roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/income_bank',    latn: "Kirim/Chiqim (Bank)",   cyrl: "Кирим/Чиқим (Банк)",   roles: ['admin', 'sotuvchi'] },
   { path: '/income_click',   latn: "Kirim/Chiqim (Click)",  cyrl: "Кирим/Чиқим (Клик)",   roles: ['admin', 'sotuvchi'] },
@@ -144,6 +146,7 @@ function App() {
               <Route path="/advances"       element={<Advances       lang={lang} />} />
               <Route path="/kassir"         element={<Kassir         lang={lang} />} />
               <Route path="/tiketlar"       element={<Tiketlar />} />
+              <Route path="/drivers"         element={<Drivers        lang={lang} />} />
               <Route path="/distribution"   element={<Distribution />} />
               <Route path="/income_bank"    element={<IncomeBank     lang={lang} />} />
               <Route path="/income_click"   element={<IncomeClick    lang={lang} />} />
