@@ -146,49 +146,53 @@ export default function Drivers({ lang }) {
     { v: 'click', label: '📱 Click' },
   ];
 
-  // ── Detail Modal ──────────────────────────────────────────────────────────
-  const DetailModal = () => {
+  // ── Lightbox holati ───────────────────────────────────────────────────────
+  const [lightbox, setLightbox] = useState(null); // url
+
+  // ── To'liq ekran haydovchi sahifasi ───────────────────────────────────────
+  const DetailPage = () => {
     if (!modalDriver) return null;
     const d = drivers.find(x => x.id === modalDriver);
     if (!d) return null;
-    const st = getStats(d.id);
+    const st    = getStats(d.id);
     const trips = driverTrips.filter(t => t.driverId === d.id).sort((a, b) => b.createdAt - a.createdAt);
     const link  = driverLink(d);
+    const myPending = pending.filter(t => t.driverId === d.id);
+    const tariff = (driverTariffs || []).find(t => t.id === d.tariffId);
 
     return (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-        background: 'rgba(0,0,0,0.6)', zIndex: 2000,
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 30, overflowY: 'auto'
-      }} onClick={e => { if (e.target === e.currentTarget) setModalDriver(null); }}>
-        <div style={{ background: '#fff', width: 640, borderRadius: 6, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', marginBottom: 30 }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#f5f5f5', display: 'flex', flexDirection: 'column', fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13 }}>
 
-          {/* Header */}
-          <div style={{ background: ACCENT, color: '#fff', padding: '14px 20px', display: 'flex', justifyContent: 'space-between' }}>
+        {/* ── TOP HEADER ────────────────────────────────────────────────────── */}
+        <div style={{ background: ACCENT, color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div>
-              <div style={{ fontWeight: 'bold', fontSize: 16 }}>🚚 {d.name}</div>
-              <div style={{ fontSize: 12, color: '#d7ccc8', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontWeight: 'bold', fontSize: 17 }}>🚚 {d.name}</div>
+              <div style={{ fontSize: 12, color: '#d7ccc8', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {d.carNumber && <span>🔢 {d.carNumber}</span>}
-                {d.phone && <span>📞 {d.phone}</span>}
-                {d.tariffId && (() => {
-                  const t = (driverTariffs || []).find(t => t.id === d.tariffId);
-                  return t ? <span style={{ background: '#1565c0', color: '#fff', padding: '1px 7px', borderRadius: 8, fontSize: 10, fontWeight: 'bold' }}>{t.name}</span> : null;
-                })()}
+                {d.phone     && <span>📞 {d.phone}</span>}
+                {tariff      && <span style={{ background: '#1565c0', padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 'bold' }}>{tariff.name}</span>}
                 {d.telegramChatId
                   ? <span style={{ color: '#a5d6a7' }}>✅ Telegram ulangan</span>
-                  : <span style={{ color: '#ef9a9a' }}>⚠️ Telegram ulanmagan</span>}
+                  : <span style={{ color: '#ef9a9a' }}>⚠ Ulanmagan</span>}
               </div>
             </div>
-            <button onClick={() => setModalDriver(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>✕</button>
           </div>
+          <button onClick={() => setModalDriver(null)}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', fontSize: 16, cursor: 'pointer', borderRadius: 4, padding: '5px 14px', fontWeight: 'bold' }}>
+            ✕ Yopish
+          </button>
+        </div>
 
-          {/* Telegram link */}
+        {/* ── SCROLLABLE KONTENT ────────────────────────────────────────────── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+
+          {/* Telegram ssilka (ulanmagan bo'lsa) */}
           {!d.telegramChatId && (
-            <div style={{ padding: '10px 20px', background: '#e3f2fd', borderBottom: '1px solid #bbdefb', fontSize: 12 }}>
-              📱 <b>Haydovchi botni ulashi uchun quyidagi havolani yuboring:</b>
+            <div style={{ marginBottom: 14, padding: '10px 16px', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 6, fontSize: 12 }}>
+              📱 <b>Haydovchi botga ulashishi uchun ssilkani yuboring:</b>
               <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
-                <a href={link} target="_blank" rel="noreferrer"
-                  style={{ color: '#1565c0', wordBreak: 'break-all', flex: 1 }}>{link}</a>
+                <span style={{ color: '#1565c0', wordBreak: 'break-all', flex: 1 }}>{link}</span>
                 <button onClick={() => { navigator.clipboard.writeText(link); }}
                   style={{ padding: '3px 10px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap' }}>
                   📋 Nusxa
@@ -197,61 +201,56 @@ export default function Drivers({ lang }) {
             </div>
           )}
 
-          {/* Statistika */}
-          <div style={{ display: 'flex', background: LAVANDA, borderBottom: '1px solid #d7ccc8' }}>
-            <div style={{ flex: 1, padding: '12px', textAlign: 'center', borderRight: '1px solid #d7ccc8' }}>
-              <div style={{ fontSize: 11, color: '#666' }}>Ishladi ({st.tripsCount} marta)</div>
-              <div style={{ fontWeight: 'bold', fontSize: 15 }}>{fmt(st.totalEarnings)}</div>
-            </div>
-            <div style={{ flex: 1, padding: '12px', textAlign: 'center', borderRight: '1px solid #d7ccc8' }}>
-              <div style={{ fontSize: 11, color: '#2e7d32' }}>To'landi (avans)</div>
-              <div style={{ fontWeight: 'bold', fontSize: 15, color: '#2e7d32' }}>{fmt(st.totalPaid)}</div>
-            </div>
-            <div style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: st.balance > 0 ? '#c62828' : '#2e7d32' }}>
-                {st.balance > 0 ? 'Qarzimiz' : 'Oshiqcha avans'}
+          {/* ── STATISTIKA ─────────────────────────────────────────────────── */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[
+              { lbl: `Ishladi (${st.tripsCount} marta)`, val: fmt(st.totalEarnings),          color: '#333',   bg: '#fff' },
+              { lbl: "To'landi (avans)",                  val: fmt(st.totalPaid),               color: '#2e7d32',bg: '#e8f5e9' },
+              { lbl: st.balance > 0 ? 'Qarzimiz' : 'Hisob-kitob',
+                val: st.balance === 0 ? '✓ Yo\'q' : fmt(Math.abs(st.balance)),
+                color: st.balance > 0 ? '#c62828' : '#2e7d32',
+                bg: st.balance > 0 ? '#ffebee' : '#e8f5e9' },
+            ].map((s, i) => (
+              <div key={i} style={{ padding: '10px 20px', background: s.bg, borderLeft: `4px solid ${s.color}`, borderRadius: 4, minWidth: 150 }}>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{s.lbl}</div>
+                <div style={{ fontSize: 16, fontWeight: 'bold', color: s.color, fontFamily: 'monospace' }}>{s.val}</div>
               </div>
-              <div style={{ fontWeight: 'bold', fontSize: 15, color: st.balance > 0 ? '#c62828' : st.balance < 0 ? '#e65100' : '#2e7d32' }}>
-                {st.balance === 0 ? '✓ Yo\'q' : fmt(Math.abs(st.balance))}
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* ── Pending reyslari (tasdiqlash kutilmoqda) ── */}
-          {(() => {
-            const myPending = pending.filter(t => t.driverId === d.id);
-            if (!myPending.length) return null;
-            return (
-              <div style={{ margin: '0 0 0 0', background: '#fff8e1', borderBottom: '2px solid #fbc02d', padding: '12px 20px' }}>
-                <div style={{ fontWeight: 'bold', color: '#e65100', marginBottom: 10, fontSize: 13 }}>
-                  ⏳ Tasdiqlash kutilayotgan reyslari ({myPending.length} ta)
-                </div>
+          {/* ── PENDING REYSLARI ───────────────────────────────────────────── */}
+          {myPending.length > 0 && (
+            <div style={{ marginBottom: 16, background: '#fff8e1', border: '2px solid #fbc02d', borderRadius: 6, padding: '12px 16px' }}>
+              <div style={{ fontWeight: 'bold', color: '#e65100', marginBottom: 10, fontSize: 13 }}>
+                ⏳ Tasdiqlash kutilayotgan reyslari ({myPending.length} ta)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {myPending.map(t => {
                   const loading = approving[t.id];
                   return (
-                    <div key={t.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', border: '1px solid #ffe082', borderRadius: 6, padding: '10px 12px', marginBottom: 8, flexWrap: 'wrap' }}>
-                      {/* Rasm */}
+                    <div key={t.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', border: '1px solid #ffe082', borderRadius: 6, padding: '10px 14px', flexWrap: 'wrap' }}>
+                      {/* Rasm — bosganda lightbox */}
                       {photoUrls[t.id] ? (
-                        <a href={photoUrls[t.id]} target="_blank" rel="noreferrer">
-                          <img src={photoUrls[t.id]} alt="yuk xati" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd', flexShrink: 0 }} />
-                        </a>
+                        <img src={photoUrls[t.id]} alt="yuk xati"
+                          onClick={() => setLightbox(photoUrls[t.id])}
+                          style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4, border: '2px solid #ddd', flexShrink: 0, cursor: 'zoom-in' }} />
                       ) : t.photoFileId ? (
-                        <div style={{ width: 72, height: 72, background: '#eee', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#888' }}>📷</div>
+                        <div style={{ width: 80, height: 80, background: '#eee', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: '#888', flexShrink: 0 }}>📷</div>
                       ) : null}
                       {/* Ma'lumotlar */}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: '#555' }}>📅 {t.date}</div>
-                        <div style={{ fontWeight: 'bold', marginTop: 2 }}>📍 {t.destination}</div>
-                        <div style={{ color: '#2e7d32', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14 }}>💰 {fmt(t.price)} so'm</div>
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <div style={{ fontSize: 12, color: '#777' }}>📅 {t.date}</div>
+                        <div style={{ fontWeight: 'bold', fontSize: 14, marginTop: 2 }}>📍 {t.destination}</div>
+                        <div style={{ color: '#2e7d32', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 15, marginTop: 2 }}>💰 {fmt(t.price)} so'm</div>
                       </div>
                       {/* Tugmalar */}
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => handleApprove(t.id)} disabled={!!loading}
-                          style={{ padding: '6px 14px', background: loading ? '#ccc' : '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+                          style={{ padding: '7px 18px', background: loading ? '#ccc' : '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
                           {loading === 'approving' ? '...' : '✅ Tasdiqlash'}
                         </button>
                         <button onClick={() => handleReject(t.id)} disabled={!!loading}
-                          style={{ padding: '6px 12px', background: loading ? '#ccc' : '#c62828', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+                          style={{ padding: '7px 14px', background: loading ? '#ccc' : '#c62828', color: '#fff', border: 'none', borderRadius: 4, cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 13 }}>
                           {loading === 'rejecting' ? '...' : '✕ Rad'}
                         </button>
                       </div>
@@ -259,85 +258,106 @@ export default function Drivers({ lang }) {
                   );
                 })}
               </div>
-            );
-          })()}
+            </div>
+          )}
 
-          {/* Forma */}
-          <div style={{ padding: '16px 20px' }}>
+          {/* ── QATNOV QO'SHISH FORMASI ────────────────────────────────────── */}
+          <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 6, padding: '14px 16px', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <button type="button" onClick={() => setTripForm({ ...tripForm, isPayment: false })}
-                style={{ flex: 1, padding: 8, cursor: 'pointer', border: tripForm.isPayment ? '1px solid #ccc' : `2px solid ${ACCENT}`, background: tripForm.isPayment ? '#fff' : ACCENT, color: tripForm.isPayment ? '#555' : '#fff', fontWeight: 'bold', borderRadius: 4 }}>
+                style={{ flex: 1, padding: 9, cursor: 'pointer', border: tripForm.isPayment ? '1px solid #ccc' : `2px solid ${ACCENT}`, background: tripForm.isPayment ? '#fafafa' : ACCENT, color: tripForm.isPayment ? '#555' : '#fff', fontWeight: 'bold', borderRadius: 4, fontSize: 13 }}>
                 🚛 Yangi qatnov (ish)
               </button>
               <button type="button" onClick={() => setTripForm({ ...tripForm, isPayment: true, destination: 'Avans' })}
-                style={{ flex: 1, padding: 8, cursor: 'pointer', border: !tripForm.isPayment ? '1px solid #ccc' : `2px solid #2e7d32`, background: !tripForm.isPayment ? '#fff' : '#2e7d32', color: !tripForm.isPayment ? '#555' : '#fff', fontWeight: 'bold', borderRadius: 4 }}>
+                style={{ flex: 1, padding: 9, cursor: 'pointer', border: !tripForm.isPayment ? '1px solid #ccc' : `2px solid #2e7d32`, background: !tripForm.isPayment ? '#fafafa' : '#2e7d32', color: !tripForm.isPayment ? '#555' : '#fff', fontWeight: 'bold', borderRadius: 4, fontSize: 13 }}>
                 💸 Avans berish
               </button>
             </div>
-
-            <form onSubmit={handleAddTrip} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+            <form onSubmit={handleAddTrip} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {!tripForm.isPayment && (
                 <div>
                   <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>Yo'nalish *</div>
                   <input placeholder="Qayerga (masalan: Oqqo'rg'on)" value={tripForm.destination}
                     onChange={e => setTripForm({ ...tripForm, destination: e.target.value })}
-                    style={{ ...inp, width: 160 }} required />
+                    style={{ ...inp, width: 200 }} required />
                 </div>
               )}
               <div>
-                <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>{tripForm.isPayment ? 'Avans summasi *' : 'Yo\'l haqi *'}</div>
+                <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>{tripForm.isPayment ? 'Avans summasi *' : "Yo'l haqi *"}</div>
                 <input type="number" placeholder="Summa" value={tripForm.price}
                   onChange={e => setTripForm({ ...tripForm, price: e.target.value })}
-                  style={{ ...inp, width: 120 }} required autoFocus />
+                  style={{ ...inp, width: 130 }} required />
               </div>
               <div>
                 <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>Izoh</div>
                 <input placeholder="Ixtiyoriy" value={tripForm.note}
                   onChange={e => setTripForm({ ...tripForm, note: e.target.value })}
-                  style={{ ...inp, width: 120 }} />
+                  style={{ ...inp, width: 140 }} />
               </div>
               {tripForm.isPayment && (
                 <div>
                   <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>Kanal</div>
-                  <select value={tripForm.channel} onChange={e => setTripForm({ ...tripForm, channel: e.target.value })} style={{ ...inp }}>
+                  <select value={tripForm.channel} onChange={e => setTripForm({ ...tripForm, channel: e.target.value })} style={inp}>
                     {CH_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                   </select>
                 </div>
               )}
-              <button type="submit" style={{ padding: '5px 16px', background: tripForm.isPayment ? '#2e7d32' : ACCENT, color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', height: 29 }}>✓ Saqlash</button>
+              <button type="submit" style={{ padding: '6px 20px', background: tripForm.isPayment ? '#2e7d32' : ACCENT, color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontWeight: 'bold' }}>
+                ✓ Saqlash
+              </button>
             </form>
+          </div>
 
-            {/* Tarix */}
-            <p style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 8 }}>Tarix</p>
-            {trips.length === 0 ? <p style={{ color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>Tarix bo'sh.</p> : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          {/* ── TARIX JADVALI ──────────────────────────────────────────────── */}
+          <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 6, padding: '14px 16px' }}>
+            <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 10, color: ACCENT }}>
+              Qatnov tarixi ({trips.length} ta)
+            </div>
+            {trips.length === 0 ? (
+              <p style={{ color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>Tarix bo'sh.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: '#f5f5f5' }}>
-                    <th style={thS}>Sana</th>
-                    <th style={thS}>Yo'nalish / Amaliyot</th>
-                    <th style={thS}>Izoh</th>
-                    <th style={{ ...thS, textAlign: 'right' }}>Summa</th>
-                    <th style={{ width: 40 }}></th>
+                  <tr style={{ background: ACCENT, color: '#fff' }}>
+                    <th style={{ ...thS, color: '#fff', border: '1px solid #6d4c41' }}>#</th>
+                    <th style={{ ...thS, color: '#fff', border: '1px solid #6d4c41' }}>Sana</th>
+                    <th style={{ ...thS, color: '#fff', border: '1px solid #6d4c41' }}>Yo'nalish / Amaliyot</th>
+                    <th style={{ ...thS, color: '#fff', border: '1px solid #6d4c41' }}>Izoh</th>
+                    <th style={{ ...thS, textAlign: 'right', color: '#fff', border: '1px solid #6d4c41' }}>Summa</th>
+                    <th style={{ width: 50, border: '1px solid #6d4c41' }}>Rasm</th>
+                    <th style={{ width: 36, border: '1px solid #6d4c41' }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {trips.map(t => (
-                    <tr key={t.id} style={{ borderBottom: '1px solid #eee', background: t.isPayment ? '#e8f5e9' : '#fff' }}>
-                      <td style={tdS}>{t.date} <span style={{ color: '#999', fontSize: 10 }}>{fmtT(t.createdAt)}</span></td>
-                      <td style={{ ...tdS, fontWeight: t.isPayment ? 'normal' : 'bold' }}>
-                        {t.isPayment ? '💸 Avans berildi' : `🚛 ${t.destination}`}
-                        {t.fromBot && <span style={{ fontSize: 10, background: '#e3f2fd', color: '#1565c0', padding: '1px 5px', borderRadius: 8, marginLeft: 4 }}>BOT</span>}
-                      </td>
-                      <td style={tdS}>{t.note || '—'}</td>
-                      <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: t.isPayment ? '#2e7d32' : '#333' }}>
-                        {t.isPayment ? '-' : '+'}{fmt(t.price)}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button onClick={() => { if (window.confirm("O'chirasizmi?")) deleteDriverTrip(t.id); }}
-                          style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button>
-                      </td>
-                    </tr>
-                  ))}
+                  {trips.map((t, i) => {
+                    const url = photoUrls[t.id];
+                    return (
+                      <tr key={t.id} style={{ background: t.isPayment ? '#e8f5e9' : (i % 2 === 0 ? '#fff' : '#fafafa'), borderBottom: '1px solid #eee' }}>
+                        <td style={{ ...tdS, textAlign: 'center', color: '#999', fontSize: 11 }}>{i + 1}</td>
+                        <td style={tdS}>{t.date} <span style={{ color: '#aaa', fontSize: 10 }}>{fmtT(t.createdAt)}</span></td>
+                        <td style={{ ...tdS, fontWeight: t.isPayment ? 'normal' : 'bold' }}>
+                          {t.isPayment ? '💸 Avans berildi' : `🚛 ${t.destination}`}
+                          {t.fromBot && <span style={{ fontSize: 10, background: '#e3f2fd', color: '#1565c0', padding: '1px 5px', borderRadius: 8, marginLeft: 4 }}>BOT</span>}
+                        </td>
+                        <td style={{ ...tdS, color: '#666' }}>{t.note || '—'}</td>
+                        <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: t.isPayment ? '#2e7d32' : '#333', fontFamily: 'monospace' }}>
+                          {t.isPayment ? '−' : '+'}{fmt(t.price)}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: 4 }}>
+                          {url ? (
+                            <img src={url} alt="rasm" onClick={() => setLightbox(url)}
+                              style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 3, cursor: 'zoom-in', border: '1px solid #ddd' }} />
+                          ) : t.photoFileId ? (
+                            <span style={{ fontSize: 18 }}>📷</span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button onClick={() => { if (window.confirm("O'chirasizmi?")) deleteDriverTrip(t.id); }}
+                            style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828', fontSize: 16 }}>✕</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -489,8 +509,21 @@ export default function Drivers({ lang }) {
         </>
       )}
 
-      {/* ── MODAL ───────────────────────────────────────────────────────────── */}
-      <DetailModal />
+      {/* ── TO'LIQ EKRAN SAHIFA ─────────────────────────────────────────────── */}
+      <DetailPage />
+
+      {/* ── LIGHTBOX ────────────────────────────────────────────────────────── */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => setLightbox(null)}
+            style={{ position: 'absolute', top: 16, right: 20, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', fontSize: 22, cursor: 'pointer', borderRadius: 4, padding: '4px 14px', fontWeight: 'bold', zIndex: 1 }}>
+            ✕ Yopish
+          </button>
+          <img src={lightbox} alt="rasm" onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '95vw', maxHeight: '92vh', borderRadius: 6, boxShadow: '0 8px 40px rgba(0,0,0,0.8)', objectFit: 'contain' }} />
+        </div>
+      )}
     </div>
   );
 }
