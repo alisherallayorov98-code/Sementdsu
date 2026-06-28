@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import CustomerSelect from '../components/CustomerSelect';
 import NotifyModal from '../components/NotifyModal';
 import ExcelExport from '../components/ExcelExport';
 import CustomerCard from '../components/CustomerCard';
@@ -56,70 +55,23 @@ const STATUS_STYLE = {
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function Debts({ lang }) {
   const {
-    debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow,
-    totalDebts, totalDebtsPaid, totalDebtsAll,
-    customers,
+    debtRows, totalDebts, totalDebtsPaid, totalDebtsAll, customers,
   } = useData();
 
-  // ── Tez to'lov (kassir uchun) — mijoz qarzini bittada qabul qilish ─────────
-  const [quick, setQuick] = useState({ customer: '', amount: '', channel: 'naqd' });
-  const quickRemaining = quick.customer
-    ? debtRows.filter(r => r.customer === quick.customer).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
-    : 0;
-  const handleQuickPay = (e) => {
-    e.preventDefault();
-    if (!quick.customer || !quick.amount) return;
-    const res = payCustomerDebt(quick.customer, quick.amount, quick.channel, 'Kassaga to\'lov');
-    if (res.applied <= 0) { alert("Bu mijozda qoldiq qarz yo'q."); return; }
-    let msg = `✅ ${fmt(res.applied)} so'm qarz to'landi (${quick.channel}).\nKassaga kirim qilindi.`;
-    if (res.leftover > 0) msg += `\n\n⚠ ${fmt(res.leftover)} so'm ortiqcha — qabul qilinmadi (qarzdan ko'p). Kerak bo'lsa "Avanslar"ga yozing.`;
-    alert(msg);
-    setQuick({ customer: '', amount: '', channel: 'naqd' });
-  };
+  const [reminder, setReminder] = useState(null);
+  const [search, setSearch]     = useState('');
+  const [range,  setRange]      = useState({ from: '', to: '' });
+  const [filter, setFilter]     = useState('all');
+  const [page, setPage]         = useState(1);
+  const PAGE_SIZE = 100;
+  const [history, setHistory]   = useState(null);
+  const [card, setCard]         = useState(null);
 
-  const [reminder, setReminder] = useState(null); // { name, phone, text }
   const openReminder = (r) => {
     const remaining = Math.max(0, Number(r.amount) - Number(r.paid));
     const phone = customers.find(c => c.name === r.customer)?.phone || '';
-    const text = `Hurmatli ${r.customer}! Eslatma: sizning qoldiq qarzingiz ${fmt(remaining)} so'm. Iloji bo'lsa to'lovni amalga oshiring. Rahmat!`;
+    const text = `Hurmatli ${r.customer}! Eslatma: qoldiq qarzingiz ${fmt(remaining)} so'm. Rahmat!`;
     setReminder({ name: r.customer, phone, text });
-  };
-
-  const [form, setForm]       = useState({ customer: '', amount: '', note: '' });
-  const [payForm, setPayForm] = useState({ id: null, amount: '', note: '', channel: 'naqd' });
-  const [search, setSearch]   = useState('');
-  const [range,  setRange]    = useState({ from: '', to: '' });
-  const [filter, setFilter]   = useState('all');
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 100;
-  const [history, setHistory] = useState(null);
-  const [card, setCard]       = useState(null);
-
-  // ── Forma submit ────────────────────────────────────────────────────────────
-  const handleAdd = (e) => {
-    e.preventDefault();
-    if (form.customer && form.amount) {
-      addDebtRow(form.customer, form.amount, form.note);
-      setForm({ customer: '', amount: '', note: '' });
-    }
-  };
-
-  // ── To'lash ─────────────────────────────────────────────────────────────────
-  const handlePayOpen = (id) => {
-    setPayForm({ id, amount: '', note: '', channel: 'naqd' });
-  };
-  const handlePayConfirm = () => {
-    if (payForm.amount) {
-      payDebt(payForm.id, payForm.amount, payForm.note, payForm.channel);
-      setPayForm({ id: null, amount: '', note: '', channel: 'naqd' });
-    }
-  };
-
-  // ── O'chirish ───────────────────────────────────────────────────────────────
-  const handleDelete = (id) => {
-    if (window.confirm("Ushbu qarz yozuvini o'chirasizmi?")) {
-      deleteDebtRow(id);
-    }
   };
 
   // ── Guruhlash (mijoz bo'yicha) ──────────────────────────────────────────────
@@ -158,81 +110,6 @@ export default function Debts({ lang }) {
         <StatCard label={L.jamiLeft[lang]} value={fmt(totalDebts)}     color="#c62828" bg="#ffebee" />
       </div>
 
-      {/* ── TEZ TO'LOV (kassir) — mijoz qarzini bittada qabul qilish ───────── */}
-      <form onSubmit={handleQuickPay} style={{
-        display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center',
-        padding: '12px 14px', background: '#e8f5e9', border: '2px solid #2e7d32', borderRadius: 8,
-      }}>
-        <span style={{ fontWeight: 'bold', color: '#1b5e20', fontSize: 14 }}>💰 Qarz to'lovini qabul qilish:</span>
-        <CustomerSelect
-          value={quick.customer}
-          onChange={name => setQuick({ ...quick, customer: name })}
-          placeholder="Mijozni tanlang"
-          accentColor="#2e7d32"
-          required
-        />
-        {quick.customer && (
-          <span style={{ fontSize: 12, color: quickRemaining > 0 ? '#c62828' : '#2e7d32', fontWeight: 'bold' }}>
-            Qoldiq qarz: {fmt(quickRemaining)} so'm
-          </span>
-        )}
-        <input
-          type="number" placeholder="Qancha to'ladi?"
-          value={quick.amount}
-          onChange={e => setQuick({ ...quick, amount: e.target.value })}
-          style={{ ...inp, width: 150, border: '1px solid #2e7d32' }}
-        />
-        {[
-          { v: 'naqd', label: '💵 Naqd', color: '#1565c0' },
-          { v: 'bank', label: '🏦 Bank', color: '#2e7d32' },
-          { v: 'click', label: '📱 Click', color: '#6a1b9a' },
-        ].map(ch => (
-          <button key={ch.v} type="button" onClick={() => setQuick({ ...quick, channel: ch.v })} style={{
-            padding: '5px 12px', fontSize: 12, cursor: 'pointer',
-            border: `2px solid ${quick.channel === ch.v ? ch.color : '#ccc'}`,
-            background: quick.channel === ch.v ? ch.color : '#fff',
-            color: quick.channel === ch.v ? '#fff' : '#333', borderRadius: 4, fontWeight: 'bold',
-          }}>{ch.label}</button>
-        ))}
-        <button type="submit" style={{ padding: '7px 22px', cursor: 'pointer', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', fontSize: 14 }}>
-          ✓ Qabul qilish
-        </button>
-        {quick.customer && quick.amount > 0 && (
-          <button type="button" onClick={() => setQuick({ ...quick, amount: String(quickRemaining) })}
-            style={{ padding: '7px 12px', cursor: 'pointer', background: '#fff', color: '#2e7d32', border: '1px solid #2e7d32', borderRadius: 4, fontSize: 12 }}>
-            To'liq ({fmt(quickRemaining)})
-          </button>
-        )}
-      </form>
-
-      {/* ── QARZ QO'SHISH FORMASI ─────────────────────────────────────────── */}
-      <form onSubmit={handleAdd} style={{
-        display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap',
-        padding: '8px 10px', background: '#f9f9f9', border: '1px solid #ddd',
-      }}>
-        <CustomerSelect
-          value={form.customer}
-          onChange={name => setForm({ ...form, customer: name })}
-          placeholder={L.mijoz[lang]}
-          accentColor="#c62828"
-          required
-        />
-        <input
-          type="number"
-          placeholder={L.qarz[lang]}
-          value={form.amount}
-          onChange={e => setForm({ ...form, amount: e.target.value })}
-          style={{ ...inp, width: 150 }}
-        />
-        <input
-          placeholder={L.izoh[lang]}
-          value={form.note}
-          onChange={e => setForm({ ...form, note: e.target.value })}
-          style={{ ...inp, width: 180 }}
-        />
-        <button type="submit" style={addBtn}>{L.qoshish[lang]}</button>
-      </form>
-
       {/* ── SANA ORALIG'I FILTRI ──────────────────────────────────────────── */}
       <DateRangeFilter value={range} onChange={setRange} color="#c62828" />
 
@@ -266,91 +143,6 @@ export default function Debts({ lang }) {
           rows={groupList.filter(g => g.totalAmount - g.totalPaid > 0)}
         />
       </div>
-
-      {/* ── TO'LOV MODAL OVERLAY ─────────────────────────────────────────── */}
-      {payForm.id !== null && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.35)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-          onClick={() => setPayForm({ id: null, amount: '', note: '', channel: 'naqd' })}
-        >
-          <div
-            style={{
-              background: '#fff', padding: 24, borderRadius: 6,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.3)', minWidth: 340,
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {(() => {
-              const row = debtRows.find(r => r.id === payForm.id);
-              const rem = row ? Math.max(0, Number(row.amount) - Number(row.paid)) : 0;
-              return (
-                <>
-                  <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 12, color: '#003366' }}>
-                    {L.tolash[lang]}: <span style={{ color: '#c62828' }}>{row?.customer}</span>
-                  </div>
-                  <div style={{ marginBottom: 10, fontSize: 12, color: '#555' }}>
-                    Qolgan qarz: <b style={{ color: '#c62828' }}>{fmt(rem)} so'm</b>
-                  </div>
-                  <input
-                    type="number"
-                    placeholder={L.tolashSum[lang]}
-                    value={payForm.amount}
-                    onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
-                    style={{ ...inp, width: '100%', marginBottom: 8, boxSizing: 'border-box' }}
-                    autoFocus
-                  />
-                  <input
-                    placeholder={L.tolashIzoh[lang]}
-                    value={payForm.note}
-                    onChange={e => setPayForm({ ...payForm, note: e.target.value })}
-                    style={{ ...inp, width: '100%', marginBottom: 8, boxSizing: 'border-box' }}
-                  />
-                  {/* ── To'lov kanali ── */}
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 'bold', color: '#555', marginBottom: 4 }}>
-                      Pul qaysi kassaga tushadi?
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {[
-                        { v: 'naqd',  label: '💵 Naqd',  color: '#1565c0' },
-                        { v: 'bank',  label: '🏦 Bank',  color: '#2e7d32' },
-                        { v: 'click', label: '📱 Click', color: '#6a1b9a' },
-                      ].map(ch => (
-                        <button
-                          key={ch.v}
-                          type="button"
-                          onClick={() => setPayForm({ ...payForm, channel: ch.v })}
-                          style={{
-                            flex: 1, padding: '6px 4px', fontSize: 12, cursor: 'pointer',
-                            border: `2px solid ${payForm.channel === ch.v ? ch.color : '#ddd'}`,
-                            background: payForm.channel === ch.v ? ch.color : '#f9f9f9',
-                            color: payForm.channel === ch.v ? '#fff' : '#333',
-                            borderRadius: 4, fontWeight: payForm.channel === ch.v ? 'bold' : 'normal',
-                          }}
-                        >
-                          {ch.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handlePayConfirm} style={{ ...addBtn, flex: 1 }}>✓ {L.tolash[lang]}</button>
-                    <button
-                      onClick={() => setPayForm({ id: null, amount: '', note: '', channel: 'naqd' })}
-                      style={{ flex: 1, padding: '5px 14px', cursor: 'pointer', background: '#ffcccc', border: '1px solid #c00', borderRadius: 3 }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* ── TO'LOV TARIXI MODAL ─────────────────────────────────────────── */}
       {history !== null && (
@@ -440,7 +232,6 @@ export default function Debts({ lang }) {
               <th style={{ textAlign: 'right', width: 120 }}>{L.tolandi[lang]}</th>
               <th style={{ textAlign: 'right', width: 130, color: '#c62828' }}>{L.qoldi[lang]}</th>
               <th style={{ width: 90 }}>{L.holat[lang]}</th>
-              <th style={{ width: 170 }}>Amal</th>
             </tr>
           </thead>
           <tbody>
@@ -463,7 +254,6 @@ export default function Debts({ lang }) {
                       {ss.label[lang]}
                     </span>
                   </td>
-                  <td></td>
                 </tr>
               );
             })}
@@ -474,7 +264,7 @@ export default function Debts({ lang }) {
               <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(groupList.reduce((s, g) => s + g.totalAmount, 0))}</td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(groupList.reduce((s, g) => s + g.totalPaid, 0))}</td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828' }}>{fmt(groupList.reduce((s, g) => s + Math.max(0, g.totalAmount - g.totalPaid), 0))}</td>
-              <td colSpan={2}></td>
+              <td></td>
             </tr>
           </tbody>
         </table>
