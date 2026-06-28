@@ -105,7 +105,7 @@ router.post('/driver_payment_notify', authenticate, async (req, res) => {
       balance > 0
         ? `  • 💸 Sizga qarz: *${fmt(balance)} so'm*`
         : balance < 0
-          ? `  • ✅ Oshiqcha berildi: *${fmt(Math.abs(balance))} so'm*`
+          ? `  • ⚠️ Kompaniyaga qarzingiz: *${fmt(Math.abs(balance))} so'm*`
           : `  • ✅ Hisob-kitob tengdir`,
     ].join('\n');
 
