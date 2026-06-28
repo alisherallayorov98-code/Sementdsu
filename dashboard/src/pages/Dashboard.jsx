@@ -26,6 +26,7 @@ export default function Dashboard() {
     cashRows, bankRows, clickRows,
     advanceRows, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
     bankIncomeRows, clickIncomeRows, bankExpenseRows, clickExpenseRows,
+    totalSoldTons,
   } = data;
   const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
 
@@ -143,6 +144,38 @@ export default function Dashboard() {
           <Line label="Sotuvlar soni" value={`${monthSales.length} ta`} />
         </Panel>
       </div>
+
+      {/* Sotilgan tonna (eski) */}
+      {soldRows.length > 0 && (() => {
+        const byChannel = soldRows.reduce((acc, r) => {
+          const ch = r.paymentChannel || 'noma\'lum';
+          acc[ch] = (acc[ch] || 0) + Number(r.tons || 0);
+          return acc;
+        }, {});
+        const todaySold = soldRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.tons || 0), 0);
+        const monthSold = soldRows.filter(r => (r.date || '').endsWith(monthKey)).reduce((s, r) => s + Number(r.tons || 0), 0);
+        return (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ background: '#003366', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13, borderRadius: '4px 4px 0 0' }}>
+              🏭 Sotilgan tonna (eski)
+            </div>
+            <div style={{ border: '1px solid #e0e0e0', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '10px 12px' }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                <MiniStat label="Jami sotilgan"  value={`${fmtT(totalSoldTons)} tn`}  color="#003366" />
+                <MiniStat label="Bugun"           value={`${fmtT(todaySold)} tn`}       color="#555"    />
+                <MiniStat label="Shu oy"          value={`${fmtT(monthSold)} tn`}       color="#555"    />
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.entries(byChannel).map(([ch, t]) => (
+                  <span key={ch} style={{ fontSize: 12, padding: '2px 10px', background: '#f0f4ff', border: '1px solid #b0c4de', borderRadius: 12 }}>
+                    {ch}: <strong>{fmtT(t)} tn</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Kirim / Chiqim umumiy */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>

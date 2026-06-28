@@ -35,7 +35,6 @@ import Tiketlar     from './pages/Tiketlar';
 const FULL_MENU = [
   { path: '/',               latn: "🏠 Bosh sahifa",        cyrl: "🏠 Бош саҳифа",        roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/gen_info',       latn: "📊 Umumiy ma'lumot",     cyrl: "📊 Умумий маълумот",    roles: ['admin', 'sotuvchi', 'omborchi'] },
-  { path: '/sold_tons',      latn: "Sotilgan tonna (Eski)", cyrl: "Сотилган тонна (Эски)",roles: ['admin'] },
   { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",        roles: ['admin', 'omborchi'] },
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
   { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
