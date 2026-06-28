@@ -38,7 +38,8 @@ const XODIMLAR = [
 const L = {
   tur:        { latn: 'Tur',            cyrl: 'Тур'           },
   summa:      { latn: 'Summa',          cyrl: 'Сумма'         },
-  izoh:       { latn: 'Izoh / Mijoz',   cyrl: 'Изоҳ / Мижоз' },
+  izoh:       { latn: 'Izoh',           cyrl: 'Изоҳ'          },
+  mijozLbl:   { latn: 'Mijoz',          cyrl: 'Мижоз'         },
   qoshish:    { latn: "Qo'shish",       cyrl: 'Қўшиш'        },
   sana:       { latn: 'Sana',           cyrl: 'Сана'          },
   vaqt:       { latn: 'Vaqt',           cyrl: 'Вақт'          },
@@ -97,21 +98,21 @@ export default function Income({ lang }) {
     ...incomeRows.map(r => ({
       id: r.id, srcType: 'naqd', date: r.date,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-      worker: r.worker || '', izoh: r.desc,
+      worker: r.worker || '', izoh: r.desc, mijoz: '',
       summa: r.amount, canDelete: true,
     })),
     // Click kirim
     ...clickIncomeRows.map(r => ({
       id: r.id, srcType: 'click', date: r.date,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-      worker: r.worker || '', izoh: r.desc,
+      worker: r.worker || '', izoh: r.desc, mijoz: '',
       summa: r.amount, canDelete: true,
     })),
     // Perechisleniya (bank)
     ...bankIncomeRows.map(r => ({
       id: r.id, srcType: 'perechisleniya', date: r.date,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-      worker: r.worker || '', izoh: r.desc,
+      worker: r.worker || '', izoh: r.desc, mijoz: '',
       summa: r.amount, canDelete: true,
     })),
     // Savdo (sotilgan tonna to'lovlari, nasiyasiz)
@@ -123,7 +124,8 @@ export default function Income({ lang }) {
         date: r.date,
         createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
         worker: r.worker || '',
-        izoh: `${r.customer} (${r.tons} tn × ${fmt(r.pricePerTon)})`,
+        mijoz: r.customer,
+        izoh: `${r.tons} tn × ${fmt(r.pricePerTon)}`,
         summa: Number(r.tons || 0) * Number(r.pricePerTon || 0),
         tolov: r.paymentChannel,
         canDelete: false,
@@ -137,7 +139,8 @@ export default function Income({ lang }) {
         date: r.date,
         createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
         worker: r.worker || '',
-        izoh: r.customer + (r.note ? ` (${r.note})` : ''),
+        mijoz: r.customer,
+        izoh: r.note || '',
         summa: Number(r.paid),
         canDelete: false,
       })),
@@ -145,19 +148,19 @@ export default function Income({ lang }) {
     ...(cashRows || []).filter(r => !r.auto && Number(r.amount) > 0).map(r => ({
       id: 'kc_' + r.id, srcType: 'kassir', date: r.date,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-      worker: r.worker || '', izoh: (r.desc || '') + ' [Naqd]',
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Naqd]', mijoz: '',
       summa: Number(r.amount), canDelete: false,
     })),
     ...(bankRows || []).filter(r => !r.auto && Number(r.amount) > 0).map(r => ({
       id: 'kb_' + r.id, srcType: 'kassir', date: r.date,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-      worker: r.worker || '', izoh: (r.desc || '') + ' [Bank]',
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Bank]', mijoz: '',
       summa: Number(r.amount), canDelete: false,
     })),
     ...(clickRows || []).filter(r => !r.auto && Number(r.amount) > 0).map(r => ({
       id: 'kck_' + r.id, srcType: 'kassir', date: r.date,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
-      worker: r.worker || '', izoh: (r.desc || '') + ' [Click]',
+      worker: r.worker || '', izoh: (r.desc || '') + ' [Click]', mijoz: '',
       summa: Number(r.amount), canDelete: false,
     })),
   ];
@@ -327,7 +330,8 @@ export default function Income({ lang }) {
                   { header: 'Sana', value: (r) => r.date || '' },
                   { header: 'Tur', value: (r) => typeInfo(r.srcType).latn },
                   { header: 'Xodim', value: (r) => r.worker || '' },
-                  { header: 'Izoh / Mijoz', value: (r) => r.izoh || '' },
+                  { header: 'Mijoz', value: (r) => r.mijoz || '' },
+                  { header: 'Izoh', value: (r) => r.izoh || '' },
                   { header: "Summa (so'm)", value: (r) => Number(r.summa || 0) },
                   { header: "To'lov usuli", value: (r) => r.tolov || '' },
                 ]}
@@ -351,6 +355,7 @@ export default function Income({ lang }) {
               <th style={{ width: 85 }}>{L.sana[lang]}</th>
               <th style={{ width: 145 }}>{L.tur[lang]}</th>
               <th style={{ width: 110 }}>{L.xodim[lang]}</th>
+              <th style={{ width: 160 }}>{L.mijozLbl[lang]}</th>
               <th>{L.izoh[lang]}</th>
               <th style={{ textAlign: 'right', width: 140 }}>{L.summa[lang]}</th>
               <th style={{ width: 70 }}>{L.tolov[lang]}</th>
@@ -374,6 +379,9 @@ export default function Income({ lang }) {
                   <td style={{ fontSize: 12, color: '#003366', fontWeight: r.worker ? 'bold' : 'normal' }}>
                     {r.worker || '—'}
                   </td>
+                  <td style={{ fontSize: 13, fontWeight: r.mijoz ? 'bold' : 'normal', color: r.mijoz ? '#003366' : '#999' }}>
+                    {r.mijoz || '—'}
+                  </td>
                   <td style={{ fontSize: 13 }}>{r.izoh || '—'}</td>
                   <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#006600', fontFamily: 'monospace', fontSize: 13 }}>
                     {fmt(r.summa)}
@@ -394,7 +402,7 @@ export default function Income({ lang }) {
             })}
             {/* Jami */}
             <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-              <td colSpan={6} style={{ textAlign: 'right' }}>{L.jami[lang]}</td>
+              <td colSpan={7} style={{ textAlign: 'right' }}>{L.jami[lang]}</td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#006600', fontSize: 14 }}>
                 {fmt(filteredTotal)}
               </td>

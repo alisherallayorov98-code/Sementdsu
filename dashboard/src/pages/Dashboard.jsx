@@ -25,6 +25,7 @@ export default function Dashboard() {
     customers, appSettings, pendingRecvCount, pendingBankCount,
     cashRows, bankRows, clickRows,
     advanceRows, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
+    bankIncomeRows, clickIncomeRows, bankExpenseRows, clickExpenseRows,
   } = data;
   const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
 
@@ -52,6 +53,18 @@ export default function Dashboard() {
 
   const pending = tgOrders.filter(o => o.status === 'kutilmoqda');
   const pendingTons = pending.reduce((s, o) => s + Number(o.tons || 0), 0);
+
+  // Kirim/chiqim jami (barcha kanallar)
+  const sumArr = (arr, positive = true) => (arr || []).reduce((s, r) => {
+    const v = Number(r.amount || 0);
+    return positive ? s + (v > 0 ? v : 0) : s + (v < 0 ? -v : 0);
+  }, 0);
+  const totalIncome  = sumArr(incomeRows) + sumArr(clickIncomeRows) + sumArr(bankIncomeRows)
+    + sumArr(cashRows) + sumArr(bankRows) + sumArr(clickRows);
+  const totalExpense = sumArr(expenseRows) + sumArr(bankExpenseRows || []) + sumArr(clickExpenseRows || [])
+    + (cashRows || []).filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
+    + (bankRows || []).filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
+    + (clickRows || []).filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
 
   // Eng katta qarzdorlar
   const debtByCust = {};
@@ -129,6 +142,34 @@ export default function Dashboard() {
           <Line label="Sotuv (summa)" value={`${fmt(sumOf(monthSales))} so'm`} strong />
           <Line label="Sotuvlar soni" value={`${monthSales.length} ta`} />
         </Panel>
+      </div>
+
+      {/* Kirim / Chiqim umumiy */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div style={{ flex: 1, minWidth: 280, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ background: '#1b5e20', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13 }}>
+            💰 Kirim (jami)
+          </div>
+          <div style={{ padding: '8px 12px' }}>
+            <Line label="Naqd kirim"    value={`${fmt(sumArr(incomeRows))} so'm`} />
+            <Line label="Bank kirim"    value={`${fmt(sumArr(bankIncomeRows))} so'm`} />
+            <Line label="Click kirim"   value={`${fmt(sumArr(clickIncomeRows))} so'm`} />
+            <Line label="Kassir (naqd)" value={`${fmt(sumArr(cashRows))} so'm`} />
+            <Line label="Jami kirim"    value={`${fmt(totalIncome)} so'm`} color="#1b5e20" strong />
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 280, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ background: '#b71c1c', color: '#fff', padding: '6px 12px', fontWeight: 'bold', fontSize: 13 }}>
+            📤 Chiqim (jami)
+          </div>
+          <div style={{ padding: '8px 12px' }}>
+            <Line label="Naqd chiqim"   value={`${fmt(sumArr(expenseRows))} so'm`} />
+            <Line label="Bank chiqim"   value={`${fmt(sumArr(bankExpenseRows || []))} so'm`} />
+            <Line label="Click chiqim"  value={`${fmt(sumArr(clickExpenseRows || []))} so'm`} />
+            <Line label="Kassir chiqim" value={`${fmt((cashRows||[]).filter(r=>!r.auto&&Number(r.amount)<0).reduce((s,r)=>s-Number(r.amount),0))} so'm`} />
+            <Line label="Jami chiqim"   value={`${fmt(totalExpense)} so'm`} color="#b71c1c" strong />
+          </div>
+        </div>
       </div>
 
       {/* Avanslar holati */}
