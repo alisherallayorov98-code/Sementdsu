@@ -343,4 +343,12 @@ router.get('/zayavka_log', authenticate, (req, res) => {
   res.json({ ok: true, log: db.getZayavkaLog(req.user.account, limit) });
 });
 
+// GET /ticket_log/:ticketId — tiketga tegishli barcha zayavkalar
+router.get('/ticket_log/:ticketId', authenticate, (req, res) => {
+  const ticketId = req.params.ticketId;
+  const log = db.getZayavkaLog(req.user.account, 500);
+  const filtered = log.filter(z => z.ticketId === ticketId);
+  res.json({ ok: true, log: filtered });
+});
+
 module.exports = router;
