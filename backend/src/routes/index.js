@@ -59,34 +59,46 @@ router.get('/bot_info', authenticate, (req, res) => {
 });
 
 // ── Mijozga sotuv xabari ──────────────────────────────────────────────────
-// POST /notify_customer_sale — sklad kg sotilganda mijozga Telegram xabar
+// POST /notify_customer_sale — sklad (kg) yoki ulgurji (tonna) sotilganda
 router.post('/notify_customer_sale', authenticate, async (req, res) => {
   try {
     const acc = req.user.account;
-    const { customerName, kg, cementType, pricePerKg, channel, totalDebt } = req.body;
+    const { customerName, kg, cementType, pricePerKg, channel, totalDebt, tons, pricePerTon } = req.body;
     if (!customerName) return res.json({ ok: false, error: 'customerName kerak' });
 
     const state     = db.getState(acc);
     const customers = state.customers || [];
     const customer  = customers.find(c => c.name.trim().toLowerCase() === String(customerName).trim().toLowerCase());
 
-    if (!customer)              return res.json({ ok: false, error: 'Mijoz topilmadi' });
+    if (!customer)                return res.json({ ok: false, error: 'Mijoz topilmadi' });
     if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
 
-    const fmt   = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
-    const chStr = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click', nasiya: '⚠️ Nasiya' }[channel] || '';
-    const total = Number(kg) * Number(pricePerKg);
+    const fmt    = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+    const chStr  = { naqd: '💵 Naqd pul', bank: '🏦 Bank ko\'chirmasi', click: '📱 Click/Payme', nasiya: '⚠️ Nasiyaga' }[channel] || '';
+
+    // Tons (ulgurji) yoki kg (sklad) formatini aniqlash
+    let quantityStr, total, priceStr;
+    if (tons) {
+      const fmtTn = n => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+      quantityStr = `${fmtTn(tons)} tonna`;
+      total       = Number(tons) * Number(pricePerTon || 0);
+      priceStr    = `${fmt(pricePerTon)} so'm/tn`;
+    } else {
+      quantityStr = `${fmt(kg)} kg`;
+      total       = Number(kg) * Number(pricePerKg || 0);
+      priceStr    = `${fmt(pricePerKg)} so'm/kg`;
+    }
 
     const lines = [
       `🧾 *Xarid tasdiqlandi!*`,
       ``,
-      `📦 ${fmt(kg)} kg${cementType ? ` — ${cementType}` : ''}`,
-      `💰 Narx: *${fmt(total)} so'm* (${fmt(pricePerKg)} so'm/kg)`,
+      `📦 ${quantityStr}${cementType ? ` — ${cementType}` : ''}`,
+      `💰 Narx: *${fmt(total)} so'm* (${priceStr})`,
       `💳 To'lov: ${chStr}`,
     ];
     if (Number(totalDebt) > 0) {
       lines.push(``, `📊 *Hisob holati:*`, `  • Jami qarzingiz: *${fmt(totalDebt)} so'm*`);
-    } else if (Number(totalDebt) === 0) {
+    } else {
       lines.push(``, `✅ Qarzingiz yo'q`);
     }
 
@@ -115,7 +127,7 @@ router.post('/notify_customer_payment', authenticate, async (req, res) => {
     if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
 
     const fmt   = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
-    const chStr = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[channel] || '';
+    const chStr = { naqd: '💵 Naqd pul', bank: '🏦 Bank ko\'chirmasi', click: '📱 Click/Payme' }[channel] || '';
     const debt  = Number(totalDebt);
 
     const lines = [
@@ -171,7 +183,7 @@ router.post('/driver_payment_notify', authenticate, async (req, res) => {
     const balance = earned - paid;
 
     const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
-    const chStr = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[channel] || '';
+    const chStr = { naqd: '💵 Naqd pul', bank: '🏦 Bank ko\'chirmasi', click: '📱 Click/Payme' }[channel] || '';
 
     const text = [
       `💰 *To'lov qabul qilindi!*`,

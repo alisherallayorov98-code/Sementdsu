@@ -9,6 +9,7 @@ import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
+import { api } from '../api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -71,12 +72,23 @@ export default function Sales({ lang }) {
 
     const created = addSaleRow({ ...form, date: isoToLocal(form.date), warehouseId: activeWh, worker: currentWorker });
     setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: form.warehouseId, date: todayISO() });
-    // ── Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi ───────────
-    // Optom (admin/sotuvchi) uchun avtomatik chiqmaydi — ular qo'lda 🧾 bosadi.
-    if (created && isKassir && appSettings?.autoPrintReceipt !== false) {
-      const extraDebt = (created.paymentChannel === 'nasiya') ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
+    if (created) {
       const s = customerSummary(created.customer, data);
-      printChekAuto(created, s.qolganQarz + extraDebt);
+      const extraDebt = (created.paymentChannel === 'nasiya') ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
+      const totalDebt = s.qolganQarz + extraDebt;
+      // Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi
+      if (isKassir && appSettings?.autoPrintReceipt !== false) {
+        printChekAuto(created, totalDebt);
+      }
+      // Mijozga Telegram xabari (tonna formatida)
+      api.notifyCustomerSale(
+        created.customer,
+        null, null, null,          // kg/cementType/pricePerKg — ishlatilmaydi
+        created.paymentChannel,
+        Math.max(0, totalDebt),
+        Number(created.tons),
+        Number(created.pricePerTon)
+      ).catch(() => {});
     }
   };
 
