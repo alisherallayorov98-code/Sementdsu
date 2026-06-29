@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
 import CustomerCard from '../components/CustomerCard';
 import Paginator from '../components/Paginator';
+import { api } from '../api';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -23,6 +24,19 @@ export default function Customers() {
   const [onlyDebt, setOnlyDebt] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
+  const [botUsername, setBotUsername] = useState('');
+  const [copiedId,    setCopiedId]    = useState(null);
+
+  useEffect(() => { api.getBotInfo().then(r => setBotUsername(r.botUsername)).catch(() => {}); }, []);
+
+  const custLink = (c) => botUsername && c.linkCode ? `https://t.me/${botUsername}?start=${c.linkCode}` : null;
+  const copyLink = (c) => {
+    const url = custLink(c);
+    if (!url) return;
+    navigator.clipboard.writeText(url).catch(() => {});
+    setCopiedId(c.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   // ── Yagona hisoblagich (yangi "Sotish" + eski "Sotilgan tonna" birga) ─────
   const stat = (name) => customerSummary(name, data);
@@ -196,6 +210,7 @@ export default function Customers() {
               <th style={{ textAlign: 'right', width: 120 }}>Qolgan qarz</th>
               <th style={{ textAlign: 'right', width: 110 }}>Qoldiq avans</th>
               <th style={{ width: 85 }}>Oxirgi xarid</th>
+              <th style={{ width: 40, textAlign: 'center' }}>Bot</th>
               <th style={{ width: 90 }}>Amal</th>
             </tr>
           </thead>
@@ -256,6 +271,15 @@ export default function Customers() {
                         {st.qolganAvans > 0 ? fmt(st.qolganAvans) : <span style={{ color: '#bbb' }}>—</span>}
                       </td>
                       <td style={{ fontSize: 11, color: '#777' }}>{dateOf(st.lastSaleAt)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {c.telegramChatId
+                          ? <span title="Telegram ulangan" style={{ color: '#2e7d32', fontSize: 15 }}>✅</span>
+                          : <button onClick={() => copyLink(c)} title="Bot ssilkasini nusxalash"
+                              style={{ padding: '2px 6px', fontSize: 11, cursor: 'pointer', border: '1px solid #1565c0', borderRadius: 3, background: copiedId === c.id ? '#e8f5e9' : '#e3f2fd', color: copiedId === c.id ? '#2e7d32' : '#1565c0', fontWeight: 'bold' }}>
+                              {copiedId === c.id ? '✓' : '🔗'}
+                            </button>
+                        }
+                      </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button onClick={() => setModalName(c.name)} style={infoBtn}>👁</button>

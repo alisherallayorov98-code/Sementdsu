@@ -161,6 +161,9 @@ export default function Kassir() {
       } else {
         showToast(`${fmt(res.applied)} so'm qarz to'lovi qabul qilindi`);
       }
+      // Mijozga Telegram xabari (qarz to'lovi)
+      const remainDebt = Math.max(0, custDebt - amt);
+      api.notifyCustomerPayment(kirim.customer, amt, kirim.channel, remainDebt).catch(() => {});
     } else {
       addRow(kirim.channel, amt, kirim.note, kirim.customer);
       showToast(`+${fmt(amt)} so'm kirim`);
@@ -207,16 +210,21 @@ export default function Kassir() {
     }
     const created = addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note, cementType: sklad.cementType });
     showToast(`${sklad.kg} kg sotildi — ${fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm`);
-    if (created && sklad.channel !== 'nasiya') {
+    if (created) {
       const kgAbs = Math.abs(Number(sklad.kg));
       const q = customerSummary(created.customer, data).qolganQarz;
-      printSaleReceipt({
-        customer: created.customer, tons: (kgAbs / 1000).toFixed(3),
-        pricePerTon: Number(sklad.pricePerKg) * 1000,
-        paymentChannel: created.channel,
-        note: `${created.note || ''} (${kgAbs} kg)`,
-        date: created.date, worker: currentWorker,
-      }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
+      // Chek (naqd/bank/click uchun)
+      if (sklad.channel !== 'nasiya') {
+        printSaleReceipt({
+          customer: created.customer, tons: (kgAbs / 1000).toFixed(3),
+          pricePerTon: Number(sklad.pricePerKg) * 1000,
+          paymentChannel: created.channel,
+          note: `${created.note || ''} (${kgAbs} kg)`,
+          date: created.date, worker: currentWorker,
+        }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
+      }
+      // Mijozga Telegram xabari
+      api.notifyCustomerSale(created.customer, kgAbs, sklad.cementType, sklad.pricePerKg, sklad.channel, Math.max(0, q)).catch(() => {});
     }
     setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
   };

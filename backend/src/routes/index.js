@@ -52,10 +52,89 @@ router.post('/notify', authenticate, notify.send);
 router.post('/notify_sale', authenticate, notify.notifySale);
 router.post('/notify_order_done', authenticate, notify.notifyOrderDone);
 
-// ── Bot username (haydovchi ssilkasi uchun) ────────────────────────────────
+// ── Bot username (haydovchi/mijoz ssilkasi uchun) ─────────────────────────
 router.get('/bot_info', authenticate, (req, res) => {
   const { TELEGRAM_BOT_USER } = require('../config');
   res.json({ botUsername: TELEGRAM_BOT_USER });
+});
+
+// ── Mijozga sotuv xabari ──────────────────────────────────────────────────
+// POST /notify_customer_sale — sklad kg sotilganda mijozga Telegram xabar
+router.post('/notify_customer_sale', authenticate, async (req, res) => {
+  try {
+    const acc = req.user.account;
+    const { customerName, kg, cementType, pricePerKg, channel, totalDebt } = req.body;
+    if (!customerName) return res.json({ ok: false, error: 'customerName kerak' });
+
+    const state     = db.getState(acc);
+    const customers = state.customers || [];
+    const customer  = customers.find(c => c.name.trim().toLowerCase() === String(customerName).trim().toLowerCase());
+
+    if (!customer)              return res.json({ ok: false, error: 'Mijoz topilmadi' });
+    if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
+
+    const fmt   = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+    const chStr = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click', nasiya: '⚠️ Nasiya' }[channel] || '';
+    const total = Number(kg) * Number(pricePerKg);
+
+    const lines = [
+      `🧾 *Xarid tasdiqlandi!*`,
+      ``,
+      `📦 ${fmt(kg)} kg${cementType ? ` — ${cementType}` : ''}`,
+      `💰 Narx: *${fmt(total)} so'm* (${fmt(pricePerKg)} so'm/kg)`,
+      `💳 To'lov: ${chStr}`,
+    ];
+    if (Number(totalDebt) > 0) {
+      lines.push(``, `📊 *Hisob holati:*`, `  • Jami qarzingiz: *${fmt(totalDebt)} so'm*`);
+    } else if (Number(totalDebt) === 0) {
+      lines.push(``, `✅ Qarzingiz yo'q`);
+    }
+
+    const tg = require('../services/telegram.service');
+    if (!tg.isRunning()) return res.json({ ok: false, error: 'Bot ishlamayapti' });
+    await tg.getBot().sendMessage(customer.telegramChatId, lines.join('\n'), { parse_mode: 'Markdown' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Mijozga to'lov qabul qilindi xabari ───────────────────────────────────
+// POST /notify_customer_payment — kassir kirim qilganda mijozga Telegram xabar
+router.post('/notify_customer_payment', authenticate, async (req, res) => {
+  try {
+    const acc = req.user.account;
+    const { customerName, amount, channel, totalDebt } = req.body;
+    if (!customerName || !amount) return res.json({ ok: false, error: 'customerName va amount kerak' });
+
+    const state     = db.getState(acc);
+    const customers = state.customers || [];
+    const customer  = customers.find(c => c.name.trim().toLowerCase() === String(customerName).trim().toLowerCase());
+
+    if (!customer)                return res.json({ ok: false, error: 'Mijoz topilmadi' });
+    if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
+
+    const fmt   = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+    const chStr = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[channel] || '';
+    const debt  = Number(totalDebt);
+
+    const lines = [
+      `💳 *To'lovingiz qabul qilindi!*`,
+      ``,
+      `📥 Miqdor: *${fmt(amount)} so'm* ${chStr}`,
+      ``,
+      debt > 0
+        ? `📊 Qolgan qarzingiz: *${fmt(debt)} so'm*`
+        : `✅ Qarzingiz yo'q, rahmat!`,
+    ];
+
+    const tg = require('../services/telegram.service');
+    if (!tg.isRunning()) return res.json({ ok: false, error: 'Bot ishlamayapti' });
+    await tg.getBot().sendMessage(customer.telegramChatId, lines.join('\n'), { parse_mode: 'Markdown' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ── Haydovchiga to'lov xabari ─────────────────────────────────────────────
