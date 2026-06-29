@@ -251,9 +251,13 @@ export default function Kassir() {
     if (fn) fn(row.id, fields);
     setEditRow(null);
     showToast('Saqlandi');
-    // Mijozga xabar yuborish so'rash
+    // Mijozga xabar yuborish so'rash — FAQAT Telegram ulangan bo'lsa
     if (row.customer && fields.amount !== undefined) {
-      setNotifyConfirm({ customer: row.customer, amount: Math.abs(Number(fields.amount)), channel });
+      const { customers = [] } = data;
+      const cust = customers.find(c => c.name.trim().toLowerCase() === row.customer.trim().toLowerCase());
+      if (cust?.telegramChatId) {
+        setNotifyConfirm({ customer: row.customer, amount: Math.abs(Number(fields.amount)), channel });
+      }
     }
   };
 
