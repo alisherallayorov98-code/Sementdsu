@@ -83,8 +83,8 @@ export const api = {
     req('/api/driver_payment_notify', { method: 'POST', body: JSON.stringify({ driverName, amount, channel }) }),
   notifyCustomerSale: (customerName, kg, cementType, pricePerKg, channel, totalDebt, tons, pricePerTon) =>
     req('/api/notify_customer_sale', { method: 'POST', body: JSON.stringify({ customerName, kg, cementType, pricePerKg, channel, totalDebt, tons, pricePerTon }) }),
-  notifyCustomerPayment: (customerName, amount, channel, totalDebt) =>
-    req('/api/notify_customer_payment', { method: 'POST', body: JSON.stringify({ customerName, amount, channel, totalDebt }) }),
+  notifyCustomerPayment: (customerName, amount, channel, totalDebt, isEdit = false) =>
+    req('/api/notify_customer_payment', { method: 'POST', body: JSON.stringify({ customerName, amount, channel, totalDebt, isEdit }) }),
 };
 
 export { API_URL };

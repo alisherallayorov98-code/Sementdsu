@@ -127,6 +127,7 @@ export default function Kassir() {
   const [card,         setCard]         = useState(null);
   const [editRow,      setEditRow]      = useState(null); // { row, channel }
   const [editSkladRow, setEditSkladRow] = useState(null);
+  const [notifyConfirm, setNotifyConfirm] = useState(null); // { customer, amount, channel }
 
   // ── Sklad tarixi filter ────────────────────────────────────────────────────────
   const [skladSearch, setSkladSearch] = useState('');
@@ -250,6 +251,10 @@ export default function Kassir() {
     if (fn) fn(row.id, fields);
     setEditRow(null);
     showToast('Saqlandi');
+    // Mijozga xabar yuborish so'rash
+    if (row.customer && fields.amount !== undefined) {
+      setNotifyConfirm({ customer: row.customer, amount: Math.abs(Number(fields.amount)), channel });
+    }
   };
 
   // ── Sklad tarixi ─────────────────────────────────────────────────────────────
@@ -712,6 +717,33 @@ export default function Kassir() {
       {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
       {editRow && <EditModal row={editRow.row} channel={editRow.channel} onSave={saveEdit} onClose={() => setEditRow(null)} />}
+
+      {/* Tahrirlash xabari confirm */}
+      {notifyConfirm && (
+        <div onClick={() => setNotifyConfirm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 8, padding: 24, maxWidth: 360, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)', fontFamily: 'Tahoma, sans-serif' }}>
+            <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 10, color: '#283593' }}>📨 Xabar yuborilsinmi?</div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 18, lineHeight: 1.6 }}>
+              <b>{notifyConfirm.customer}</b> ga tahrirlangan to'lov ma'lumoti yuborilsinmi?
+              <br />
+              <span style={{ color: '#1565c0', fontWeight: 'bold' }}>{fmt(notifyConfirm.amount)} so'm</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => {
+                api.notifyCustomerPayment(notifyConfirm.customer, notifyConfirm.amount, notifyConfirm.channel, null, true)
+                  .catch(() => {});
+                setNotifyConfirm(null);
+                showToast('Xabar yuborildi');
+              }} style={{ flex: 1, padding: '9px 0', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
+                ✓ Ha, yuborish
+              </button>
+              <button onClick={() => setNotifyConfirm(null)} style={{ flex: 1, padding: '9px 0', background: '#f5f5f5', border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+                Yo'q
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {editSkladRow && (
         <SkladEditModal
           row={editSkladRow}

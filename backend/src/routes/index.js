@@ -128,10 +128,21 @@ router.post('/notify_customer_payment', authenticate, async (req, res) => {
 
     const fmt   = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
     const chStr = { naqd: '💵 Naqd pul', bank: '🏦 Bank ko\'chirmasi', click: '📱 Click/Payme' }[channel] || '';
-    const debt  = Number(totalDebt);
 
+    // totalDebt berilmasa state dan hisoblaymiz
+    let debt;
+    if (totalDebt === null || totalDebt === undefined) {
+      const debtRows = state.debtRows || [];
+      debt = debtRows
+        .filter(r => r.customer === customer.name)
+        .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid || 0)), 0);
+    } else {
+      debt = Number(totalDebt);
+    }
+
+    const isEdit = req.body.isEdit === true;
     const lines = [
-      `💳 *To'lovingiz qabul qilindi!*`,
+      isEdit ? `✏️ *To'lov ma'lumoti yangilandi!*` : `💳 *To'lovingiz qabul qilindi!*`,
       ``,
       `📥 Miqdor: *${fmt(amount)} so'm* ${chStr}`,
       ``,
