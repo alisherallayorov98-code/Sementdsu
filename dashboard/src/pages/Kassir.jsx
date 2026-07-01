@@ -162,9 +162,11 @@ export default function Kassir() {
       } else {
         showToast(`${fmt(res.applied)} so'm qarz to'lovi qabul qilindi`);
       }
-      // Mijozga Telegram xabari (qarz to'lovi)
-      const remainDebt = Math.max(0, custDebt - amt);
-      api.notifyCustomerPayment(kirim.customer, amt, kirim.channel, remainDebt).catch(() => {});
+      // Mijozga Telegram xabari (faqat haqiqiy qarz to'lovi bo'lsa)
+      if (res.applied > 0) {
+        const remainDebt = Math.max(0, custDebt - res.applied);
+        api.notifyCustomerPayment(kirim.customer, res.applied, kirim.channel, remainDebt).catch(() => {});
+      }
     } else {
       addRow(kirim.channel, amt, kirim.note, kirim.customer);
       showToast(`+${fmt(amt)} so'm kirim`);

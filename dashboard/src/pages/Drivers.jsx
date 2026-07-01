@@ -28,6 +28,7 @@ export default function Drivers({ lang }) {
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
     driverTariffs, appSettings,
+    cashRows, bankRows, clickRows,
   } = useData();
 
   const [showForm, setShowForm] = useState(false);
@@ -118,10 +119,16 @@ export default function Drivers({ lang }) {
 
   // ── Statistika ────────────────────────────────────────────────────────────
   const getStats = (id) => {
+    const drv   = drivers.find(d => d.id === id);
     const trips = driverTrips.filter(t => t.driverId === id);
     const totalEarnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const totalPaid     = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const balance       = totalEarnings - totalPaid;
+    const tripPaid      = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
+    // Kassirdan qo'lda kiritilgan to'lovlar (auto emas — driverTrips orqali yaratilgan avtomatiklar ikki marta sanalmaydi)
+    const kassiPaid = drv ? [...(cashRows || []), ...(bankRows || []), ...(clickRows || [])]
+      .filter(r => !r.auto && r.customer === drv.name && Number(r.amount) < 0)
+      .reduce((s, r) => s + Math.abs(Number(r.amount)), 0) : 0;
+    const totalPaid = tripPaid + kassiPaid;
+    const balance   = totalEarnings - totalPaid;
     return { totalEarnings, totalPaid, balance, tripsCount: trips.filter(t => !t.isPayment).length };
   };
   const allStats     = drivers.map(d => getStats(d.id));

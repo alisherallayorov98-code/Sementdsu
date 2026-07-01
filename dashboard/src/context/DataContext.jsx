@@ -615,15 +615,18 @@ export function DataProvider({ children }) {
   const [skladRows, setSkladRows] = useState(() => load('sklad_rows', []));
   useEffect(() => save('sklad_rows', skladRows), [skladRows]);
 
-  // Qaysi recvRow'lar chakana skladga o'tkazilganini aniqlaymiz (sourceId orqali)
-  // Bu retroaktiv ishlaydi — eski ma'lumotlar ham to'g'ri hisoblanadi.
-  const _skladSourceIds = new Set(
-    skladRows.filter(r => r.type === 'kirim' && r.sourceId).map(r => r.sourceId)
-  );
+  // Har bir recvRow uchun qancha kg sklad kirim sifatida yozilganini hisoblaymiz.
+  // Taqsimlash (split) holatida recvRow qisman skladga ketishi mumkin —
+  // shuning uchun to'liq recvRow emas, faqat sklad ketgan qismini chiqaramiz.
+  const _skladKgByRecvId = {};
+  skladRows.filter(r => r.type === 'kirim' && r.sourceId)
+    .forEach(r => { _skladKgByRecvId[r.sourceId] = (_skladKgByRecvId[r.sourceId] || 0) + Number(r.kg || 0); });
 
-  // ULGURJI qoldig'i (tonnada) = faqat skladga o'tkazilmagan recvRow'lar asosida
-  // Sementni chakana skladga (kg) o'tkazilsa — u yerda alohida hisob bo'ladi
-  const _ulgurjiRecvTons = recvRows.filter(r => !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
+  // ULGURJI qoldig'i (tonnada) — har bir recvRowdan skladga ketgan tonnani ayiramiz
+  const _ulgurjiRecvTons = recvRows.reduce((s, r) => {
+    const skladTons = (_skladKgByRecvId[r.id] || 0) / 1000;
+    return s + Math.max(0, Number(r.tons || 0) - skladTons);
+  }, 0);
   const totalCementBalance = Number(cementOpening.tons) + _ulgurjiRecvTons - totalSoldTons - totalSalesTons;
 
   const addSkladKirim = (recvRowId, kg, desc, cementType) => {
@@ -668,7 +671,10 @@ export function DataProvider({ children }) {
   // ── Tur bo'yicha balanslar ─────────────────────────────────────────────────────
   const cementBalanceByType = Object.fromEntries(
     cementTypes.map(type => {
-      const recv    = recvRows.filter(r => r.cementType === type && !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
+      const recv    = recvRows.filter(r => r.cementType === type).reduce((s, r) => {
+        const skladTons = (_skladKgByRecvId[r.id] || 0) / 1000;
+        return s + Math.max(0, Number(r.tons || 0) - skladTons);
+      }, 0);
       const sold    = salesRows.filter(r => r.cementType === type).reduce((s, r) => s + Number(r.tons || 0), 0);
       const soldOld = soldRows.filter(r => r.cementType === type).reduce((s, r) => s + Number(r.tons || 0), 0);
       return [type, recv - sold - soldOld];
