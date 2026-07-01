@@ -787,11 +787,11 @@ export default function RecvTons({ lang }) {
 
               {/* ── Taqsimlash ── */}
               <div style={{ borderTop:'1px solid #ddd', paddingTop:10 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                  <span style={{ fontSize:13, fontWeight:'bold', color:'#555' }}>Taqsimlash</span>
-                  <div style={{ display:'flex', gap:6 }}>
-                    <button onClick={() => addSplit('mijoz')} style={{ fontSize:12, padding:'4px 10px', background:'#e1f5fe', border:'1px solid #01579b', color:'#01579b', borderRadius:4, cursor:'pointer' }}>+ Mijozga sotish</button>
-                    <button onClick={() => addSplit('sklad')} style={{ fontSize:12, padding:'4px 10px', background:'#efebe9', border:'1px solid #4e342e', color:'#4e342e', borderRadius:4, cursor:'pointer' }}>+ Skladga</button>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <span style={{ fontSize:13, fontWeight:'bold', color:'#444' }}>Taqsimlash</span>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => addSplit('mijoz')} style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, fontWeight:'600', padding:'6px 13px', background:'linear-gradient(135deg,#0288d1,#01579b)', color:'#fff', border:'none', borderRadius:20, cursor:'pointer', boxShadow:'0 2px 5px rgba(1,87,155,0.35)' }}>🛒 Mijozga sotish</button>
+                    <button onClick={() => addSplit('sklad')} style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, fontWeight:'600', padding:'6px 13px', background:'linear-gradient(135deg,#6d4c41,#4e342e)', color:'#fff', border:'none', borderRadius:20, cursor:'pointer', boxShadow:'0 2px 5px rgba(78,52,46,0.35)' }}>🏗 Skladga</button>
                   </div>
                 </div>
                 {splits.length === 0 && (
