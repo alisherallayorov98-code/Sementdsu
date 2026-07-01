@@ -96,9 +96,8 @@ export default function RecvTons({ lang }) {
   const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
-  // "Birdan sotish" — tasdiqlash oynasida zavoddan to'g'ri mijozga sotish
-  const [sell, setSell] = useState({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
-  const [toSklad, setToSklad] = useState(false); // asosiy skladga o'tkazish
+  // Taqsimlash: har bir qator { id, type:'sklad'|'mijoz', customer, tons, pricePerTon, paymentChannel }
+  const [splits, setSplits] = useState([]);
   const [range, setRange] = useState({ from: '', to: '' }); // sana oralig'i filtri
   const [selected, setSelected] = useState(new Set()); // ommaviy tanlash
 
@@ -185,45 +184,54 @@ export default function RecvTons({ lang }) {
   // ── Tasdiqlash (+ ixtiyoriy birdan sotish) ───────────────────────────────
   const openVerify = (r) => {
     setVerifyRow({ ...r });
-    setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' });
+    setSplits([]);
   };
-  const closeVerify = () => { setVerifyRow(null); setSell({ on: false, customer: '', pricePerTon: '', paymentChannel: 'naqd' }); setToSklad(false); };
+  const closeVerify = () => { setVerifyRow(null); setSplits([]); };
+
+  const addSplit = (type) => setSplits(p => [...p, { id: Date.now(), type, customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd' }]);
+  const updateSplit = (id, field, val) => setSplits(p => p.map(s => s.id === id ? { ...s, [field]: val } : s));
+  const removeSplit = (id) => setSplits(p => p.filter(s => s.id !== id));
+
   const confirmVerify = () => {
     if (!verifyRow.source) { alert('Zavod nomini kiriting'); return; }
     const tons = Number(verifyRow.tons) || 0;
-    if (sell.on && (!sell.customer || !sell.pricePerTon)) {
-      alert('Birdan sotish uchun mijoz va sotish narxini kiriting.');
-      return;
+    // Taqsimlash validatsiyasi
+    const splitTotal = splits.reduce((s, sp) => s + (Number(sp.tons) || 0), 0);
+    if (splitTotal > tons + 0.001) { alert(`Taqsimlangan tonna (${splitTotal}) umumiy tonnadan (${tons}) oshib ketdi!`); return; }
+    for (const sp of splits) {
+      if (!Number(sp.tons)) { alert('Har bir taqsimlash qatorida tonna kiriting'); return; }
+      if (sp.type === 'mijoz' && (!sp.customer || !sp.pricePerTon)) { alert('Mijoz uchun mijoz ismi va narxini kiriting'); return; }
     }
-    // Yangi manbaani bazaga saqlash
     addSupplier({ name: verifyRow.source });
-    // 1) Tasdiqlash → yetkazib beruvchiga qarz yoziladi (kassadan pul yechilmaydi)
+    // 1) Tasdiqlash → yetkazib beruvchiga qarz
     verifyRecvRow(verifyRow.id, {
       source: verifyRow.source, brand: verifyRow.brand,
       tons, pricePerTon: Number(verifyRow.pricePerTon) || 0,
       paymentChannel: verifyRow.paymentChannel,
       warehouseId: verifyRow.warehouseId || myWh,
     });
-    // 2) Birdan sotish → zavoddan to'g'ri mijozga (sklad orqali o'tmaydi)
-    if (sell.on) {
-      const vehicleNo = verifyRow.vehicleNo || '';
-      addSaleRow({
-        customer: sell.customer,
-        tons,
-        pricePerTon: Number(sell.pricePerTon) || 0,
-        paymentChannel: sell.paymentChannel,
-        warehouseId: verifyRow.warehouseId || myWh,
-        vehicleNo,
-        date: verifyRow.factoryTime || verifyRow.date,
-        factoryTime: verifyRow.factoryTime || '',
-        note: `Zavod: ${verifyRow.source}`,
-        recvId: verifyRow.id,
-        cementType: verifyRow.cementType || '',
-      });
-    }
-    // 3) Asosiy skladga o'tkazish → ton × 1000 = kg
-    if (toSklad && !sell.on) {
-      addSkladKirim(verifyRow.id, tons * 1000, `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`, verifyRow.cementType || '');
+    // 2) Taqsimlash — har bir qator
+    const vehicleNo = verifyRow.vehicleNo || '';
+    const desc = `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`;
+    for (const sp of splits) {
+      const spTons = Number(sp.tons) || 0;
+      if (sp.type === 'mijoz') {
+        addSaleRow({
+          customer: sp.customer,
+          tons: spTons,
+          pricePerTon: Number(sp.pricePerTon) || 0,
+          paymentChannel: sp.paymentChannel,
+          warehouseId: verifyRow.warehouseId || myWh,
+          vehicleNo,
+          date: verifyRow.factoryTime || verifyRow.date,
+          factoryTime: verifyRow.factoryTime || '',
+          note: `Zavod: ${verifyRow.source}`,
+          recvId: verifyRow.id,
+          cementType: verifyRow.cementType || '',
+        });
+      } else {
+        addSkladKirim(verifyRow.id, spTons * 1000, desc, verifyRow.cementType || '');
+      }
     }
     closeVerify();
   };
@@ -777,48 +785,75 @@ export default function RecvTons({ lang }) {
                 Tasdiqlangach: <b>{fmt(Number(verifyRow.tons||0)*Number(verifyRow.pricePerTon||0))} so'm</b> yetkazib beruvchiga <b>qarz</b> sifatida yoziladi. Kassadan pul yechilmaydi — to'lovni keyin "Yetkazib beruvchi qarzi" bo'limidan kiritasiz.
               </div>
 
-              {/* ── 2 ta variant: Birdan sotish | Asosiy skladga ── */}
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                <label style={{ flex:1, minWidth:180, display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:'bold', color: sell.on ? '#01579b' : '#555', cursor:'pointer', background: sell.on ? '#e1f5fe' : '#f5f5f5', padding:'8px 10px', borderRadius:6, border:`2px solid ${sell.on ? '#01579b' : '#ddd'}` }}>
-                  <input type="checkbox" checked={sell.on} onChange={e => { setSell({ ...sell, on: e.target.checked }); if (e.target.checked) setToSklad(false); }} />
-                  🛒 Birdan mijozga sotish
-                </label>
-                <label style={{ flex:1, minWidth:180, display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:'bold', color: toSklad ? '#4e342e' : '#555', cursor:'pointer', background: toSklad ? '#efebe9' : '#f5f5f5', padding:'8px 10px', borderRadius:6, border:`2px solid ${toSklad ? '#4e342e' : '#ddd'}` }}>
-                  <input type="checkbox" checked={toSklad} onChange={e => { setToSklad(e.target.checked); if (e.target.checked) setSell({ ...sell, on: false }); }} />
-                  🏗 Asosiy skladga (kg ga)
-                </label>
+              {/* ── Taqsimlash ── */}
+              <div style={{ borderTop:'1px solid #ddd', paddingTop:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:13, fontWeight:'bold', color:'#555' }}>Taqsimlash</span>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => addSplit('mijoz')} style={{ fontSize:12, padding:'4px 10px', background:'#e1f5fe', border:'1px solid #01579b', color:'#01579b', borderRadius:4, cursor:'pointer' }}>+ Mijozga sotish</button>
+                    <button onClick={() => addSplit('sklad')} style={{ fontSize:12, padding:'4px 10px', background:'#efebe9', border:'1px solid #4e342e', color:'#4e342e', borderRadius:4, cursor:'pointer' }}>+ Skladga</button>
+                  </div>
+                </div>
+                {splits.length === 0 && (
+                  <div style={{ fontSize:12, color:'#999', textAlign:'center', padding:'8px 0' }}>Hech narsa taqsimlanmagan — faqat tasdiqlash yoziladi</div>
+                )}
+                {splits.map(sp => (
+                  <div key={sp.id} style={{ display:'flex', flexDirection:'column', gap:8, border:`1px solid ${sp.type==='mijoz' ? '#b3e5fc' : '#d7ccc8'}`, borderRadius:6, padding:8, marginBottom:8, background: sp.type==='mijoz' ? '#f5fbff' : '#fdf5f3' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontSize:12, fontWeight:'bold', color: sp.type==='mijoz' ? '#01579b' : '#4e342e' }}>
+                        {sp.type==='mijoz' ? '🛒 Mijozga sotish' : '🏗 Asosiy skladga'}
+                      </span>
+                      <button onClick={() => removeSplit(sp.id)} style={{ fontSize:11, padding:'2px 7px', background:'#fff', border:'1px solid #ccc', borderRadius:4, cursor:'pointer', color:'#c00' }}>✕</button>
+                    </div>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      <Field label="Tonna *">
+                        <input type="number" value={sp.tons} onChange={e => updateSplit(sp.id,'tons',e.target.value)} style={{ ...vInp, width:90 }} placeholder="0" />
+                      </Field>
+                      {sp.type==='mijoz' && (
+                        <>
+                          <div style={{ flex:2, minWidth:160 }}>
+                            <Field label="Mijoz *">
+                              <CustomerSelect value={sp.customer} onChange={val => updateSplit(sp.id,'customer',val)} placeholder="Mijoz..." width={'100%'} accentColor="#01579b" />
+                            </Field>
+                          </div>
+                          <Field label="Narx (1 tn) *">
+                            <input type="number" value={sp.pricePerTon} onChange={e => updateSplit(sp.id,'pricePerTon',e.target.value)} style={{ ...vInp, width:110 }} placeholder="0" />
+                          </Field>
+                          <Field label="To'lov">
+                            <select value={sp.paymentChannel} onChange={e => updateSplit(sp.id,'paymentChannel',e.target.value)} style={{ ...vInp, width:110 }}>
+                              <option value="naqd">💵 Naqd</option>
+                              <option value="bank">🏦 Bank</option>
+                              <option value="click">📱 Click</option>
+                              <option value="nasiya">⚠️ Nasiya</option>
+                            </select>
+                          </Field>
+                        </>
+                      )}
+                    </div>
+                    {sp.type==='sklad' && Number(sp.tons) > 0 && (
+                      <div style={{ fontSize:11, color:'#4e342e' }}>{sp.tons} tn × 1000 = <b>{(Number(sp.tons)*1000).toLocaleString('ru-RU')} kg</b></div>
+                    )}
+                    {sp.type==='mijoz' && Number(sp.tons) > 0 && Number(sp.pricePerTon) > 0 && (
+                      <div style={{ fontSize:11, color:'#01579b' }}>Summa: <b>{fmt(Number(sp.tons)*Number(sp.pricePerTon))} so'm</b></div>
+                    )}
+                  </div>
+                ))}
+                {splits.length > 0 && (() => {
+                  const total = Number(verifyRow.tons) || 0;
+                  const used = splits.reduce((s,sp) => s + (Number(sp.tons)||0), 0);
+                  const left = total - used;
+                  return (
+                    <div style={{ fontSize:12, padding:'5px 8px', borderRadius:4, background: Math.abs(left) < 0.001 ? '#e8f5e9' : left < 0 ? '#ffebee' : '#fff9c4', color: left < 0 ? '#c00' : '#555' }}>
+                      Jami: <b>{total} tn</b> · Taqsimlangan: <b>{used} tn</b> · Qoldi: <b style={{ color: left < 0 ? '#c00' : left < 0.001 ? '#2e7d32' : '#e65100' }}>{left.toFixed(3)} tn</b>
+                    </div>
+                  );
+                })()}
               </div>
-              {toSklad && !sell.on && (
-                <div style={{ fontSize:12, color:'#4e342e', background:'#efebe9', padding:8, borderRadius:4 }}>
-                  {Number(verifyRow.tons) > 0 ? <><b>{verifyRow.tons} tn × 1000 = {(Number(verifyRow.tons)*1000).toLocaleString('ru-RU')} kg</b> asosiy skladga kirim qilinadi.</> : 'Tonna kiritilmagan'}
-                </div>
-              )}
-              {sell.on && (
-                <div style={{ display:'flex', flexDirection:'column', gap:10, border:'1px solid #b3e5fc', borderRadius:6, padding:10, background:'#f5fbff' }}>
-                  <Field label="Mijoz *">
-                    <CustomerSelect value={sell.customer} onChange={val => setSell({ ...sell, customer: val })} placeholder="Mijoz (izlash...)" width={'100%'} accentColor="#01579b" />
-                  </Field>
-                  <div style={{ display:'flex', gap:10 }}>
-                    <Field label="Sotish narxi (1 tn) *"><input type="number" value={sell.pricePerTon} onChange={e => setSell({ ...sell, pricePerTon: e.target.value })} style={vInp} placeholder="Masalan: 720000" /></Field>
-                    <Field label="To'lov turi">
-                      <select value={sell.paymentChannel} onChange={e => setSell({ ...sell, paymentChannel: e.target.value })} style={vInp}>
-                        <option value="naqd">💵 Naqd</option>
-                        <option value="bank">🏦 Bank</option>
-                        <option value="click">📱 Click</option>
-                        <option value="nasiya">⚠️ Nasiya (Qarz)</option>
-                      </select>
-                    </Field>
-                  </div>
-                  <div style={{ fontSize:12, color:'#01579b', background:'#e1f5fe', padding:8, borderRadius:4 }}>
-                    Sotuv summasi: <b>{fmt(Number(verifyRow.tons||0)*Number(sell.pricePerTon||0))} so'm</b> — "{sell.customer || '...'}" ga sotiladi.
-                  </div>
-                </div>
-              )}
 
               <div style={{ display:'flex', gap:8, marginTop:4 }}>
                 <button onClick={confirmVerify}
                   style={{ flex:1, padding:'9px 0', background:'#2e7d32', color:'#fff', border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer' }}>
-                  {sell.on ? '✓ Tasdiqlab sotish' : toSklad ? '✓ Tasdiqlab skladga' : '✓ Tasdiqlash'}
+                  ✓ Tasdiqlash
                 </button>
                 <button onClick={closeVerify} style={{ padding:'9px 16px', background:'#f0f0f0', border:'1px solid #ccc', borderRadius:6, cursor:'pointer' }}>Bekor</button>
               </div>
