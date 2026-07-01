@@ -251,6 +251,8 @@ export function DataProvider({ children }) {
     setCashRows(p  => p.filter(r => r.sourceId !== id));
     setBankRows(p  => p.filter(r => r.sourceId !== id));
     setClickRows(p => p.filter(r => r.sourceId !== id));
+    // Shu recvRow'dan sklad kirim yozuvlari (taqsimlash orqali yaratilgan)
+    setSkladRows(p => p.filter(r => !(r.type === 'kirim' && r.sourceId === id)));
   };
   // Excel'dan ko'plab "Olingan tonna" import — TEKSHIRILMAGAN (pending) holatda.
   // Pul (zavodga to'lov) tasdiqlangandagina yoziladi.
@@ -621,6 +623,8 @@ export function DataProvider({ children }) {
   const _skladKgByRecvId = {};
   skladRows.filter(r => r.type === 'kirim' && r.sourceId)
     .forEach(r => { _skladKgByRecvId[r.sourceId] = (_skladKgByRecvId[r.sourceId] || 0) + Number(r.kg || 0); });
+  // UI badge uchun: qaysi recvId'lar sklad yozuviga ega (to'liq yoki qisman)
+  const _skladSourceIds = new Set(Object.keys(_skladKgByRecvId).map(Number));
 
   // ULGURJI qoldig'i (tonnada) — har bir recvRowdan skladga ketgan tonnani ayiramiz
   const _ulgurjiRecvTons = recvRows.reduce((s, r) => {
@@ -691,7 +695,10 @@ export function DataProvider({ children }) {
   // Chakana skladga (kg) o'tkazilgan recvRow'lar CHIQARIB TASHLANADI
   // chunki ularning hisobi totalSkladKg orqali alohida yuritiladi.
   const cementByWarehouse = warehouses.map(w => {
-    const recv  = recvRows.filter(r => whOf(r) === w.id && !_skladSourceIds.has(r.id)).reduce((s, r) => s + Number(r.tons || 0), 0);
+    const recv  = recvRows.filter(r => whOf(r) === w.id).reduce((s, r) => {
+      const skladTons = (_skladKgByRecvId[r.id] || 0) / 1000;
+      return s + Math.max(0, Number(r.tons || 0) - skladTons);
+    }, 0);
     const sales = salesRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
     const sold  = soldRows.filter(r => whOf(r) === w.id).reduce((s, r) => s + Number(r.tons || 0), 0);
     const opening = w.id === defaultWhId ? Number(cementOpening.tons || 0) : 0;
@@ -888,6 +895,7 @@ export function DataProvider({ children }) {
       id: base + i, createdAt: base + i, worker: currentWorker,
       name: (r.name || '').trim(), address: (r.address || '').trim(),
       phone: (r.phone || '').trim(), note: r.note || '',
+      linkCode: Math.random().toString(36).slice(2, 10).toUpperCase(),
     }))]);
   };
 

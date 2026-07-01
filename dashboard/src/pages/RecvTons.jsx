@@ -697,7 +697,7 @@ export default function RecvTons({ lang }) {
                       {!r.pending && skladSourceIds.has(r.id) && (
                         <span title="Asosiy skladga (chakana) qo'shilgan" style={{ fontSize:11, color:'#2e7d32', fontWeight:'bold', marginRight:4 }}>📦✓</span>
                       )}
-                      {!r.pending && !skladSourceIds.has(r.id) && salesRows.some(s => s.recvId === r.id) && (
+                      {!r.pending && salesRows.some(s => s.recvId === r.id) && (
                         <span title="Ulgurji sotilgan (birdan sotish)" style={{ fontSize:11, color:'#1565c0', fontWeight:'bold', marginRight:4 }}>🛒✓</span>
                       )}
                       <button
