@@ -69,6 +69,28 @@ function WorkersTab() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
 
+  const UZ_MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const n = new Date();
+    return `${String(n.getMonth()+1).padStart(2,'0')}.${n.getFullYear()}`;
+  });
+  const changeMonth = (dir) => {
+    setSelectedMonth(prev => {
+      const [mm, yyyy] = prev.split('.').map(Number);
+      let nm = mm + dir, ny = yyyy;
+      if (nm < 1) { nm = 12; ny--; }
+      if (nm > 12) { nm = 1; ny++; }
+      return `${String(nm).padStart(2,'0')}.${ny}`;
+    });
+  };
+  const [smm, syyyy] = selectedMonth.split('.').map(Number);
+  const monthLabel = `${UZ_MONTHS[smm-1]} ${syyyy}`;
+  const isCurrentMonth = selectedMonth === (() => { const n = new Date(); return `${String(n.getMonth()+1).padStart(2,'0')}.${n.getFullYear()}`; })();
+
+  const paidInMonth = (workerId) => salaryPayments
+    .filter(p => p.workerId === workerId && (p.date || '').endsWith(selectedMonth))
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name || !form.salary) return;
@@ -92,14 +114,14 @@ function WorkersTab() {
     setEditId(null);
   };
 
-  const totalSalary = workers.reduce((s, w) => s + Number(w.salary || 0), 0);
-  const totalPaid   = workers.reduce((s, w) => s + Number(w.paid || 0), 0);
-  const totalQoldi  = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - Number(w.paid)), 0);
-  const todayPaid   = salaryPayments.filter(p => p.date === new Date().toLocaleDateString('ru-RU')).reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalSalary    = workers.reduce((s, w) => s + Number(w.salary || 0), 0);
+  const totalPaidMonth = workers.reduce((s, w) => s + paidInMonth(w.id), 0);
+  const totalQoldiMonth = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - paidInMonth(w.id)), 0);
+  const todayPaid      = salaryPayments.filter(p => p.date === new Date().toLocaleDateString('ru-RU')).reduce((s, p) => s + Number(p.amount || 0), 0);
 
   let filtered = workers.filter(w => !search || w.name.toLowerCase().includes(search.toLowerCase()) || (w.position||'').toLowerCase().includes(search.toLowerCase()) || (w.phone||'').includes(search));
-  if (filterStatus === 'toliq') filtered = filtered.filter(w => Number(w.salary) <= Number(w.paid));
-  if (filterStatus === 'qoldi') filtered = filtered.filter(w => Number(w.salary) > Number(w.paid));
+  if (filterStatus === 'toliq') filtered = filtered.filter(w => paidInMonth(w.id) >= Number(w.salary));
+  if (filterStatus === 'qoldi') filtered = filtered.filter(w => paidInMonth(w.id) < Number(w.salary));
   useEffect(() => { setPage(1); }, [search, filterStatus]);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -109,11 +131,19 @@ function WorkersTab() {
     <div>
       {/* Statistika */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <StatBox label="Xodimlar soni"  value={workers.length}      unit="ta"    color={ACC_W}     bg={BG_W} />
-        <StatBox label="Jami oylik"     value={fmt(totalSalary)}    unit="so'm"  color="#333"      bg="#f5f5f5" />
-        <StatBox label="Jami to'landi"  value={fmt(totalPaid)}      unit="so'm"  color="#2e7d32"   bg="#e8f5e9" />
-        <StatBox label="Qolgan oylik"   value={fmt(totalQoldi)}     unit="so'm"  color="#c62828"   bg="#ffebee" bold />
-        <StatBox label="Bugun to'landi" value={fmt(todayPaid)}      unit="so'm"  color="#e65100"   bg="#fff3e0" />
+        <StatBox label="Xodimlar soni"     value={workers.length}         unit="ta"    color={ACC_W}     bg={BG_W} />
+        <StatBox label="Jami oylik"        value={fmt(totalSalary)}       unit="so'm"  color="#333"      bg="#f5f5f5" />
+        <StatBox label="Bu oy to'landi"    value={fmt(totalPaidMonth)}    unit="so'm"  color="#2e7d32"   bg="#e8f5e9" />
+        <StatBox label="Bu oy qolgan"      value={fmt(totalQoldiMonth)}   unit="so'm"  color="#c62828"   bg="#ffebee" bold />
+        <StatBox label="Bugun to'landi"    value={fmt(todayPaid)}         unit="so'm"  color="#e65100"   bg="#fff3e0" />
+      </div>
+
+      {/* Oy tanlash */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center' }}>
+        <button onClick={() => changeMonth(-1)} style={{ padding: '4px 10px', cursor: 'pointer', border: '1px solid #9fa8da', background: '#fff', borderRadius: 4, fontSize: 14 }}>◀</button>
+        <span style={{ fontWeight: 'bold', fontSize: 14, color: ACC_W, minWidth: 130, textAlign: 'center' }}>📅 {monthLabel}</span>
+        <button onClick={() => changeMonth(1)} style={{ padding: '4px 10px', cursor: 'pointer', border: '1px solid #9fa8da', background: '#fff', borderRadius: 4, fontSize: 14 }} disabled={isCurrentMonth}>▶</button>
+        {!isCurrentMonth && <button onClick={() => { const n = new Date(); setSelectedMonth(`${String(n.getMonth()+1).padStart(2,'0')}.${n.getFullYear()}`); }} style={{ padding: '3px 10px', cursor: 'pointer', border: '1px solid #9fa8da', background: BG_W, borderRadius: 4, fontSize: 11, color: ACC_W }}>Joriy oy</button>}
       </div>
 
       {/* Filter */}
@@ -134,8 +164,8 @@ function WorkersTab() {
             { header: 'Lavozim', value: w => w.position || '' },
             { header: 'Telefon', value: w => w.phone || '' },
             { header: 'Oylik', value: w => Number(w.salary || 0) },
-            { header: "To'landi", value: w => Number(w.paid || 0) },
-            { header: 'Qolgan', value: w => Math.max(0, Number(w.salary || 0) - Number(w.paid || 0)) },
+            { header: "Bu oy to'landi", value: w => paidInMonth(w.id) },
+            { header: 'Bu oy qolgan', value: w => Math.max(0, Number(w.salary || 0) - paidInMonth(w.id)) },
             { header: 'Izoh', value: w => w.note || '' },
           ]}
           rows={filtered}
@@ -167,13 +197,14 @@ function WorkersTab() {
           <thead>
             <tr>
               <th style={{ width: 32 }}>#</th><th style={{ minWidth: 140 }}>Ism</th><th style={{ width: 120 }}>Lavozim</th><th style={{ width: 125 }}>Telefon</th>
-              <th style={{ textAlign: 'right', width: 120 }}>Oylik</th><th style={{ textAlign: 'right', width: 120, color: '#2e7d32' }}>To'landi</th>
+              <th style={{ textAlign: 'right', width: 120 }}>Oylik</th><th style={{ textAlign: 'right', width: 130, color: '#2e7d32' }}>Bu oy to'landi</th>
               <th style={{ textAlign: 'right', width: 115, color: '#c62828' }}>Qolgan</th><th style={{ width: 185 }}>Amal</th>
             </tr>
           </thead>
           <tbody>
             {paged.map((w, i) => {
-              const remaining = Math.max(0, Number(w.salary) - Number(w.paid || 0));
+              const monthPaid = paidInMonth(w.id);
+              const remaining = Math.max(0, Number(w.salary) - monthPaid);
               const isPaid = remaining <= 0;
               return (
                 <tr key={w.id} style={{ background: isPaid ? '#f1f8e9' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
@@ -198,7 +229,7 @@ function WorkersTab() {
                       <td style={{ fontSize: 12 }}>{w.position || '—'}</td>
                       <td style={{ fontSize: 12 }}>{w.phone ? <a href={`tel:${w.phone}`} style={{ color: '#1565c0', textDecoration: 'none' }}>📞 {w.phone}</a> : '—'}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(w.salary)}</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(w.paid || 0)}</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32', fontWeight: 'bold' }}>{fmt(monthPaid)}</td>
                       <td style={{ textAlign: 'right' }}>{remaining > 0 ? <span style={{ background: '#c62828', color: '#fff', padding: '2px 8px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>{fmt(remaining)}</span> : <span style={{ color: '#2e7d32', fontSize: 12 }}>✓ To'liq</span>}</td>
                       <td>
                         {payForm.id === w.id ? (
@@ -227,8 +258,8 @@ function WorkersTab() {
             <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
               <td colSpan={4} style={{ textAlign: 'right', paddingRight: 8 }}>JAMI</td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(totalSalary)}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(totalPaid)}</td>
-              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828' }}>{fmt(totalQoldi)}</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(totalPaidMonth)}</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#c62828' }}>{fmt(totalQoldiMonth)}</td>
               <td></td>
             </tr>
           </tbody>
@@ -241,6 +272,7 @@ function WorkersTab() {
       {modalWorker && (() => {
         const w = workers.find(x => x.id === modalWorker);
         const pays = salaryPayments.filter(p => p.workerId === modalWorker).sort((a,b) => b.createdAt - a.createdAt);
+        const monthPaidTotal = paidInMonth(modalWorker);
         return (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if(e.target===e.currentTarget) setModalWorker(null); }}>
             <div style={{ background: '#fff', borderRadius: 6, width: 500, maxHeight: '85vh', overflowY: 'auto' }}>
@@ -249,7 +281,10 @@ function WorkersTab() {
                 <button onClick={() => setModalWorker(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer' }}>✕</button>
               </div>
               <div style={{ padding: '12px 16px' }}>
-                <p style={{ fontWeight: 'bold', fontSize: 13, color: ACC_W, marginBottom: 8 }}>💳 To'lovlar tarixi ({pays.length} ta)</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <p style={{ fontWeight: 'bold', fontSize: 13, color: ACC_W, margin: 0 }}>💳 To'lovlar tarixi ({pays.length} ta)</p>
+                  <span style={{ fontSize: 12, color: '#555' }}>{monthLabel}: <b style={{ color: '#2e7d32' }}>{fmt(monthPaidTotal)} so'm</b> / <span style={{ color: '#c62828' }}>Qoldi: {fmt(Math.max(0, Number(w?.salary||0) - monthPaidTotal))} so'm</span></span>
+                </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead><tr style={{ background: BG_W }}><th style={thS}>Sana</th><th style={{ ...thS, textAlign: 'right' }}>Miqdor</th><th style={thS}>Izoh</th></tr></thead>
                   <tbody>{pays.map(p => <tr key={p.id}><td style={tdS}>{p.date}</td><td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: '#2e7d32' }}>{fmt(p.amount)}</td><td style={tdS}>{p.note||'—'}</td></tr>)}</tbody>
