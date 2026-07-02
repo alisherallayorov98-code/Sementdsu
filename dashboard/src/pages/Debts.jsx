@@ -8,8 +8,7 @@ import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
-const TODAY_MS = Date.now();
-const daysSince = (ts) => ts ? Math.floor((TODAY_MS - ts) / 86400000) : null;
+const daysSince = (ts) => ts ? Math.floor((Date.now() - ts) / 86400000) : null;
 
 // Qarz yoshi darajasi (kunlar bo'yicha)
 function ageLevel(days) {
@@ -66,7 +65,7 @@ export default function Debts({ lang }) {
       : '—';
     // Eng eski to'lanmagan qarz sanasi
     const unpaidRows = g.rows.filter(r => Math.max(0, Number(r.amount) - Number(r.paid)) > 0);
-    g.oldestUnpaidAt = unpaidRows.reduce((mn, r) => Math.min(mn, r.createdAt || r.id || TODAY_MS), TODAY_MS);
+    g.oldestUnpaidAt = unpaidRows.reduce((mn, r) => Math.min(mn, r.createdAt || r.id || Date.now()), Date.now());
     g.debtDays = rem > 0 ? daysSince(g.oldestUnpaidAt) : null;
     g.level    = rem > 0 ? ageLevel(g.debtDays) : 0;
     g.remaining = rem;

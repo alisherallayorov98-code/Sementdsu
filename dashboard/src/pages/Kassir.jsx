@@ -226,8 +226,9 @@ export default function Kassir() {
           date: created.date, worker: currentWorker,
         }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
       }
-      // Mijozga Telegram xabari
-      api.notifyCustomerSale(created.customer, kgAbs, sklad.cementType, sklad.pricePerKg, sklad.channel, Math.max(0, q)).catch(() => {});
+      // Mijozga Telegram xabari (nasiya bo'lsa yangi qarzni ham qo'shamiz — state hali yangilanmagan)
+      const extraDebt = sklad.channel === 'nasiya' ? kgAbs * Number(sklad.pricePerKg) : 0;
+      api.notifyCustomerSale(created.customer, kgAbs, sklad.cementType, sklad.pricePerKg, sklad.channel, Math.max(0, q + extraDebt)).catch(() => {});
     }
     setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
   };

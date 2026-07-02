@@ -74,7 +74,7 @@ router.post('/notify_customer_sale', authenticate, async (req, res) => {
     if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
 
     const fmt    = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
-    const chStr  = { naqd: '💵 Naqd pul', bank: '🏦 Bank ko\'chirmasi', click: '📱 Click/Payme', nasiya: '⚠️ Nasiyaga' }[channel] || '';
+    const chStr  = { naqd: '💵 Naqd pul', bank: '🏦 Bank ko\'chirmasi', click: '📱 Click/Payme', nasiya: '⚠️ Nasiyaga', avans: '🔄 Avansdan' }[channel] || '';
 
     // Tons (ulgurji) yoki kg (sklad) formatini aniqlash
     let quantityStr, total, priceStr;

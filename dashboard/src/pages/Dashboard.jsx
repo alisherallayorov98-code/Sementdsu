@@ -13,11 +13,12 @@ import { activityStatus } from '../lib/monitoring';
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
-const today = new Date().toLocaleDateString('ru-RU');         // dd.mm.yyyy
-const monthKey = today.slice(3);                              // mm.yyyy
+// Komponent ichida hisoblanadi — brauzer tab ochiq qolsa sana eskirib qolmasin
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const today    = new Date().toLocaleDateString('ru-RU');
+  const monthKey = today.slice(3);
   const data = useData();
   const {
     totalCashBalance, totalBankBalance, totalClickBalance, totalCementBalance,

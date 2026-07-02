@@ -74,7 +74,11 @@ export default function Sales({ lang }) {
     setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: form.warehouseId, date: todayISO() });
     if (created) {
       const s = customerSummary(created.customer, data);
-      const extraDebt = (created.paymentChannel === 'nasiya') ? Number(created.tons || 0) * Number(created.pricePerTon || 0) : 0;
+      const saleTotal = Number(created.tons || 0) * Number(created.pricePerTon || 0);
+      // Nasiya: to'liq qarzga yoziladi; Avans: yetmagan qismi qarzga yoziladi; qolganlar: qarz yo'q
+      const extraDebt = created.paymentChannel === 'nasiya' ? saleTotal
+                      : created.paymentChannel === 'avans'  ? Math.max(0, saleTotal - (created.advanceUsed || 0))
+                      : 0;
       const totalDebt = s.qolganQarz + extraDebt;
       // Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi
       if (isKassir && appSettings?.autoPrintReceipt !== false) {
