@@ -40,11 +40,16 @@ export default function Login() {
             </div>
           ) : (
             <div>
-              <div style={{ background: '#e3f2fd', color: '#1565c0', padding: 10, borderRadius: 4, marginBottom: 12, fontSize: 12 }}>
-                ℹ️ Tizimda hali xodimlar yo'q. Birinchi kirgan shaxs "Admin" bo'ladi.
+              {/* Ilgari bu yerda "birinchi kirgan Admin bo'ladi" deb yozilardi va
+                  haqiqatan shunday ishlardi — ya'ni istalgan odam admin bo'lib
+                  olishi mumkin edi. Bu teshik yopildi: tashkilotni faqat
+                  xizmat ko'rsatuvchi (superadmin) ochadi va login/parol beradi. */}
+              <div style={{ background: '#fff3e0', color: '#e65100', padding: 10, borderRadius: 4, marginBottom: 12, fontSize: 12, lineHeight: 1.6 }}>
+                ⚠️ Bu tashkilotda hali xodim yo'q.<br />
+                Kirish uchun login va parolni xizmat ko'rsatuvchidan oling.
               </div>
-              <label style={lbl}>Ismingizni kiriting</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan: Boshqaruvchi" style={inp} />
+              <label style={lbl}>Ism</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Sizga berilgan login" style={inp} />
             </div>
           )}
 

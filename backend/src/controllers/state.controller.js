@@ -89,6 +89,26 @@ exports.put = async (req, res) => {
     console.warn(`[state] To'qnashuv birlashtirildi (akkaunt: ${req.user.account}, base=${baseVersion}, joriy=${currentVersion})`);
   }
 
+  // ── XAVFSIZLIK: xodimlarni tasodifan yo'q qilishdan himoya ────────────────
+  // setState butun holatni ALMASHTIRADI. Agar so'rovda `workers` bo'lmasa,
+  // barcha xodimlar (parollari bilan) o'chib ketardi va tashkilotga hech kim
+  // kira olmay qolardi — qaytarib bo'lmaydigan holat. Kelmagan bo'lsa eskisini
+  // saqlab qolamiz.
+  if (!Array.isArray(body.workers) && oldWorkers.length) {
+    body.workers = oldWorkers;
+  }
+
+  // ── Ichki (xizmat) kalitlari faqat superadmin nazoratida ──────────────────
+  // `__disabled` kabi bayroqlarni tashkilot o'zi o'zgartira olmasligi kerak.
+  // Aks holda to'xtatilgan tashkilotning navbatdagi saqlashi bayroqni o'chirib,
+  // o'zini o'zi qayta yoqib yuborardi.
+  for (const k of Object.keys(body)) {
+    if (k.startsWith('__')) delete body[k];
+  }
+  for (const [k, v] of Object.entries(oldState)) {
+    if (k.startsWith('__')) body[k] = v;
+  }
+
   if (req.user.role !== 'admin') {
     // ── XAVFSIZLIK: admin bo'lmaganlar config/xodim/ochilish bo'limlariga tegolmaydi.
     // Ular serverdagi eski qiymatda qoladi (savdo/kassa/qarz esa yoziladi).

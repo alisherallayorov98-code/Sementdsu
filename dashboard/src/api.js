@@ -88,4 +88,54 @@ export const api = {
     req('/api/notify_customer_payment', { method: 'POST', body: JSON.stringify({ customerName, amount, channel, totalDebt, isEdit }) }),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SUPERADMIN API (sayt egasi)
+//
+// Tokeni ALOHIDA kalitda saqlanadi (sa_token). Tashkilot tokeni bilan
+// aralashtirilmaydi: superadmin panelidan chiqish tashkilot seansiga ta'sir
+// qilmaydi va aksincha. 401 da sahifa qayta yuklanmaydi — panel o'zi
+// kirish oynasini ko'rsatadi.
+// ─────────────────────────────────────────────────────────────────────────────
+const SA_TOKEN_KEY = 'sa_token';
+const saGetToken = () => localStorage.getItem(SA_TOKEN_KEY);
+const saSetToken = (t) => { if (t) localStorage.setItem(SA_TOKEN_KEY, t); else localStorage.removeItem(SA_TOKEN_KEY); };
+
+async function saReq(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const token = saGetToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let body = null;
+  try { body = await res.json(); } catch { /* bo'sh javob */ }
+  if (!res.ok) {
+    const err = new Error(body?.error || `Xatolik (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+export const saApi = {
+  getToken: saGetToken,
+  setToken: saSetToken,
+  login: (name, password) =>
+    saReq('/api/sa/login', { method: 'POST', body: JSON.stringify({ name, password }) }),
+  me: () => saReq('/api/sa/me'),
+  listAccounts: () => saReq('/api/sa/accounts'),
+  createAccount: (account, adminName, password) =>
+    saReq('/api/sa/accounts', { method: 'POST', body: JSON.stringify({ account, adminName, password }) }),
+  setAccountPassword: (acc, workerName, password) =>
+    saReq(`/api/sa/accounts/${encodeURIComponent(acc)}/password`, { method: 'POST', body: JSON.stringify({ workerName, password }) }),
+  setStatus: (acc, disabled) =>
+    saReq(`/api/sa/accounts/${encodeURIComponent(acc)}/status`, { method: 'POST', body: JSON.stringify({ disabled }) }),
+  wipeAccount: (acc, resetKey, opts = {}) =>
+    saReq(`/api/sa/accounts/${encodeURIComponent(acc)}/wipe`, { method: 'POST', body: JSON.stringify({ resetKey, ...opts }) }),
+  deleteAccount: (acc, resetKey) =>
+    saReq(`/api/sa/accounts/${encodeURIComponent(acc)}/delete`, { method: 'POST', body: JSON.stringify({ resetKey }) }),
+  changePassword: (current, next) =>
+    saReq('/api/sa/password', { method: 'POST', body: JSON.stringify({ current, next }) }),
+  changeResetKey: (password, next) =>
+    saReq('/api/sa/reset-key', { method: 'POST', body: JSON.stringify({ password, next }) }),
+};
+
 export { API_URL };
