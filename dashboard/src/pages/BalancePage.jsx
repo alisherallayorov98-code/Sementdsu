@@ -194,6 +194,9 @@ export default function BalancePage({ lang, type, title, color }) {
       ? `${range.from || '…'} — ${range.to || '…'}`
       : selectedDate;
 
+  // Yozuvlar bir necha kundan bo'lganda sana ustuni ko'rsatiladi
+  const multiDate = showAll || rangeActive;
+
   const inp = { padding: '6px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
 
   return (
@@ -255,7 +258,7 @@ export default function BalancePage({ lang, type, title, color }) {
       {/* ── JADVAL ───────────────────────────────────────────────────────── */}
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div style={{ background: color, color: '#fff', padding: '10px 14px', fontWeight: 'bold', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <span>📋 {rangeActive ? `${periodLabel} oralig'idagi` : `${selectedDate} kunidagi`} barcha harakatlar ({dayTx.length} ta)</span>
+          <span>📋 {showAll ? 'Butun tarix —' : rangeActive ? `${periodLabel} oralig'idagi` : `${selectedDate} kunidagi`} barcha harakatlar ({dayTx.length} ta) · <span style={{ fontWeight: 'normal', opacity: 0.85 }}>har qatorni bosib manbasini oching</span></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span>Sof o'zgarish: {dayNet > 0 ? '+' : ''}{fmt(dayNet)} so'm</span>
             <ExcelExport
@@ -278,19 +281,22 @@ export default function BalancePage({ lang, type, title, color }) {
         
         {dayTx.length === 0 ? (
           <div style={{ padding: '30px', textAlign: 'center', color: '#888', fontStyle: 'italic' }}>
-            Bu sanada hech qanday operatsiya topilmadi.
+            {showAll ? 'Hech qanday operatsiya yo\'q.' : 'Bu sanada hech qanday operatsiya topilmadi.'}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#fafafa', borderBottom: '2px solid #eee' }}>
                 <th style={thS}>#</th>
-                {rangeActive && <th style={thS}>Sana</th>}
+                {/* Sana ustuni: butun tarix yoki oraliq rejimida — yozuvlar turli
+                    kunlardan bo'lgani uchun sanasiz "shunchaki raqamlar" ko'rinardi. */}
+                {multiDate && <th style={thS}>Sana</th>}
                 <th style={thS}>Vaqt</th>
                 <th style={thS}>Kategoriya</th>
                 <th style={thS}>Xodim</th>
                 <th style={thS}>Izoh / Mijoz</th>
                 <th style={{ ...thS, textAlign: 'right' }}>Summa</th>
+                <th style={{ ...thS, textAlign: 'center', width: 70 }}>Manba</th>
               </tr>
             </thead>
             <tbody>
@@ -305,7 +311,7 @@ export default function BalancePage({ lang, type, title, color }) {
                     <td style={{ ...tdS, color: '#888', textAlign: 'center', width: 30 }}>
                       <span style={{ fontSize: 10 }}>{isOpen ? '▼' : '▶'}</span> {i + 1}
                     </td>
-                    {rangeActive && <td style={{ ...tdS, width: 80, color: '#555' }}>{row.date}</td>}
+                    {multiDate && <td style={{ ...tdS, width: 80, color: '#555' }}>{row.date}</td>}
                     <td style={{ ...tdS, width: 60, fontWeight: 'bold', color: '#555' }}>{fmtT(row.createdAt)}</td>
                     <td style={{ ...tdS, width: 140, fontWeight: 'bold', color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>{row.cat}</td>
                     <td style={{ ...tdS, width: 120 }}>{row.worker || '—'}</td>
@@ -313,10 +319,15 @@ export default function BalancePage({ lang, type, title, color }) {
                     <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', fontSize: 14, color: row.sign > 0 ? '#2e7d32' : '#c62828' }}>
                       {row.sign > 0 ? '+' : '-'}{fmt(Math.abs(row.amount))}
                     </td>
+                    <td style={{ ...tdS, textAlign: 'center', width: 70 }}>
+                      <span style={{ fontSize: 11, color: '#1565c0', border: '1px solid #90caf9', borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap', background: isOpen ? '#bbdefb' : '#e3f2fd' }}>
+                        {isOpen ? '▲ yopish' : '🔍 ko\'rish'}
+                      </span>
+                    </td>
                   </tr>
                   {isOpen && (
                     <tr key={row.id + '_detail'} style={{ borderBottom: '1px solid #eee' }}>
-                      <td colSpan={rangeActive ? 7 : 6} style={{ padding: 0 }}>
+                      <td colSpan={multiDate ? 8 : 7} style={{ padding: 0 }}>
                         <SourceDetail row={row} data={data} />
                       </td>
                     </tr>
