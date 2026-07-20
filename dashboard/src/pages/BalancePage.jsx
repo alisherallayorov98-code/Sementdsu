@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
+import CustomerCard from '../components/CustomerCard';
 import { filterByRange, isEmptyRange } from '../lib/dateRange';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -46,47 +47,86 @@ const fromInputDate = (v) => {
 
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
-function SourceDetail({ row, data }) {
-  const { salesRows, debtRows, recvRows, advanceRows, incomeRows, expenseRows, bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows } = data;
+// Auto yozuvning izohidan mijoz nomini ajratib olish (zaxira usul).
+// Masalan "🔗 Qarz to'lovi: Ali" -> "Ali"
+const custFromDesc = (desc) => {
+  const s = typeof desc === 'object' ? (desc.latn || '') : String(desc || '');
+  const m = s.match(/:\s*(.+?)(?:\s*\(|\s*\||$)/);
+  return m ? m[1].trim() : '';
+};
+
+function SourceDetail({ row, data, navigate, onCustomer }) {
+  const { salesRows, debtRows, recvRows, advanceRows } = data;
+
+  const sid = row.sourceType === 'sale' || row.sourceType === 'recv' || row.sourceType === 'advance'
+    ? row.sourceId : row.sourceId;
+
+  let detail = null;    // ko'rsatiladigan matn
+  let nav = null;       // { path, label } — "o'sha bo'limga o'tish"
+  let customer = row.customer || '';   // mijoz kartochkasi uchun
 
   if (!row.auto) {
-    return (
-      <div style={{ padding: '8px 12px', background: '#fff8e1', fontSize: 12, color: '#555' }}>
-        ✏️ <b>Qo'lda kiritilgan yozuv</b> — avtomatik manba yo'q.
-        {row.desc && <span style={{ marginLeft: 8 }}>Izoh: <b>{typeof row.desc === 'object' ? row.desc.latn : row.desc}</b></span>}
-      </div>
-    );
-  }
-
-  const sid = row.sourceId;
-  let detail = null;
-
-  if (row.sourceType === 'sale') {
+    // Qo'lda kiritilgan yozuv. Asl "manba" — bu yozuvning o'zi, lekin mijoz
+    // biriktirilgan bo'lsa uning kartochkasiga o'tkazamiz (barcha savdo/qarz/
+    // to'lovlari bir joyda). Foydalanuvchi "asl kelib chiqish joyi" deb shuni
+    // nazarda tutgan.
+    detail = <>✏️ <b>Qo'lda kiritilgan yozuv</b>{row.desc ? <> — {typeof row.desc === 'object' ? row.desc.latn : row.desc}</> : ''}</>;
+  } else if (row.sourceType === 'sale') {
     const s = salesRows.find(r => r.id === sid);
+    customer = s?.customer || customer;
     if (s) detail = <>📦 <b>Sotuv:</b> {s.customer} — {fmtTons(s.tons)} tn × {fmt(s.pricePerTon)} = <b>{fmt(Number(s.tons)*Number(s.pricePerTon))} so'm</b> | Sana: {s.date} | To'lov: {s.paymentChannel} {s.note ? `| ${s.note}` : ''}</>;
+    nav = { path: '/sales', label: 'Sotuvlar bo\'limi' };
   } else if (row.sourceType === 'debt_payment') {
-    const d = debtRows.find(r => r.id === sid || (r.payments||[]).some(p => p.id === sid));
-    if (d) {
-      const p = (d.payments||[]).find(p => p.id === sid);
-      detail = <>💰 <b>Qarz to'lovi:</b> {d.customer} — Umumiy qarz: {fmt(d.amount)} so'm{p ? ` | To'lovi: ${fmt(p.amount)} so'm (${p.date})` : ''}</>;
-    }
+    // sourceId ikki xil formatda ("id_pTs" yoki "customer_pcBase") — ID bo'yicha
+    // topib bo'lmaydi. Shuning uchun mijoz nomi orqali ishlaymiz.
+    customer = customer || custFromDesc(row.desc);
+    const totalQarz = debtRows.filter(r => r.customer === customer)
+      .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+    detail = <>💰 <b>Qarz to'lovi:</b> {customer || '—'} — <b>{fmt(Math.abs(row.amount))} so'm</b> to'landi | Sana: {row.date} | Qolgan qarz: {fmt(totalQarz)} so'm</>;
+    nav = { path: '/debts', label: 'Qarzlar bo\'limi' };
   } else if (row.sourceType === 'recv') {
     const r = recvRows.find(r => r.id === sid);
     if (r) detail = <>🏭 <b>Sement olish:</b> {r.source} — {fmtTons(r.tons)} tn | Mashina: {r.vehicleNo||'—'} | Sana: {r.date}</>;
+    else detail = <>🏭 <b>Sement olish</b> — {typeof row.desc === 'object' ? row.desc.latn : (row.desc || '')}</>;
+    nav = { path: '/recv_tons', label: 'Olingan tonna' };
   } else if (row.sourceType === 'advance') {
     const a = advanceRows.find(r => r.id === sid);
-    if (a) detail = <>🅰️ <b>Avans:</b> {a.customer} — {fmt(a.amount)} so'm | Sana: {a.date}</>;
+    customer = a?.customer || customer || custFromDesc(row.desc);
+    detail = <>🅰️ <b>Avans:</b> {customer || '—'} — <b>{fmt(Math.abs(row.amount))} so'm</b> | Sana: {row.date}</>;
+    nav = { path: '/advances', label: 'Avanslar bo\'limi' };
   } else if (row.sourceType === 'salary') {
-    detail = <>👷 <b>Oylik to'lovi</b>{row.desc ? `: ${typeof row.desc === 'object' ? row.desc.latn : row.desc}` : ''}</>;
+    detail = <>👷 <b>Oylik to'lovi</b>{row.desc ? <>: {typeof row.desc === 'object' ? row.desc.latn : row.desc}</> : ''}</>;
+    nav = { path: '/worker_salary', label: 'Ishchilar oyligi' };
   } else if (row.sourceType === 'supplier_payment') {
-    detail = <>🏢 <b>Yetkazib beruvchiga to'lov</b>{row.desc ? `: ${typeof row.desc === 'object' ? row.desc.latn : row.desc}` : ''}</>;
+    detail = <>🏢 <b>Yetkazib beruvchiga to'lov</b>{row.desc ? <>: {typeof row.desc === 'object' ? row.desc.latn : row.desc}</> : ''}</>;
+    nav = { path: '/recv_tons', label: 'Olingan tonna' };
   } else if (row.sourceType === 'driver') {
-    detail = <>🚗 <b>Haydovchi to'lovi</b>{row.desc ? `: ${typeof row.desc === 'object' ? row.desc.latn : row.desc}` : ''}</>;
+    detail = <>🚗 <b>Haydovchi to'lovi</b>{row.desc ? <>: {typeof row.desc === 'object' ? row.desc.latn : row.desc}</> : ''}</>;
+    nav = { path: '/drivers', label: 'Haydovchilar' };
+  } else {
+    detail = <span style={{ color: '#888' }}>Bu yozuv qo'lda kiritilgan yoki manba turi noma'lum.</span>;
   }
 
+  const linkBtn = {
+    fontSize: 12, fontWeight: 'bold', border: 'none', borderRadius: 5,
+    padding: '5px 12px', cursor: 'pointer', color: '#fff',
+  };
+
   return (
-    <div style={{ padding: '8px 16px', background: '#e8f4fd', fontSize: 12, color: '#333', borderLeft: '4px solid #1565c0' }}>
-      {detail || <span style={{ color: '#888' }}>Manba yozuvi topilmadi (o'chirilgan bo'lishi mumkin). sourceType: {row.sourceType}</span>}
+    <div style={{ padding: '10px 16px', background: '#e8f4fd', fontSize: 12.5, color: '#333', borderLeft: '4px solid #1565c0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+      <span>{detail}</span>
+      <span style={{ display: 'flex', gap: 8 }}>
+        {customer && onCustomer && (
+          <button onClick={() => onCustomer(customer)} style={{ ...linkBtn, background: '#5e35b1' }}>
+            👤 {customer} kartochkasi
+          </button>
+        )}
+        {nav && navigate && (
+          <button onClick={() => navigate(nav.path)} style={{ ...linkBtn, background: '#1565c0' }}>
+            → {nav.label}
+          </button>
+        )}
+      </span>
     </div>
   );
 }
@@ -98,10 +138,12 @@ export default function BalancePage({ lang, type, title, color }) {
   // edi). Bosh sahifadagi tarkib oynasidan ?all=1 bilan kelinsa yoki tugma
   // bosilsa — barcha davr yozuvlari ro'yxati ko'rsatiladi.
   const [sp] = useSearchParams();
+  const navigate = useNavigate();
   const [showAll, setShowAll] = useState(sp.get('all') === '1');
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [range, setRange] = useState({ from: '', to: '' });
   const [expandedId, setExpandedId] = useState(null);
+  const [card, setCard] = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
   // Ma'lumotlarni turiga qarab ajratish
   let opening = { amount: 0, date: '' };
@@ -328,7 +370,7 @@ export default function BalancePage({ lang, type, title, color }) {
                   {isOpen && (
                     <tr key={row.id + '_detail'} style={{ borderBottom: '1px solid #eee' }}>
                       <td colSpan={multiDate ? 8 : 7} style={{ padding: 0 }}>
-                        <SourceDetail row={row} data={data} />
+                        <SourceDetail row={row} data={data} navigate={navigate} onCustomer={setCard} />
                       </td>
                     </tr>
                   )}
@@ -340,6 +382,7 @@ export default function BalancePage({ lang, type, title, color }) {
         )}
       </div>
 
+      {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
     </div>
   );
 }

@@ -523,7 +523,9 @@ export function DataProvider({ children }) {
     }));
     // ── INTEGRATSIYA: qarz to'lovi → tegishli kassaga kirim ─────────────────
     const tag  = `🔗 Qarz to'lovi: ${customer}`;
-    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${id}_p${ts}`, createdAt: ts, worker: currentWorker, date: today };
+    // customer maydonini linkga qo'shamiz — balans tarixida "manbaga o'tish"
+    // shu orqali mijoz kartochkasini topadi (ilgari yo'q edi, manba ko'rinmasdi).
+    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${id}_p${ts}`, createdAt: ts, worker: currentWorker, date: today, customer };
     if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
     else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
     else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
