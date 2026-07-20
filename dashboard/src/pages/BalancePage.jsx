@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -24,15 +25,23 @@ const todayStr = () => {
   return [String(d.getDate()).padStart(2, '0'), String(d.getMonth() + 1).padStart(2, '0'), d.getFullYear()].join('.');
 };
 
+// "kk.oo.yyyy" -> "yyyy-oo-kk". MUHIM: har bir qismga nol qo'shamiz.
+// Ilgari "5.7.2026" kabi nolsiz sana "2026-7-5" bo'lib qolardi va
+// <input type="date"> uni tanimay BO'SH ko'rsatardi — natijada eski davrga
+// o'tib bo'lmasdi. Endi "2026-07-05" chiqadi.
+const pad2 = (x) => String(x).padStart(2, '0');
 const toInputDate = (s) => {
-  if (!s || s.length < 8) return '';
-  const [d, m, y] = s.split('.');
-  return `${y}-${m}-${d}`;
+  if (!s) return '';
+  const parts = String(s).split('.');
+  if (parts.length !== 3) return '';
+  const [d, m, y] = parts;
+  if (!d || !m || !y) return '';
+  return `${y}-${pad2(m)}-${pad2(d)}`;
 };
 const fromInputDate = (v) => {
   if (!v) return '';
   const [y, m, d] = v.split('-');
-  return `${d}.${m}.${y}`;
+  return `${pad2(d)}.${pad2(m)}.${y}`;
 };
 
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -84,6 +93,12 @@ function SourceDetail({ row, data }) {
 
 export default function BalancePage({ lang, type, title, color }) {
   const data = useData();
+  // "Butun tarix" rejimi. Standart holatda sahifa faqat BITTA kunni ko'rsatadi —
+  // shuning uchun "Naqd kassa"dagi eski pulni topib bo'lmasdi (u boshqa kunlarda
+  // edi). Bosh sahifadagi tarkib oynasidan ?all=1 bilan kelinsa yoki tugma
+  // bosilsa — barcha davr yozuvlari ro'yxati ko'rsatiladi.
+  const [sp] = useSearchParams();
+  const [showAll, setShowAll] = useState(sp.get('all') === '1');
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [range, setRange] = useState({ from: '', to: '' });
   const [expandedId, setExpandedId] = useState(null);
@@ -158,19 +173,26 @@ export default function BalancePage({ lang, type, title, color }) {
     .filter(t => parseDate(t.date) <= endTs)
     .reduce((s, t) => s + (Number(t.amount) * t.sign), 0);
 
-  // Ko'rsatiladigan harakatlar: oraliq faol bo'lsa — oraliqdagi barchasi,
-  // aks holda tanlangan kundagilar.
-  const dayTx = (rangeActive
-    ? filterByRange(allTx, range)
-    : allTx.filter(t => t.date === selectedDate)
+  // Ko'rsatiladigan harakatlar:
+  //   "Butun tarix" yoqilgan bo'lsa — HAMMASI (eng muhim rejim: kartochkadagi
+  //     raqamni tashkil qilgan barcha yozuvni shu yerda topish mumkin);
+  //   oraliq faol bo'lsa — oraliqdagilar;
+  //   aks holda — tanlangan bitta kun.
+  const dayTx = (showAll
+    ? allTx.slice()
+    : rangeActive
+      ? filterByRange(allTx, range)
+      : allTx.filter(t => t.date === selectedDate)
   ).slice().sort((a, b) => (parseDate(b.date) - parseDate(a.date)) || (b.createdAt - a.createdAt));
   const dayIn = dayTx.filter(t => t.sign > 0).reduce((s, t) => s + Number(t.amount), 0);
   const dayOut = dayTx.filter(t => t.sign < 0).reduce((s, t) => s + Number(t.amount), 0);
   const dayNet = dayIn - dayOut;
 
-  const periodLabel = rangeActive
-    ? `${range.from || '…'} — ${range.to || '…'}`
-    : selectedDate;
+  const periodLabel = showAll
+    ? 'Butun tarix (barcha yozuvlar)'
+    : rangeActive
+      ? `${range.from || '…'} — ${range.to || '…'}`
+      : selectedDate;
 
   const inp = { padding: '6px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
 
@@ -184,12 +206,18 @@ export default function BalancePage({ lang, type, title, color }) {
             📅 Qaysi sanadagi harakatlarni ko'rmoqchisiz?
           </label>
           <div style={{ display: 'flex', gap: 6 }}>
-            <input type="date" value={toInputDate(selectedDate)} onChange={e => setSelectedDate(fromInputDate(e.target.value))} style={{ ...inp, border: `2px solid ${color}` }} />
-            <button onClick={() => setSelectedDate(todayStr())} style={{ ...inp, cursor: 'pointer', background: selectedDate === todayStr() ? color : '#f5f5f5', color: selectedDate === todayStr() ? '#fff' : '#333', fontWeight: 'bold', border: `1px solid ${color}` }}>
+            <input type="date" value={toInputDate(selectedDate)} disabled={showAll} onChange={e => { setShowAll(false); setSelectedDate(fromInputDate(e.target.value)); }} style={{ ...inp, border: `2px solid ${color}`, opacity: showAll ? 0.5 : 1 }} />
+            <button onClick={() => { setShowAll(false); setSelectedDate(todayStr()); }} style={{ ...inp, cursor: 'pointer', background: (!showAll && selectedDate === todayStr()) ? color : '#f5f5f5', color: (!showAll && selectedDate === todayStr()) ? '#fff' : '#333', fontWeight: 'bold', border: `1px solid ${color}` }}>
               Bugun
             </button>
-            <button onClick={() => { const d = new Date(); d.setDate(d.getDate()-1); setSelectedDate([String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.')); }} style={{ ...inp, cursor: 'pointer', background: '#f5f5f5', border: '1px solid #ccc' }}>
+            <button onClick={() => { setShowAll(false); const d = new Date(); d.setDate(d.getDate()-1); setSelectedDate([String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.')); }} style={{ ...inp, cursor: 'pointer', background: '#f5f5f5', border: '1px solid #ccc' }}>
               Kecha
+            </button>
+            {/* Eng muhim tugma: barcha davr yozuvlarini bitta ro'yxatda ko'rish.
+                "Naqd/Bank qoldig'idagi eski pulni topib bo'lmayapti" muammosining
+                asosiy yechimi shu. */}
+            <button onClick={() => setShowAll(v => !v)} style={{ ...inp, cursor: 'pointer', background: showAll ? color : '#fff', color: showAll ? '#fff' : color, fontWeight: 'bold', border: `2px solid ${color}` }}>
+              📜 Butun tarix
             </button>
           </div>
         </div>
