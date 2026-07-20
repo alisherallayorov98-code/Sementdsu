@@ -27,4 +27,25 @@ function authorize(...roles) {
   };
 }
 
-module.exports = { authenticate, authorize };
+// ─────────────────────────────────────────────────────────────────────────────
+// Superadmin (sayt egasi) uchun. Oddiy tashkilot tokeni bu yerdan O'TMAYDI:
+// token ichida `sa: true` da'vosi bo'lishi shart. Ya'ni tashkilot admini
+// o'z tokeni bilan superadmin endpointlariga kira olmaydi.
+// ─────────────────────────────────────────────────────────────────────────────
+function requireSuperadmin(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  if (!token) return res.status(401).json({ ok: false, error: 'Avtorizatsiya talab qilinadi' });
+  try {
+    const payload = verify(token);
+    if (payload.sa !== true) {
+      return res.status(403).json({ ok: false, error: 'Bu bo\'limga faqat superadmin kira oladi' });
+    }
+    req.sa = payload;
+    next();
+  } catch {
+    return res.status(401).json({ ok: false, error: 'Token yaroqsiz yoki muddati tugagan' });
+  }
+}
+
+module.exports = { authenticate, authorize, requireSuperadmin };

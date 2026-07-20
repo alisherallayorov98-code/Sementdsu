@@ -128,6 +128,39 @@ function persist(acc) {
 module.exports = {
   getState(acc)        { return load(acc).state || {}; },
   getUpdatedAt(acc)    { return load(acc).updatedAt || 0; },
+
+  // ── Superadmin uchun akkaunt (tashkilot) boshqaruvi ──────────────────────
+  listAccounts() {
+    try {
+      return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name)
+        .filter(name => fs.existsSync(path.join(ACCOUNTS_DIR, name, 'db.json')));
+    } catch { return []; }
+  },
+  accountExists(acc) { return fs.existsSync(dbFile(acc)); },
+
+  // Tashkilotni butunlay o'chirish. Zaxira nusxasi saqlanib qoladi:
+  // papka o'chirilmaydi, balki nomi o'zgartiriladi (xato bo'lsa tiklash uchun).
+  archiveAccount(acc) {
+    const src = accDir(acc);
+    if (!fs.existsSync(src)) return null;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const dst = path.join(ACCOUNTS_DIR, `_ochirilgan-${sanitize(acc)}-${stamp}`);
+    fs.renameSync(src, dst);
+    delete cache[sanitize(acc)];
+    return dst;
+  },
+
+  // Tozalashdan oldin majburiy zaxira (soatlik cheklovga bo'ysunmaydi)
+  forceBackup(acc, tag = 'QOLDA') {
+    const db = load(acc);
+    ensure(backupDir(acc));
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const file  = path.join(backupDir(acc), `db-${tag}-${stamp}.json`);
+    fs.writeFileSync(file, JSON.stringify(db, null, 2), 'utf8');
+    return file;
+  },
   setState(acc, state) {
     const db = load(acc);
     db.state = state && typeof state === 'object' && !Array.isArray(state) ? state : {};

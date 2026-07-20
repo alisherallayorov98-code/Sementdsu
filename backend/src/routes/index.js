@@ -1,6 +1,6 @@
 // Barcha API yo'llarini yig'uvchi router
 const express = require('express');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, requireSuperadmin } = require('../middleware/auth');
 const { loginLimiter }   = require('../middleware/security');
 const auth      = require('../controllers/auth.controller');
 const state     = require('../controllers/state.controller');
@@ -8,6 +8,7 @@ const botOrders = require('../controllers/botOrders.controller');
 const auditCtrl = require('../controllers/audit.controller');
 const notify    = require('../controllers/notify.controller');
 const system    = require('../controllers/system.controller');
+const superadmin = require('../controllers/superadmin.controller');
 const debtReminder = require('../services/debtReminder.service');
 const db        = require('../db');
 const { DEFAULT_ACCOUNT } = require('../config');
@@ -18,6 +19,21 @@ const router = express.Router();
 router.post('/auth/login', loginLimiter, auth.login);
 router.post('/auth/signup', loginLimiter, auth.signup);
 router.get('/auth/me', authenticate, auth.me);
+
+// ── SUPERADMIN (sayt egasi) ───────────────────────────────────────────────
+// Tashkilotlarni ochish, parol berish, to'xtatish va tozalash.
+// Tashkilot admini bu bo'limga KIRA OLMAYDI — token ichida sa:true kerak.
+// Ma'lumot o'chiradigan amallar qo'shimcha "o'chirish kaliti" talab qiladi.
+router.post('/sa/login', loginLimiter, superadmin.login);
+router.get ('/sa/me',                          requireSuperadmin, superadmin.me);
+router.get ('/sa/accounts',                    requireSuperadmin, superadmin.listAccounts);
+router.post('/sa/accounts',                    requireSuperadmin, superadmin.createAccount);
+router.post('/sa/accounts/:acc/password',      requireSuperadmin, superadmin.setAccountPassword);
+router.post('/sa/accounts/:acc/status',        requireSuperadmin, superadmin.setStatus);
+router.post('/sa/accounts/:acc/wipe',          requireSuperadmin, superadmin.wipeAccount);
+router.post('/sa/accounts/:acc/delete',        requireSuperadmin, superadmin.deleteAccount);
+router.post('/sa/password',                    requireSuperadmin, superadmin.changePassword);
+router.post('/sa/reset-key',                   requireSuperadmin, superadmin.changeResetKey);
 
 // ── Holat (himoyalangan) ──────────────────────────────────────────────────
 router.get('/state', authenticate, state.get);

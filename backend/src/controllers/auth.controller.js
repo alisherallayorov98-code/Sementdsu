@@ -21,32 +21,28 @@ exports.login = async (req, res) => {
   // Ko'p-akkauntli (SaaS): account body'dan; bo'sh bo'lsa — standart (lokal/LAN)
   const account = sanitizeAccount(req.body.account) || DEFAULT_ACCOUNT;
   const user = await authenticate(account, name, password);
+  if (user?.disabled) {
+    return res.status(403).json({
+      ok: false,
+      error: "Tashkilot vaqtincha to'xtatilgan. Xizmat ko'rsatuvchi bilan bog'laning.",
+    });
+  }
   if (!user) return res.status(401).json({ ok: false, error: "Ism yoki parol noto'g'ri" });
 
   const token = sign({ sub: user.id, name: user.name, role: user.role, account });
   res.json({ ok: true, token, user });
 };
 
-// POST /api/auth/signup  { account, name, password }  — yangi tashkilot ochish.
-// Faqat akkaunt hali bo'sh bo'lsa (xodimlar yo'q) ishlaydi; birinchi foydalanuvchi admin.
+// POST /api/auth/signup — YOPILGAN.
+//
+// Ilgari bu endpoint butunlay ochiq edi: internetdagi istalgan odam cheksiz
+// tashkilot ochib, serverni to'ldirib tashlashi mumkin edi. SaaS modelida
+// tashkilotni faqat sayt egasi (superadmin) ochadi va login/parolni o'zi beradi.
 exports.signup = async (req, res) => {
-  const { name, password } = req.body || {};
-  // Bitta korxona rejimi: tashkilot kiritilmasa — standart (DEFAULT_ACCOUNT)
-  const account = sanitizeAccount(req.body.account) || DEFAULT_ACCOUNT;
-  if (!name || !password)    return res.status(400).json({ ok: false, error: 'Ism va parol kiritilishi shart' });
-  if (String(password).length < 4) return res.status(400).json({ ok: false, error: 'Parol kamida 4 belgi bo\'lsin' });
-
-  const state = db.getState(account);
-  if (Array.isArray(state.workers) && state.workers.length > 0) {
-    return res.status(409).json({ ok: false, error: 'Bu tashkilot allaqachon mavjud. Kirishdan foydalaning.' });
-  }
-
-  // authenticate bo'sh akkauntda birinchi foydalanuvchini admin qilib yaratadi (bootstrap)
-  const user = await authenticate(account, name, password);
-  if (!user) return res.status(500).json({ ok: false, error: 'Tashkilot yaratilmadi' });
-
-  const token = sign({ sub: user.id, name: user.name, role: user.role, account });
-  res.json({ ok: true, token, user });
+  res.status(403).json({
+    ok: false,
+    error: "O'zini-o'zi ro'yxatdan o'tkazish yopiq. Tashkilot ochish uchun xizmat ko'rsatuvchiga murojaat qiling.",
+  });
 };
 
 // GET /api/auth/me  (himoyalangan)

@@ -2,7 +2,7 @@
 // Autentifikatsiya xizmati (bcrypt bilan).
 // - Yangi va yangilangan parollar bcrypt hash sifatida saqlanadi ($2b$...)
 // - Eski ochiq parollar birinchi muvaffaqiyatli logindan keyin avtomatik hash'lanadi
-// - Bootstrap: birinchi foydalanuvchi avtomatik admin bo'ladi
+// - Tashkilotni FAQAT superadmin ochadi (bootstrap olib tashlangan)
 // ─────────────────────────────────────────────────────────────────────────────
 const bcrypt = require('bcryptjs');
 const db = require('../db');
@@ -17,18 +17,17 @@ async function authenticate(account, name, password) {
   const state   = db.getState(account);
   const workers = Array.isArray(state.workers) ? state.workers : [];
 
-  // Bootstrap: birinchi foydalanuvchi admin bo'ladi
-  if (workers.length === 0) {
-    const ts   = Date.now();
-    const hash = await bcrypt.hash(String(password), SALT_ROUNDS);
-    const admin = {
-      id: ts, createdAt: ts, name: String(name), password: hash,
-      role: 'admin', salary: 0, paid: 0, position: 'Boshqaruvchi', phone: '', note: '',
-    };
-    state.workers = [admin];
-    db.setState(account, state);
-    return { id: admin.id, name: admin.name, role: 'admin' };
-  }
+  // ── XAVFSIZLIK: "birinchi kirgan admin bo'ladi" qoidasi OLIB TASHLANDI ──
+  // Ilgari xodimlar bo'sh bo'lsa, kirishga urinayotgan ISTALGAN odam o'zi
+  // yozgan ism/parol bilan admin bo'lib olardi. SaaS'da bu ikki tomonlama xavf:
+  //   1) mavjud bo'lmagan tashkilot nomini topgan odam uni egallab olardi;
+  //   2) baza tozalangandan keyin sayt egasiz qolib, birinchi kirgan odamniki
+  //      bo'lib ketardi.
+  // Endi tashkilotni FAQAT superadmin ochadi va login/parolni o'zi beradi.
+  if (workers.length === 0) return null;
+
+  // To'xtatilgan tashkilot (masalan to'lov qilinmagan) — kirish yopiq
+  if (state.__disabled) return { disabled: true };
 
   const w = workers.find(x => String(x.name).toLowerCase() === String(name).toLowerCase());
   if (!w) return null;
