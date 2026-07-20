@@ -18,6 +18,7 @@ import UmumiyMalumot from './pages/UmumiyMalumot';
 import Income        from './pages/Income';
 import Expense       from './pages/Expense';
 import SoldTons      from './pages/SoldTons';
+import Sales         from './pages/Sales';
 import RecvTons      from './pages/RecvTons';
 import Debts         from './pages/Debts';
 import Advances      from './pages/Advances';
@@ -37,6 +38,7 @@ const FULL_MENU = [
   { path: '/',               latn: "🏠 Bosh sahifa",        cyrl: "🏠 Бош саҳифа",        roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/gen_info',       latn: "📊 Umumiy ma'lumot",     cyrl: "📊 Умумий маълумот",    roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",        roles: ['admin', 'omborchi'] },
+  { path: '/sales',          latn: "🛒 Sotuvlar",            cyrl: "🛒 Сотувлар",           roles: ['admin', 'sotuvchi'] },
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
   { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
   { path: '/tiketlar',       latn: "🎫 Tiketlar",             cyrl: "🎫 Тикетлар",            roles: ['admin', 'sotuvchi'] },
@@ -141,6 +143,10 @@ function App() {
               <Route path="/income"         element={<Income         lang={lang} />} />
               <Route path="/expense"        element={<Expense        lang={lang} />} />
               <Route path="/sold_tons"      element={<SoldTons       lang={lang} />} />
+              {/* Sotuvlar ro'yxati. Sahifa yozilgan edi, lekin marshruti ham,
+                  menyusi ham yo'q edi — ya'ni taqsimlash orqali yaratilgan
+                  sotuvlarni ko'radigan joy umuman mavjud emasdi. */}
+              <Route path="/sales"          element={<Sales          lang={lang} />} />
               <Route path="/recv_tons"      element={<RecvTons       lang={lang} />} />
               <Route path="/debts"          element={<Debts          lang={lang} />} />
               <Route path="/advances"       element={<Advances       lang={lang} />} />

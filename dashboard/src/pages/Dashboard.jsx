@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import CustomerCard from '../components/CustomerCard';
+import BalanceBreakdown from '../components/BalanceBreakdown';
 import { customerSummary } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
 
@@ -32,6 +33,8 @@ export default function Dashboard() {
   const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
 
   const [card, setCard] = useState(null);
+  // Qaysi balansning tarkibi ochilgan ('naqd' | 'bank' | 'click' | 'cement' | 'debt')
+  const [break_, setBreak_] = useState(null);
 
   // ── Mijoz nazorati: "jim qolgan" nazoratdagi mijozlar ────────────────────
   const globalDays = Number(appSettings?.monitorDays) || 14;
@@ -84,11 +87,15 @@ export default function Dashboard() {
 
       {/* Asosiy qoldiqlar */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" onClick={() => navigate('/gen_info?tab=cash')} />
-        <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" onClick={() => navigate('/gen_info?tab=bank')} />
-        <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" onClick={() => navigate('/gen_info?tab=click')} />
-        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  onClick={() => navigate('/gen_info?tab=cement')} />
-        <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" onClick={() => navigate('/debts')} />
+        {/* Raqam bosilsa — u QAYERDAN kelgani ochiladi (tarkibiy qismlar +
+            har biriga o'tish tugmasi). Ilgari to'g'ridan-to'g'ri sahifaga
+            o'tardi, lekin u yerda ham faqat yakuniy raqam turardi va
+            boshlang'ich qoldiq kabi yashirin qismlar umuman ko'rinmasdi. */}
+        <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" onClick={() => setBreak_('naqd')} />
+        <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" onClick={() => setBreak_('bank')} />
+        <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" onClick={() => setBreak_('click')} />
+        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  onClick={() => setBreak_('cement')} />
+        <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" onClick={() => setBreak_('debt')} />
         <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
       </div>
 
@@ -296,6 +303,7 @@ export default function Dashboard() {
       </div>
 
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
+      {break_ && <BalanceBreakdown type={break_} onClose={() => setBreak_(null)} />}
     </div>
   );
 }

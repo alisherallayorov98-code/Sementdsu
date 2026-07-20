@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
@@ -530,7 +531,15 @@ export default function Settings({ lang }) {
     cementTypes, addCementType, removeCementType,
     driverTariffs, addDriverTariff, removeDriverTariff, renameDriverTariff, addPriceToTariff, removePriceFromTariff,
   } = useData();
-  const [tab, setTab] = useState('workers');
+  // Boshqa sahifadan ?tab=... bilan kelinganda o'sha bo'limni ochamiz.
+  // (Masalan bosh sahifadagi "Raqam qayerdan?" oynasidan "Sozlash →" bosilsa
+  // to'g'ridan-to'g'ri boshlang'ich qoldiqlar bo'limi ochilishi kerak.)
+  const [sp] = useSearchParams();
+  const [tab, setTab] = useState(() => sp.get('tab') || 'workers');
+  useEffect(() => {
+    const t = sp.get('tab');
+    if (t) setTab(t);
+  }, [sp]);
   const [newWh, setNewWh] = useState('');
 
   // ── Excel import: Mijozlar ────────────────────────────────────────────────
@@ -670,7 +679,21 @@ export default function Settings({ lang }) {
         >
           Zayavka Bot
         </button>
+        <button
+          onClick={() => setTab('opening')}
+          style={{ padding: '10px 20px', background: tab === 'opening' ? appSettings.themeColor : 'transparent', color: tab === 'opening' ? '#fff' : '#555', border: 'none', borderRadius: '4px 4px 0 0', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          ⚖️ Boshlang'ich qoldiq
+        </button>
       </div>
+
+      {/* ── BOSHLANG'ICH QOLDIQLAR ─────────────────────────────────────────
+          Bu qiymatlar hech qanday yozuvga bog'lanmagan: bir marta kiritiladi
+          va keyin HAR BIR jamiga qo'shilib yuraveradi. Ilgari ularni ko'rish
+          ham, tuzatish ham mumkin emas edi (setterlar eksport qilingan-u,
+          hech qaysi sahifa ishlatmasdi) — natijada yozuvlar o'chirilsa ham
+          "qayerdan kelgani noma'lum" raqam qolib ketardi. */}
+      {tab === 'opening' && <OpeningBalances />}
 
       {/* EXCEL IMPORT TABI */}
       {tab === 'import' && (
@@ -1041,5 +1064,127 @@ export default function Settings({ lang }) {
       )}
 
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BOSHLANG'ICH QOLDIQLAR
+//
+// Dastur ishga tushirilgan paytdagi mavjud pul va sement miqdori. Bular
+// hech qanday yozuvga bog'lanmagan — ya'ni savdo/kassa qatorlarini butunlay
+// o'chirib tashlansa ham, shu qiymatlar jamida qolaveradi.
+//
+// Aynan shu sabab "raqam qayerdan kelgani noaniq" holati kelib chiqardi:
+// qiymat bor edi, lekin uni ko'rsatadigan va tuzatadigan joy YO'Q edi.
+// ═══════════════════════════════════════════════════════════════════════════
+function OpeningBalances() {
+  const {
+    cashOpening,   setCashOpening,
+    bankOpening,   setBankOpening,
+    clickOpening,  setClickOpening,
+    cementOpening, setCementOpening,
+  } = useData();
+
+  const [saved, setSaved] = useState('');
+  const flash = (m) => { setSaved(m); setTimeout(() => setSaved(''), 2500); };
+
+  const ROWS = [
+    { key: 'cash',   label: '💵 Naqd pul',  cur: cashOpening,   set: setCashOpening,   field: 'amount', unit: "so'm" },
+    { key: 'bank',   label: '🏦 Bank',      cur: bankOpening,   set: setBankOpening,   field: 'amount', unit: "so'm" },
+    { key: 'click',  label: '📱 Click',     cur: clickOpening,  set: setClickOpening,  field: 'amount', unit: "so'm" },
+    { key: 'cement', label: '📦 Sement',    cur: cementOpening, set: setCementOpening, field: 'tons',   unit: 'tn'   },
+  ];
+
+  const inp = { padding: '7px 10px', fontSize: 13, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' };
+  const fmtN = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <div style={{ background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: 6, padding: 14, marginBottom: 18, fontSize: 13, lineHeight: 1.7, color: '#e65100' }}>
+        <b>Bu nima?</b><br />
+        Dasturdan foydalanishni boshlagan paytda qo'lingizda bo'lgan pul va sement miqdori.
+        Bu qiymatlar <b>hech qanday yozuvga bog'lanmagan</b> — savdo va kassa qatorlarini
+        o'chirsangiz ham ular jamida qolaveradi.
+        <br /><br />
+        Shuning uchun: bosh sahifadagi raqam siz kutganidan katta bo'lsa,{' '}
+        <b>birinchi navbatda shu yerni tekshiring.</b> Noldan boshlamoqchi bo'lsangiz —
+        hammasini 0 qilib qo'ying.
+      </div>
+
+      {saved && (
+        <div style={{ background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7', borderRadius: 6, padding: '9px 12px', marginBottom: 14, fontSize: 13 }}>
+          ✅ {saved}
+        </div>
+      )}
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: '#f5f7fa' }}>
+            <th style={{ padding: '9px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>Bo'lim</th>
+            <th style={{ padding: '9px 10px', textAlign: 'right', borderBottom: '2px solid #e0e0e0', width: 170 }}>Boshlang'ich qiymat</th>
+            <th style={{ padding: '9px 10px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', width: 150 }}>Sana (holatiga)</th>
+            <th style={{ padding: '9px 10px', borderBottom: '2px solid #e0e0e0', width: 90 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {ROWS.map(r => (
+            <OpeningRow key={r.key} row={r} inp={inp} fmtN={fmtN} onSaved={flash} />
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 18, padding: 12, background: '#f5f7fa', borderRadius: 6, fontSize: 12, color: '#666', lineHeight: 1.7 }}>
+        <b>Eslatma:</b> bu qiymat o'zgartirilsa, tegishli bo'limning umumiy qoldig'i
+        darhol o'zgaradi. Har bir raqamning to'liq tarkibini bosh sahifadagi
+        kartochkani bosib ko'rishingiz mumkin.
+      </div>
+    </div>
+  );
+}
+
+function OpeningRow({ row, inp, fmtN, onSaved }) {
+  const { label, cur, set, field, unit } = row;
+  const [val, setVal]   = useState(String(cur?.[field] ?? 0));
+  const [date, setDate] = useState(cur?.date || '');
+  const current = Number(cur?.[field] || 0);
+  const dirty = Number(val || 0) !== current || (date || '') !== (cur?.date || '');
+
+  const save = () => {
+    const n = Number(val);
+    if (!isFinite(n)) { alert("Son noto'g'ri kiritilgan."); return; }
+    if (n < 0 && !window.confirm('Manfiy qiymat kiritilmoqda. Davom etamizmi?')) return;
+    set({ ...cur, [field]: n, date });
+    onSaved(`${label} boshlang'ich qoldig'i saqlandi`);
+  };
+
+  return (
+    <tr style={{ borderBottom: '1px solid #eee' }}>
+      <td style={{ padding: '11px 10px', fontWeight: 'bold' }}>
+        {label}
+        {current !== 0 && (
+          <div style={{ fontSize: 11, color: '#e65100', fontWeight: 'normal', marginTop: 3 }}>
+            Hozir jamiga {fmtN(current)} {unit} qo'shmoqda
+          </div>
+        )}
+      </td>
+      <td style={{ padding: '11px 10px', textAlign: 'right' }}>
+        <input type="number" value={val} onChange={e => setVal(e.target.value)}
+          style={{ ...inp, width: 150, textAlign: 'right', fontFamily: 'monospace' }} />
+      </td>
+      <td style={{ padding: '11px 10px' }}>
+        <input value={date} onChange={e => setDate(e.target.value)} placeholder="kk.oo.yyyy"
+          style={{ ...inp, width: 130 }} />
+      </td>
+      <td style={{ padding: '11px 10px', textAlign: 'right' }}>
+        <button onClick={save} disabled={!dirty}
+          style={{
+            padding: '6px 14px', border: 'none', borderRadius: 4, fontWeight: 'bold',
+            background: dirty ? '#2e7d32' : '#e0e0e0', color: dirty ? '#fff' : '#999',
+            cursor: dirty ? 'pointer' : 'default', fontSize: 12,
+          }}>
+          Saqlash
+        </button>
+      </td>
+    </tr>
   );
 }
