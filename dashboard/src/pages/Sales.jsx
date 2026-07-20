@@ -71,6 +71,9 @@ export default function Sales({ lang }) {
     }
 
     const created = addSaleRow({ ...form, date: isoToLocal(form.date), warehouseId: activeWh, worker: currentWorker });
+    // Sotuv rad etilgan bo'lsa (manfiy/noto'g'ri qiymat) — formani tozalamaymiz,
+    // aks holda kiritilgan ma'lumot sababsiz yo'qolib, xato bilinmay qolardi.
+    if (!created) return;
     setForm({ customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd', note: '', warehouseId: form.warehouseId, date: todayISO() });
     if (created) {
       const s = customerSummary(created.customer, data);

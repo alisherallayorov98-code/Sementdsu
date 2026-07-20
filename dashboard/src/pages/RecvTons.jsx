@@ -122,7 +122,7 @@ export default function RecvTons({ lang }) {
     if (!form.source) { alert('Zavod / Manba nomini kiriting!'); return; }
     if (!form.tons)   { alert('Tonna kiritilmagan!'); return; }
     addSupplier({ name: form.source }); // yangi manbaani bazaga saqlab qo'yamiz
-    addRecvRow({
+    const created = addRecvRow({
       source: form.source, brand: form.brand,
       vehicleNo: form.vehicleNo, tons: form.tons,
       pricePerTon: form.pricePerTon || 0,
@@ -132,42 +132,82 @@ export default function RecvTons({ lang }) {
       warehouseId: form.warehouseId || myWh,
       cementType: form.cementType || '',
     });
+    if (!created) return; // rad etilsa forma tozalanmaydi
     setForm({ source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
               paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'', cementType:'' });
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
+  // Excel katakchasidagi sonni ishonchli o'qish.
+  // Number("12,5") = NaN — mahalliy (rus) Excel'da kasr VERGUL bilan yoziladi,
+  // minglar esa probel bilan ajratiladi. Ilgari bunday qatorlar `if (!tons)`
+  // sharti bilan JIMGINA tashlab ketilardi: 100 qator yuklab 60 tasi kelardi.
+  const xlNum = (v) => {
+    if (typeof v === 'number') return isFinite(v) ? v : NaN;
+    const s = String(v ?? '').trim()
+      .replace(/\s| /g, '')   // probel va uzilmas probel
+      .replace(',', '.');           // vergulli kasr
+    if (!s) return NaN;
+    const n = Number(s);
+    return isFinite(n) ? n : NaN;
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
+    reader.onerror = () => alert("Faylni o'qib bo'lmadi.");
     reader.onload = (ev) => {
-      const wb   = XLSX.read(ev.target.result, { type: 'binary', cellDates: true });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      let data;
+      try {
+        const wb   = XLSX.read(ev.target.result, { type: 'binary', cellDates: true });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        if (!ws) { alert("Faylda varaq topilmadi."); return; }
+        data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      } catch (err) {
+        // Ilgari xato ushlanmasdi — buzuq fayl yuklansa hech qanday javob
+        // bo'lmay, foydalanuvchi nima bo'lganini bilmay qolardi.
+        alert(`Excel faylni o'qishda xato:\n${err?.message || err}`);
+        return;
+      }
 
       // 1-qator sarlavha, 2-qatordan boshlab ma'lumot.
-      // Ustunlar (ortiqcha bo'sh ustun olib tashlangan yangi shablon):
       // A=imya(0) B=marka(1) C=avto(2) D=hajm(3) E=narx(4) F=summa(5) G=vaqt(6) H=karta(7)
       const rows = [];
+      const skipped = [];
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        const tons = Number(row[3]);          // D ustun (hajm)
-        const price = Number(row[4]);         // E ustun (narx)
-        if (!tons) continue;                  // bo'sh qatorni o'tkazib yuborish
+        if (!row || row.every(c => String(c ?? '').trim() === '')) continue; // butunlay bo'sh qator
+        const tons  = xlNum(row[3]);          // D ustun (hajm)
+        const price = xlNum(row[4]);          // E ustun (narx)
+        if (!isFinite(tons) || tons <= 0) {
+          skipped.push(`${i + 1}-qator: hajm "${row[3]}" o'qilmadi`);
+          continue;
+        }
+        const p = isFinite(price) && price > 0 ? price : 0;
+        const summa = xlNum(row[5]);
         rows.push({
           source:     String(row[0] || '').trim(),
           brand:      String(row[1] || '').trim(),
           vehicleNo:  String(row[2] || '').trim(),
           tons,
-          pricePerTon: price || 0,
-          summa:      Number(row[5]) || (tons * price),
+          pricePerTon: p,
+          summa:      isFinite(summa) && summa > 0 ? summa : tons * p,
           factoryTime: row[6] ? String(row[6]).trim() : '',
           cardName:   String(row[7] || '').trim(),
           paymentChannel: 'naqd',
           izoh: '',
         });
       }
+      // Tashlab ketilgan qatorlar haqida XABAR BERAMIZ (ilgari sukut saqlanardi)
+      if (skipped.length) {
+        alert(
+          `${rows.length} qator o'qildi, ${skipped.length} qator tashlab ketildi:\n\n` +
+          skipped.slice(0, 10).join('\n') +
+          (skipped.length > 10 ? `\n...yana ${skipped.length - 10} ta` : '')
+        );
+      }
+      if (!rows.length && !skipped.length) alert("Faylda ma'lumot topilmadi.");
       setImportRows(rows);
       e.target.value = '';
     };

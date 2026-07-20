@@ -127,6 +127,7 @@ function persist(acc) {
 
 module.exports = {
   getState(acc)        { return load(acc).state || {}; },
+  getUpdatedAt(acc)    { return load(acc).updatedAt || 0; },
   setState(acc, state) {
     const db = load(acc);
     db.state = state && typeof state === 'object' && !Array.isArray(state) ? state : {};

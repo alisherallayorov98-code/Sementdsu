@@ -17,20 +17,77 @@ function stripPasswords(state) {
   return { ...state, workers: state.workers.map(({ password, ...w }) => w) };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BIR VAQTDA ISHLASH HIMOYASI
+//
+// Client butun holatni bitta PUT bilan yuboradi. Ikki xodim bir vaqtda ishlasa:
+//   10:00  A va B holatni yuklab oladi
+//   10:01  A sotuv qiladi  → PUT (A ning nusxasi)
+//   10:02  B sotuv qiladi  → PUT (B ning nusxasida A ning sotuvi YO'Q)
+// Natijada A ning sotuvi butunlay o'chib ketardi — hech qanday ogohlantirishsiz.
+//
+// Yechim: client o'zi ko'rgan versiyani (__baseVersion) qaytaradi. Agar server
+// versiyasi undan farq qilsa — demak oradan boshqa birov yozgan. Bunday holatda
+// ustiga yozmaymiz, balki id bo'yicha BIRLASHTIRAMIZ: clientda yo'q, lekin
+// serverda bor qatorlar saqlanib qoladi.
+//
+// Kelishuv: to'qnashuv oynasida qilingan o'chirish bekor bo'lishi mumkin.
+// Bu — sotuvni butunlay yo'qotishdan ko'ra ancha xavfsiz.
+// ─────────────────────────────────────────────────────────────────────────────
+function mergeRows(serverArr, clientArr) {
+  const byId = new Map();
+  for (const r of clientArr) if (r && r.id !== undefined) byId.set(r.id, r);
+  const extra = serverArr.filter(r => r && r.id !== undefined && !byId.has(r.id));
+  return extra.length ? [...clientArr, ...extra] : clientArr;
+}
+
+function isRowArray(v) {
+  return Array.isArray(v) && v.every(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined);
+}
+
+function mergeStates(serverState, clientState) {
+  const out = { ...clientState };
+  for (const [key, clientVal] of Object.entries(clientState)) {
+    const serverVal = serverState[key];
+    if (isRowArray(clientVal) && isRowArray(serverVal)) {
+      out[key] = mergeRows(serverVal, clientVal);
+    }
+  }
+  // Clientda umuman yo'q bo'limlar serverdan saqlanib qoladi
+  for (const [key, serverVal] of Object.entries(serverState)) {
+    if (out[key] === undefined) out[key] = serverVal;
+  }
+  return out;
+}
+
 // GET /api/state
 exports.get = (req, res) => {
-  res.json(stripPasswords(db.getState(req.user.account)));
+  const state = stripPasswords(db.getState(req.user.account));
+  // Versiya belgisi — client uni PUT da qaytaradi (to'qnashuvni aniqlash uchun)
+  res.json({ ...state, __updatedAt: db.getUpdatedAt(req.user.account) });
 };
 
 // PUT /api/state
 exports.put = async (req, res) => {
-  const body = req.body;
+  let body = req.body;
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return res.status(400).json({ ok: false, error: "Holat obyekt ko'rinishida bo'lishi kerak" });
   }
 
   const oldState   = db.getState(req.user.account);
   const oldWorkers = Array.isArray(oldState.workers) ? oldState.workers : [];
+
+  // ── To'qnashuv nazorati (yuqoridagi izohga qarang) ───────────────────────
+  const baseVersion    = Number(body.__baseVersion || 0);
+  const currentVersion = Number(db.getUpdatedAt(req.user.account) || 0);
+  delete body.__baseVersion;
+  delete body.__updatedAt;
+  let merged = false;
+  if (baseVersion > 0 && currentVersion > 0 && baseVersion !== currentVersion) {
+    body = mergeStates(oldState, body);
+    merged = true;
+    console.warn(`[state] To'qnashuv birlashtirildi (akkaunt: ${req.user.account}, base=${baseVersion}, joriy=${currentVersion})`);
+  }
 
   if (req.user.role !== 'admin') {
     // ── XAVFSIZLIK: admin bo'lmaganlar config/xodim/ochilish bo'limlariga tegolmaydi.
@@ -58,5 +115,7 @@ exports.put = async (req, res) => {
   audit.recordChanges(req.user.account, oldState, body, req.user);
 
   const updatedAt = db.setState(req.user.account, body);
-  res.json({ ok: true, updatedAt });
+  // merged=true bo'lsa client boshqa xodimning yozuvlarini ham olishi uchun
+  // holatni qayta yuklab olishi kerak.
+  res.json({ ok: true, updatedAt, merged });
 };

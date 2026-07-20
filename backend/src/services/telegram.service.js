@@ -10,8 +10,20 @@ const db = require('../db');
 const { TELEGRAM_TOKEN, TELEGRAM_BOT_USER, DEFAULT_ACCOUNT } = require('../config');
 
 let running = false;
+// Polling holati — bot "ishga tushgan" bo'lsa ham Telegramga ulana olmasligi
+// mumkin. Shu holatni ilovaga to'g'ri ko'rsatish uchun kuzatamiz.
+let pollErrorCount = 0;
+let lastPollError  = null;
 let bot = null;
 const isRunning = () => running;
+// Botning HAQIQIY holati: ishga tushgan bo'lsa ham Telegram bilan aloqa
+// uzilgan bo'lishi mumkin (EFATAL). Ketma-ket 5+ xato bo'lsa — sog'lom emas.
+const health = () => ({
+  running,
+  healthy: running && pollErrorCount < 5,
+  errorCount: pollErrorCount,
+  lastError: lastPollError,
+});
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const CH  = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click', nasiya: '⚠️ Nasiya (qarz)', avans: '🅰️ Avans' };
@@ -484,7 +496,31 @@ function start() {
     }
   });
 
-  bot.on('polling_error', (err) => console.error('[Telegram] polling xatosi:', err.code || err.message));
+  // ── Polling xatolarini nazorat qilish ──────────────────────────────────────
+  // Ilgari har bir xato alohida yozilardi. Telegramga ulanib bo'lmasa (EFATAL)
+  // bu xato har necha soniyada takrorlanib, log faylini va disk joyini
+  // to'ldirib yuborardi (production'da 5 kunda minglab qator to'plangan edi).
+  // Bundan tashqari `running` true bo'lib qolgani uchun ilova "bot ishlayapti"
+  // deb ko'rsatardi — aslida bot o'lik bo'lsa ham.
+  bot.on('polling_error', (err) => {
+    const code = err.code || err.message || 'unknown';
+    lastPollError = { code, at: Date.now() };
+    pollErrorCount++;
+    // Bir xil xato uchun: dastlabki 3 tasi, keyin har 100 tasida bir marta
+    if (pollErrorCount <= 3 || pollErrorCount % 100 === 0) {
+      console.error(`[Telegram] polling xatosi: ${code}` +
+        (pollErrorCount > 3 ? ` (jami ${pollErrorCount} marta takrorlandi)` : ''));
+    }
+  });
+
+  // Muvaffaqiyatli xabar kelsa — aloqa tiklangan, hisoblagichni tozalaymiz
+  bot.on('message', () => {
+    if (pollErrorCount) {
+      console.log(`[Telegram] Aloqa tiklandi (${pollErrorCount} ta xatodan keyin)`);
+      pollErrorCount = 0;
+      lastPollError = null;
+    }
+  });
 
   running = true;
   console.log(`✅ Telegram Bot ishga tushdi! (@${TELEGRAM_BOT_USER})`);
@@ -566,4 +602,4 @@ async function getPhotoUrl(fileId) {
 }
 
 const getBot = () => bot;
-module.exports = { start, isRunning, getBot, sendMessage, notifySale, notifyOrderDone, notifyDriver, getPhotoUrl, doApproveTrip, doRejectTrip };
+module.exports = { start, isRunning, health, getBot, sendMessage, notifySale, notifyOrderDone, notifyDriver, getPhotoUrl, doApproveTrip, doRejectTrip };

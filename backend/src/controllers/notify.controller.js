@@ -11,7 +11,11 @@ exports.status = (req, res) => {
   res.json({
     ok: true,
     contacts: db.getTgContacts(acc),     // [{ phone, chatId, name, at }]
-    botRunning: tg.isRunning(),
+    // isRunning() bot ishga tushganini bildiradi, lekin Telegram bilan aloqa
+    // uzilgan bo'lsa ham true qaytaradi. Ilova xodimga "bot ishlayapti" deb
+    // ko'rsatib, aslida hech qanday xabar yetib bormasligi mumkin edi.
+    botRunning: tg.health ? tg.health().healthy : tg.isRunning(),
+    botHealth:  tg.health ? tg.health() : null,
     smsConfigured: sms.isConfigured(),
   });
 };

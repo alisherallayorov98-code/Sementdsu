@@ -100,11 +100,14 @@ export default function SoldTons({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.mijoz || !form.tonna || !form.narx) return;
-    addSoldRow({
+    const created = addSoldRow({
       customer: form.mijoz, tons: form.tonna,
       pricePerTon: form.narx, paymentChannel: form.tolov,
       izoh: form.izoh,
     });
+    // Sotuv rad etilsa (manfiy tonna) qarz ham yaratilmasligi kerak —
+    // aks holda savdosi yo'q, "arvoh" qarz paydo bo'lardi.
+    if (!created) return;
     // Nasiya bo'lsa → qarz yaratish
     if (form.tolov === 'nasiya') {
       const amt  = Number(form.tonna) * Number(form.narx);

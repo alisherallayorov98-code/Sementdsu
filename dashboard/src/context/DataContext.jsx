@@ -13,7 +13,26 @@ const load = (key, fallback) => {
     return v ? JSON.parse(v) : fallback;
   } catch { return fallback; }
 };
-const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
+// DIQQAT: localStorage to'lganda setItem QuotaExceededError tashlaydi.
+// Bu useEffect ichida chaqirilgani uchun, ushlanmasa React renderni buzib
+// butun ilovani oq ekranga aylantiradi — va har qayta yuklashda takrorlanadi,
+// ya'ni dastur butunlay ishlamay qoladi. Asosiy manba baribir server, shuning
+// uchun keshga yozib bo'lmasa — jimgina davom etamiz.
+let _quotaWarned = false;
+const save = (key, val) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {
+    if (!_quotaWarned) {
+      _quotaWarned = true;
+      console.warn(`Lokal kesh to'ldi (${key}). Ma'lumot serverda saqlanmoqda.`, e?.name);
+      // Eng katta va eng kam kerakli keshlarni bo'shatib, joy ochamiz.
+      for (const k of ['cash_rows', 'bank_rows', 'click_rows', 'sales_rows', 'recv_rows']) {
+        try { localStorage.removeItem(k); } catch { /* ignore */ }
+      }
+    }
+  }
+};
 
 // Tonnani chiroyli ko'rsatish (butun bo'lsa kasrsiz)
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -29,6 +48,20 @@ const uid = () => {
   const now = Date.now();
   _lastId = now > _lastId ? now : _lastId + 1;
   return _lastId;
+};
+
+// Tashqi manbadan (Excel) kelgan sonni ishonchli o'qish.
+// Number("12,5") = NaN — mahalliy Excel kasrni VERGUL bilan, minglarni probel
+// bilan yozadi. `Number(x) || 0` naqshi bunday qiymatni JIMGINA 0 ga
+// aylantirardi: masalan 12 500 000 so'mlik qarz 0 bo'lib import bo'lardi.
+const parseNum = (v) => {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  const s = String(v ?? '').trim()
+    .replace(/\s| /g, '')
+    .replace(',', '.');
+  if (!s) return 0;
+  const n = Number(s);
+  return isFinite(n) ? n : 0;
 };
 
 // Erkin kiritilgan sana/vaqtni (masalan "2026-07-20 14:30" yoki "20.07.2026")
@@ -98,6 +131,13 @@ export function DataProvider({ children }) {
     try {
       const res = await api.login(name, password, account);
       if (!res?.token) return false;
+      // Oldingi seans boshqa tashkilot yoki boshqa xodim bo'lgan bo'lsa
+      // (masalan brauzer chiqmasdan yopilgan), keshni tozalaymiz.
+      const who = `${account || 'default'}::${res.user?.id || ''}`;
+      if (localStorage.getItem('cache_owner') !== who) {
+        clearLocalCache();
+        try { localStorage.setItem('cache_owner', who); } catch { /* ignore */ }
+      }
       api.setToken(res.token);
       setTokenState(res.token);
       setCurrentUser(res.user);
@@ -119,10 +159,22 @@ export function DataProvider({ children }) {
       return { ok: false, error: e.message };
     }
   };
+  // Chiqishda lokal keshni TOZALAYMIZ. Aks holda bir kompyuterda ikkinchi
+  // tashkilot kirsa, hydration tugagunicha oldingi tashkilotning savdo/qarz
+  // ma'lumotlarini ko'rib turardi — SaaS'da bu jiddiy ma'lumot sizishi.
+  const clearLocalCache = () => {
+    try {
+      for (const k of Object.keys(STATE_SETTERS)) localStorage.removeItem(k);
+      localStorage.removeItem('current_user');
+    } catch { /* ignore */ }
+  };
   const logout = () => {
+    clearLocalCache();
     api.setToken(null);
     setTokenState(null);
     setCurrentUser(null);
+    hydratedRef.current = false;
+    baseVersionRef.current = 0;
   };
 
   // ── Dastur Sozlamalari ──────────────────────────────────────────────────
@@ -242,6 +294,8 @@ export function DataProvider({ children }) {
   const [soldRows, setSoldRows] = useState(() => load('sold_rows', []));
   useEffect(() => save('sold_rows', soldRows), [soldRows]);
   const addSoldRow = (entry) => {
+    // Manfiy tonna qoldiqni yo'qdan oshiradi (addSaleRow bilan bir xil xavf)
+    if (!(Number(entry?.tons) > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return null; }
     const ts = uid();
     setSoldRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry }]);
   };
@@ -268,6 +322,8 @@ export function DataProvider({ children }) {
   });
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
   const addRecvRow = (entry) => {
+    // Manfiy tonna qabul qilish qoldiqni yashirin kamaytirardi
+    if (!(Number(entry?.tons) > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return null; }
     const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     const ftDate = (() => { const d = new Date((entry.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU'); })();
@@ -318,7 +374,7 @@ export function DataProvider({ children }) {
       id: base + i, createdAt: base + i, worker: currentWorker,
       date: r.date || (() => { const d = new Date((r.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? new Date().toLocaleDateString('ru-RU') : d.toLocaleDateString('ru-RU'); })(),
       source: r.source || '', brand: r.brand || '', vehicleNo: r.vehicleNo || '',
-      tons: Number(r.tons) || 0, pricePerTon: Number(r.pricePerTon) || 0,
+      tons: parseNum(r.tons), pricePerTon: parseNum(r.pricePerTon),
       paymentChannel: r.paymentChannel || 'bank',
       cardName: r.cardName || '', factoryTime: r.factoryTime || '', izoh: r.izoh || '',
       warehouseId: r.warehouseId || defaultWhId,
@@ -532,7 +588,7 @@ export function DataProvider({ children }) {
     setDebtRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
-      customer: r.customer, amount: Number(r.amount) || 0, paid: 0,
+      customer: r.customer, amount: parseNum(r.amount), paid: 0,
       note: r.note || '', payments: [],
     }))]);
   };
@@ -666,6 +722,20 @@ export function DataProvider({ children }) {
   const [salesRows, setSalesRows] = useState(() => load('sales_rows', []));
   useEffect(() => save('sales_rows', salesRows), [salesRows]);
   const addSaleRow = (entry) => {
+    // MANFIY SOTUV HIMOYASI. Tonna maydoniga "-5" yozilsa, sum manfiy chiqib
+    // `if (sum > 0)` sharti ishlamas — kassaga ham, qarzga ham yozuv tushmasdi,
+    // lekin sotuv qatori qo'shilardi. Natijada totalSalesTons kamayib, sement
+    // qoldig'i YO'QDAN oshib ketardi (pul izisiz 5 tonna paydo bo'lardi).
+    const tonsN  = Number(entry?.tons);
+    const priceN = Number(entry?.pricePerTon);
+    if (!(tonsN > 0)) {
+      alert("Tonna 0 dan katta bo'lishi kerak.");
+      return null;
+    }
+    if (!(priceN >= 0) || !isFinite(priceN)) {
+      alert("Narx noto'g'ri kiritilgan.");
+      return null;
+    }
     const ts = uid();
     const sale = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
     // Sanani tizim standartiga keltirish. Taqsimlashda "zavod vaqti" (erkin matn,
@@ -811,9 +881,14 @@ export function DataProvider({ children }) {
   };
 
   const addSkladSotuv = ({ customer, kg, pricePerKg, channel, note, cementType }) => {
-    const ts = uid();
     const kgN  = Number(kg);
-    const sum  = kgN * Number(pricePerKg);
+    const prcN = Number(pricePerKg);
+    // Manfiy kg sklad qoldig'ini yo'qdan oshirib yuborardi (chiqim qatori
+    // kg: -(-N) = +N bo'lib qolardi) — sotuv ko'rinishida kirim yozilardi.
+    if (!(kgN > 0)) { alert("Kilogramm 0 dan katta bo'lishi kerak."); return null; }
+    if (!(prcN >= 0) || !isFinite(prcN)) { alert("Narx noto'g'ri kiritilgan."); return null; }
+    const ts = uid();
+    const sum  = kgN * prcN;
     const td   = new Date().toLocaleDateString('ru-RU');
     const tag  = `🏗 Sklad: ${customer} (${kgN} kg)`;
     const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td, customer };
@@ -893,7 +968,7 @@ export function DataProvider({ children }) {
     setBankIncomeRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
-      amount: Number(r.amount) || 0,
+      amount: parseNum(r.amount),
       desc: r.desc || '',
       customer: r.customer || '',
       pending: true, // tekshirilmagan — sariq
@@ -924,7 +999,7 @@ export function DataProvider({ children }) {
       id: base + i,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
       orgName: r.orgName || '',
-      amount: Number(r.amount) || 0,
+      amount: parseNum(r.amount),
       type: r.type, // 'kirim' | 'chiqim'
       naznachenie: r.naznachenie || '',
       customer: '',
@@ -1272,6 +1347,8 @@ export function DataProvider({ children }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const [backendOnline, setBackendOnline] = useState(true);
   const hydratedRef = useRef(false); // backenddan yuklanmaguncha saqlamaymiz
+  const baseVersionRef = useRef(0);  // oxirgi ko'rilgan server versiyasi (to'qnashuv nazorati)
+  const [retryTick, setRetryTick] = useState(0);
   const saveTimer   = useRef(null);
 
   // ── Bildirishnoma (Telegram/SMS) holati ──────────────────────────────────
@@ -1392,27 +1469,76 @@ export function DataProvider({ children }) {
           for (const [key, setter] of Object.entries(STATE_SETTERS)) {
             if (remote[key] !== undefined) setter(remote[key]);
           }
+          baseVersionRef.current = remote.__updatedAt || 0;
         }
-        if (!cancelled) setBackendOnline(true);
+        if (!cancelled) {
+          setBackendOnline(true);
+          // FAQAT muvaffaqiyatli yuklashdan keyin saqlashga ruxsat beramiz.
+          setTimeout(() => { hydratedRef.current = true; }, 0);
+        }
       } catch (err) {
-        console.warn("Backend bilan ulanib bo'lmadi — lokal nusxadan ishlaymiz:", err.message);
+        // MUHIM: yuklash muvaffaqiyatsiz bo'lsa hydratedRef OCHILMAYDI.
+        // Ilgari u `finally` da baribir true bo'lardi — natijada internet bir
+        // lahzaga uzilsa, brauzerdagi ESKI lokal nusxa serverdagi TO'G'RI
+        // ma'lumot ustiga yozilib, ishlangan kun butunlay yo'qolishi mumkin edi.
+        console.warn("Backend bilan ulanib bo'lmadi — faqat o'qish rejimi:", err.message);
         if (!cancelled) setBackendOnline(false);
-      } finally {
-        // Yuklash tugagach saqlashga ruxsat (joriy render to'lqinidan keyin)
-        setTimeout(() => { hydratedRef.current = true; }, 0);
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // 1b) Backend qayta ishga tushsa — avtomatik qayta urinish.
+  // Yuklash muvaffaqiyatsiz bo'lgani uchun saqlash to'xtatilgan bo'lsa,
+  // foydalanuvchi sahifani qayta yuklamasdan tiklanishi kerak.
+  useEffect(() => {
+    if (!token || backendOnline || hydratedRef.current) return;
+    const t = setInterval(() => { setRetryTick(x => x + 1); }, 15000);
+    return () => clearInterval(t);
+  }, [token, backendOnline]);
+  useEffect(() => {
+    if (!retryTick || !token || hydratedRef.current) return;
+    (async () => {
+      try {
+        const remote = await api.getState();
+        if (remote && typeof remote === 'object' && Object.keys(remote).length) {
+          for (const [key, setter] of Object.entries(STATE_SETTERS)) {
+            if (remote[key] !== undefined) setter(remote[key]);
+          }
+          baseVersionRef.current = remote.__updatedAt || 0;
+        }
+        setBackendOnline(true);
+        setTimeout(() => { hydratedRef.current = true; }, 0);
+      } catch { /* keyingi urinishda */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryTick]);
+
   // 2) Har bir o'zgarishdan keyin — butun holatni serverga saqlash (debounce 800ms)
   useEffect(() => {
     if (!hydratedRef.current || !token) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      api.saveState(snapshot)
-        .then(() => setBackendOnline(true))
+      // Server bilan to'qnashuvni aniqlash uchun ko'rgan versiyamizni yuboramiz
+      api.saveState({ ...snapshot, __baseVersion: baseVersionRef.current })
+        .then(async (r) => {
+          setBackendOnline(true);
+          baseVersionRef.current = r?.updatedAt || 0;
+          // Boshqa xodim bilan to'qnashuv birlashtirildi — uning yozuvlarini
+          // biz ham ko'rishimiz uchun serverdan yangi holatni olamiz.
+          if (r?.merged) {
+            try {
+              const remote = await api.getState();
+              if (remote && typeof remote === 'object') {
+                for (const [key, setter] of Object.entries(STATE_SETTERS)) {
+                  if (remote[key] !== undefined) setter(remote[key]);
+                }
+                baseVersionRef.current = remote.__updatedAt || baseVersionRef.current;
+              }
+            } catch { /* keyingi saqlashda */ }
+          }
+        })
         .catch(() => setBackendOnline(false));
     }, 800);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
