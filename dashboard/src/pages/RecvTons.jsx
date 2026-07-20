@@ -262,8 +262,17 @@ export default function RecvTons({ lang }) {
   };
   const handleBulkDelete = () => {
     if (selected.size === 0) return;
-    if (!window.confirm(`${selected.size} ta yozuv o'chirilsinmi? Bu amalni qaytarib bo'lmaydi.`)) return;
-    selected.forEach(id => deleteRecvRow(id));
+    // Sotuvi bor yuklarni oldindan ajratamiz — aks holda har biri uchun
+    // alohida ogohlantirish oynasi chiqib ketardi.
+    const ids = [...selected];
+    const blocked = ids.filter(id => salesRows.some(s => s.recvId === id));
+    const free    = ids.filter(id => !blocked.includes(id));
+    if (blocked.length && !window.confirm(
+      `${blocked.length} ta yozuvdan sotuv qilingan — ular o'chirilmaydi.\n\n` +
+      `Qolgan ${free.length} ta yozuv o'chirilsinmi?`
+    )) return;
+    if (!blocked.length && !window.confirm(`${selected.size} ta yozuv o'chirilsinmi? Bu amalni qaytarib bo'lmaydi.`)) return;
+    free.forEach(id => deleteRecvRow(id));
     setSelected(new Set());
   };
 

@@ -109,7 +109,7 @@ export default function Kassir() {
     salesRows,
     appSettings, currentWorker, setCurrentWorker, workers,
     addSkladSotuv, totalSkladKg, skladRows, updateSkladRow, deleteSkladSotuv,
-    cementTypes, skladKgByType,
+    cementTypes, skladKgByType, skladKgUntyped,
   } = data;
 
   // ── Tab holati ────────────────────────────────────────────────────────────────
@@ -208,7 +208,18 @@ export default function Kassir() {
   const submitSklad = (e) => {
     e.preventDefault();
     if (!sklad.customer || !sklad.kg || !sklad.pricePerKg) return;
-    if (totalSkladKg < Number(sklad.kg)) {
+    const kgWant = Number(sklad.kg);
+    if (kgWant <= 0) { alert("Kilogramm 0 dan katta bo'lishi kerak."); return; }
+    // Tur tanlangan bo'lsa — AYNAN SHU TURNING qoldig'i tekshiriladi.
+    // Ilgari faqat umumiy qoldiq tekshirilardi: 450 markadan 1000 kg bo'lsa,
+    // 550 markadan hech narsa bo'lmasa ham 550 ni sotish mumkin edi.
+    if (sklad.cementType) {
+      const typeKg = Number(skladKgByType[sklad.cementType] || 0);
+      if (typeKg < kgWant) {
+        alert(`"${sklad.cementType}" bo'yicha sklad qoldig'i yetarli emas.\nQoldiq: ${fmt(typeKg)} kg`);
+        return;
+      }
+    } else if (totalSkladKg < kgWant) {
       alert(`Sklad qoldig'i yetarli emas. Qoldiq: ${fmt(totalSkladKg)} kg`); return;
     }
     const created = addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note, cementType: sklad.cementType });
@@ -469,6 +480,13 @@ export default function Kassir() {
                     </span>
                   );
                 })}
+                {/* Turi belgilanmagan qoldiq — turlar yig'indisi jamiga to'g'ri
+                    kelmasa, farq shu yerda ko'rinadi (aks holda yashirin qolardi) */}
+                {Math.abs(skladKgUntyped) > 0.001 && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, border: '1px solid #e65100', background: '#fff3e0', color: '#e65100', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                    ⚠ Turi belgilanmagan: {fmt(skladKgUntyped)} kg
+                  </span>
+                )}
               </div>
             </div>
             <FRow>

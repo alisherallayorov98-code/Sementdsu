@@ -56,7 +56,7 @@ export default function WorkerSalary({ lang }) {
 // 1. ISHCHILAR TABI
 // ═════════════════════════════════════════════════════════════════════════════
 function WorkersTab() {
-  const { workers, addWorker, updateWorker, payWorker, deleteWorker, salaryPayments } = useData();
+  const { workers, addWorker, updateWorker, payWorker, deleteWorker, salaryPayments, deleteSalaryPayment } = useData();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({ name: '', salary: '', position: '', phone: '', note: '' });
@@ -286,8 +286,23 @@ function WorkersTab() {
                   <span style={{ fontSize: 12, color: '#555' }}>{monthLabel}: <b style={{ color: '#2e7d32' }}>{fmt(monthPaidTotal)} so'm</b> / <span style={{ color: '#c62828' }}>Qoldi: {fmt(Math.max(0, Number(w?.salary||0) - monthPaidTotal))} so'm</span></span>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead><tr style={{ background: BG_W }}><th style={thS}>Sana</th><th style={{ ...thS, textAlign: 'right' }}>Miqdor</th><th style={thS}>Izoh</th></tr></thead>
-                  <tbody>{pays.map(p => <tr key={p.id}><td style={tdS}>{p.date}</td><td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: '#2e7d32' }}>{fmt(p.amount)}</td><td style={tdS}>{p.note||'—'}</td></tr>)}</tbody>
+                  <thead><tr style={{ background: BG_W }}><th style={thS}>Sana</th><th style={{ ...thS, textAlign: 'right' }}>Miqdor</th><th style={thS}>Izoh</th><th style={{ ...thS, width: 34 }}></th></tr></thead>
+                  <tbody>{pays.map(p => (
+                    <tr key={p.id}>
+                      <td style={tdS}>{p.date}</td>
+                      <td style={{ ...tdS, textAlign: 'right', fontWeight: 'bold', color: '#2e7d32' }}>{fmt(p.amount)}</td>
+                      <td style={tdS}>{p.note||'—'}</td>
+                      <td style={{ ...tdS, textAlign: 'center' }}>
+                        <button
+                          title="To'lovni bekor qilish"
+                          onClick={() => {
+                            if (window.confirm(`${fmt(p.amount)} so'm to'lov bekor qilinsinmi?\nKassaga qaytariladi.`)) deleteSalaryPayment(p.id);
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', fontSize: 13, padding: 0 }}
+                        >✕</button>
+                      </td>
+                    </tr>
+                  ))}</tbody>
                 </table>
               </div>
             </div>

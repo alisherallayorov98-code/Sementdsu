@@ -6,10 +6,26 @@
 export function customerSummary(name, data) {
   const {
     salesRows = [], soldRows = [], debtRows = [],
-    advanceRows = [], tgOrders = [],
+    advanceRows = [], tgOrders = [], skladRows = [],
   } = data || {};
 
-  const sales  = [...salesRows, ...soldRows].filter(r => r.customer === name);
+  // Chakana (sklad, kg) sotuvlarini ham ulgurji ko'rinishga keltiramiz.
+  // Ilgari bular umuman hisobga olinmagan edi: faqat skladdan oladigan mijozning
+  // xaridi 0 ko'rinardi va nazoratda "Xarid yo'q" deb noto'g'ri belgilanardi.
+  const skladSales = skladRows
+    .filter(r => r.type === 'chiqim' && r.customer === name)
+    .map(r => {
+      const kg = Math.abs(Number(r.kg || 0));
+      return {
+        ...r,
+        tons: kg / 1000,
+        pricePerTon: Number(r.pricePerKg || 0) * 1000,
+        paymentChannel: r.channel,
+        _sklad: true,
+      };
+    });
+
+  const sales  = [...salesRows, ...soldRows].filter(r => r.customer === name).concat(skladSales);
   const debts  = debtRows.filter(r => r.customer === name);
   const advs   = advanceRows.filter(r => r.customer === name);
   const orders = tgOrders.filter(o => o.customer === name);

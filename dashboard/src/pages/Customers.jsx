@@ -55,7 +55,9 @@ export default function Customers() {
 
   // ── Tahrirlash / o'chirish ────────────────────────────────────────────────
   const startEdit = (c) => { setEditId(c.id); setEditData({ name: c.name, phone: c.phone || '', address: c.address || '', note: c.note || '' }); };
-  const saveEdit  = (id) => { if (!editData.name) return; updateCustomer(id, editData); setEditId(null); };
+  // updateCustomer nom to'qnashuvida false qaytaradi — bunda tahrir oynasi
+  // ochiq qolishi kerak, aks holda o'zgarish saqlanmagani bilinmay qolardi.
+  const saveEdit  = (id) => { if (!editData.name) return; if (updateCustomer(id, editData) !== false) setEditId(null); };
   const handleDelete = (id, name) => { if (window.confirm(`"${name}" o'chirilsinmi?`)) deleteCustomer(id); };
 
   // ── Filter + saralash ─────────────────────────────────────────────────────

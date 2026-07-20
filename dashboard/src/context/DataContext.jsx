@@ -18,6 +18,29 @@ const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 // Tonnani chiroyli ko'rsatish (butun bo'lsa kasrsiz)
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// YAGONA ID GENERATORI
+// Date.now() bir millisekundda bir necha marta chaqirilsa BIR XIL qiymat qaytaradi.
+// Taqsimlash (bir chekdan bir necha sotuv) kabi sinxron sikllarda bu bir xil id'li
+// yozuvlar yaratardi — bittasini o'chirsa ikkalasi ham o'chib ketardi.
+// uid() har chaqiruvda qat'iy o'suvchi va takrorlanmas son qaytaradi.
+let _lastId = 0;
+const uid = () => {
+  const now = Date.now();
+  _lastId = now > _lastId ? now : _lastId + 1;
+  return _lastId;
+};
+
+// Erkin kiritilgan sana/vaqtni (masalan "2026-07-20 14:30" yoki "20.07.2026")
+// tizim standarti "kk.oo.yyyy" ga keltirish. Tanib bo'lmasa — null.
+const toLocalDate = (s) => {
+  const str = String(s || '').trim();
+  if (!str) return null;
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) return str;      // allaqachon to'g'ri
+  const d = new Date(str.replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU');
+};
+
 // Ichki bildirishnoma ovozi (internetsiz ham ishlaydi — Web Audio "beep")
 function beep() {
   try {
@@ -126,12 +149,30 @@ export function DataProvider({ children }) {
   const whOf = (row) => (row?.warehouseId && warehouses.some(w => w.id === row.warehouseId)) ? row.warehouseId : defaultWhId;
   const whName = (id) => warehouses.find(w => w.id === id)?.name || '—';
   const addWarehouse = (name) => {
-    const id = 'wh' + Date.now();
+    const id = 'wh' + uid();
     setWarehouses(p => [...p, { id, name: String(name).trim() || 'Sklad' }]);
     return id;
   };
   const updateWarehouse = (id, name) => setWarehouses(p => p.map(w => w.id === id ? { ...w, name } : w));
-  const deleteWarehouse = (id) => setWarehouses(p => p.length > 1 ? p.filter(w => w.id !== id) : p);
+  // Sklad o'chirilsa, undagi yozuvlar whOf() orqali standart skladga "sakrab"
+  // o'tardi — ya'ni qoldiq bir ombordan ikkinchisiga sassiz ko'chib qolardi.
+  // Shuning uchun bo'sh bo'lmagan skladni o'chirishga yo'l qo'ymaymiz.
+  const deleteWarehouse = (id) => {
+    if (warehouses.length <= 1) {
+      alert("Oxirgi skladni o'chirib bo'lmaydi.");
+      return false;
+    }
+    const bal = (cementByWarehouse.find(w => w.id === id) || {}).balance || 0;
+    if (Math.abs(bal) > 0.001) {
+      alert(
+        `"${whName(id)}" skladida ${fmtTons(bal)} tn sement bor.\n\n` +
+        `Avval bu sementni sotib yoki boshqa omborga o'tkazib, qoldiqni nolga tushiring.`
+      );
+      return false;
+    }
+    setWarehouses(p => p.filter(w => w.id !== id));
+    return true;
+  };
 
 
   // ── 2. Naqd pul ──────────────────────────────────────────────────────────
@@ -141,7 +182,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
   const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
   const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
-    const ts = Date.now();
+    const ts = uid();
     setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
@@ -154,7 +195,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
   const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
-    const ts = Date.now();
+    const ts = uid();
     setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
@@ -167,7 +208,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
   const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
   const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
-    const ts = Date.now();
+    const ts = uid();
     setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
@@ -181,7 +222,7 @@ export function DataProvider({ children }) {
   const [incomeRows, setIncomeRows] = useState(() => load('income_rows', []));
   useEffect(() => save('income_rows', incomeRows), [incomeRows]);
   const addIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
-    const ts = Date.now();
+    const ts = uid();
     setIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteIncomeRow = (id) => setIncomeRows(p => p.filter(r => r.id !== id));
@@ -190,7 +231,7 @@ export function DataProvider({ children }) {
   const [expenseRows, setExpenseRows] = useState(() => load('expense_rows', []));
   useEffect(() => save('expense_rows', expenseRows), [expenseRows]);
   const addExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
-    const ts = Date.now();
+    const ts = uid();
     setExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteExpenseRow = (id) => setExpenseRows(p => p.filter(r => r.id !== id));
@@ -201,7 +242,7 @@ export function DataProvider({ children }) {
   const [soldRows, setSoldRows] = useState(() => load('sold_rows', []));
   useEffect(() => save('sold_rows', soldRows), [soldRows]);
   const addSoldRow = (entry) => {
-    const ts = Date.now();
+    const ts = uid();
     setSoldRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry }]);
   };
   const deleteSoldRow = (id) => setSoldRows(p => p.filter(r => r.id !== id));
@@ -227,7 +268,7 @@ export function DataProvider({ children }) {
   });
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
   const addRecvRow = (entry) => {
-    const ts = Date.now();
+    const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     const ftDate = (() => { const d = new Date((entry.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU'); })();
     const row = {
@@ -246,18 +287,33 @@ export function DataProvider({ children }) {
   };
   const updateRecvRow = (id, fields) => setRecvRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
   const deleteRecvRow = (id) => {
+    // Taqsimlash orqali shu yukdan qilingan sotuvlar bo'lsa — yukni o'chirish
+    // ularni "arvoh" qilib qoldiradi: sement kelmagan, lekin sotuv bor.
+    // Sotuvni jimgina o'chirib bo'lmaydi (unga mijoz qarzi/to'lovi bog'langan),
+    // shuning uchun foydalanuvchini avval o'sha sotuvlarga yo'naltiramiz.
+    const linked = salesRows.filter(s => s.recvId === id);
+    if (linked.length) {
+      alert(
+        `Bu yukdan ${linked.length} ta sotuv qilingan:\n` +
+        linked.slice(0, 5).map(s => `· ${s.customer} — ${fmtTons(s.tons)} tn`).join('\n') +
+        (linked.length > 5 ? `\n· ...yana ${linked.length - 5} ta` : '') +
+        `\n\nAvval "Sotish" bo'limidan shu sotuvlarni o'chiring.`
+      );
+      return false;
+    }
     setRecvRows(p => p.filter(r => r.id !== id));
-    // Cascade: eski versiyalarda yaratilgan auto chiqim yozuvlari bo'lsa ham o'chirish
-    setCashRows(p  => p.filter(r => r.sourceId !== id));
-    setBankRows(p  => p.filter(r => r.sourceId !== id));
-    setClickRows(p => p.filter(r => r.sourceId !== id));
+    // Cascade: eski versiyalarda yaratilgan auto chiqim yozuvlari bo'lsa ham o'chirish.
+    // sourceType tekshiruvi MUHIM — busiz boshqa bo'limning bir xil id'li yozuvi
+    // ham qo'shib o'chib ketishi mumkin edi.
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'recv' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
     // Shu recvRow'dan sklad kirim yozuvlari (taqsimlash orqali yaratilgan)
     setSkladRows(p => p.filter(r => !(r.type === 'kirim' && r.sourceId === id)));
   };
   // Excel'dan ko'plab "Olingan tonna" import — TEKSHIRILMAGAN (pending) holatda.
   // Pul (zavodga to'lov) tasdiqlangandagina yoziladi.
   const importRecvRows = (rows) => {
-    const base = Date.now();
+    const base = uid();
     setRecvRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
       date: r.date || (() => { const d = new Date((r.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? new Date().toLocaleDateString('ru-RU') : d.toLocaleDateString('ru-RU'); })(),
@@ -287,13 +343,40 @@ export function DataProvider({ children }) {
   const addSupplier = ({ name, phone = '', note = '' }) => {
     const nm = String(name || '').trim();
     if (!nm) return;
-    const ts = Date.now();
+    const ts = uid();
     setSuppliers(p => p.some(s => s.name.toLowerCase() === nm.toLowerCase())
       ? p
       : [...p, { id: ts, createdAt: ts, worker: currentWorker, name: nm, phone: String(phone).trim(), note }]);
   };
-  const updateSupplier = (id, data) => setSuppliers(p => p.map(s => s.id === id ? { ...s, ...data } : s));
-  const deleteSupplier = (id) => setSuppliers(p => p.filter(s => s.id !== id));
+  // Yetkazib beruvchi ham ISM orqali bog'lanadi (recvRows.source, payments.supplier).
+  // Nom o'zgarsa, olingan yuklar va to'lovlar undan uzilib, qarz noto'g'ri chiqardi.
+  const updateSupplier = (id, data) => {
+    const old = suppliers.find(s => s.id === id);
+    const newName = String(data?.name || '').trim();
+    const oldName = String(old?.name || '').trim();
+    if (old && newName && newName !== oldName) {
+      if (suppliers.some(s => s.id !== id && s.name.trim().toLowerCase() === newName.toLowerCase())) {
+        alert(`"${newName}" nomli yetkazib beruvchi allaqachon bor.`);
+        return false;
+      }
+      setRecvRows(p => p.map(r => r.source === oldName ? { ...r, source: newName } : r));
+      setSupplierPayments(p => p.map(x => x.supplier === oldName ? { ...x, supplier: newName } : x));
+    }
+    setSuppliers(p => p.map(s => s.id === id ? { ...s, ...data } : s));
+    return true;
+  };
+  const deleteSupplier = (id) => {
+    const s = suppliers.find(x => x.id === id);
+    if (s) {
+      const debt = supplierDebtOf(s.name);
+      if (debt > 0) {
+        alert(`"${s.name}" ga ${debt.toLocaleString('ru-RU')} so'm qarzimiz bor.\n\nAvval hisob-kitobni yoping.`);
+        return false;
+      }
+    }
+    setSuppliers(p => p.filter(x => x.id !== id));
+    return true;
+  };
 
   // ── 10c. Yetkazib beruvchiga to'lovlar (qarzni uzish) ─────────────────────
   // Sement olganda pul yechilmaydi (qarzga). Bu yerda zavodga to'lov qilinganda
@@ -302,8 +385,16 @@ export function DataProvider({ children }) {
   useEffect(() => save('supplier_payments', supplierPayments), [supplierPayments]);
   const paySupplier = (supplier, amount, channel = 'naqd', note = '') => {
     const amt = Number(amount);
-    if (!supplier || amt <= 0) return;
-    const ts = Date.now();
+    if (!supplier || amt <= 0) return false;
+    // Qarzdan ortiq to'lov — supplierDebtOf() Math.max(0,...) qilgani uchun
+    // ortiqcha summa hisobotda umuman ko'rinmay yo'qolardi. Ogohlantiramiz.
+    const owed = supplierDebtOf(supplier);
+    if (amt > owed + 0.001 && !window.confirm(
+      `"${supplier}" ga qarzimiz: ${owed.toLocaleString('ru-RU')} so'm\n` +
+      `To'lamoqchisiz: ${amt.toLocaleString('ru-RU')} so'm\n\n` +
+      `${(amt - owed).toLocaleString('ru-RU')} so'm ORTIQCHA to'lanadi (oldindan to'lov).\nDavom etamizmi?`
+    )) return false;
+    const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     setSupplierPayments(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker, date: today,
@@ -312,9 +403,10 @@ export function DataProvider({ children }) {
     // ── INTEGRATSIYA: zavodga to'lov → tegishli kassadan chiqim ──────────────
     const tag  = `🔗 Yetkazib beruvchiga to'lov: ${supplier}`;
     const link = { auto: true, sourceType: 'supplier_payment', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
-    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
-    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
-    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
+    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
+    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
+    return true;
   };
   const deleteSupplierPayment = (id) => {
     setSupplierPayments(p => p.filter(x => x.id !== id));
@@ -348,7 +440,7 @@ export function DataProvider({ children }) {
   const [debtRows, setDebtRows] = useState(() => load('debt_rows', []));
   useEffect(() => save('debt_rows', debtRows), [debtRows]);
   const addDebtRow = (customer, amount, note = '') => {
-    const ts = Date.now();
+    const ts = uid();
     setDebtRows(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
       date: new Date().toLocaleDateString('ru-RU'),
@@ -357,7 +449,7 @@ export function DataProvider({ children }) {
     }]);
   };
   const payDebt = (id, payAmount, payNote = '', channel = 'naqd') => {
-    const ts = Date.now();
+    const ts = uid();
     const amt = Number(payAmount);
     const today = new Date().toLocaleDateString('ru-RU');
     // Mijoz ismini topamiz (description uchun)
@@ -374,9 +466,9 @@ export function DataProvider({ children }) {
     // ── INTEGRATSIYA: qarz to'lovi → tegishli kassaga kirim ─────────────────
     const tag  = `🔗 Qarz to'lovi: ${customer}`;
     const link = { auto: true, sourceType: 'debt_payment', sourceId: `${id}_p${ts}`, createdAt: ts, worker: currentWorker, date: today };
-    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
-    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
-    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount:  amt, desc: tag }]);
+    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
+    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
+    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
   };
   const deleteDebtRow = (id) => {
     setDebtRows(p => guardAutoDelete(p, id));
@@ -390,7 +482,7 @@ export function DataProvider({ children }) {
   // Summa mijozning qarzlariga ESKISIDAN boshlab taqsimlanadi, kassaga kirim
   // yoziladi. Natija: { applied (qarzga ketgan), leftover (ortiqcha) }.
   const payCustomerDebt = (customer, amount, channel = 'naqd', note = '') => {
-    const base = Date.now();
+    const base = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     let left = Number(amount) || 0;
     if (left <= 0) return { applied: 0, leftover: 0 };
@@ -417,7 +509,10 @@ export function DataProvider({ children }) {
       return {
         ...r,
         paid: Number(r.paid) + pay,
-        payments: [...(r.payments || []), { id: base + (r.id % 100000), date: today, amount: pay, note: note || 'Kassaga to\'lov', worker: currentWorker, channel }],
+        // id sifatida uid() — ilgari `base + (r.id % 100000)` ishlatilgan edi:
+        // u ham takrorlanishi, ham 100 soniyagacha "kelajakdagi" vaqt berishi
+        // mumkin edi (Qarzlar sahifasi bu id'ni to'lov vaqti sifatida o'qiydi).
+        payments: [...(r.payments || []), { id: uid(), date: today, amount: pay, note: note || 'Kassaga to\'lov', worker: currentWorker, channel }],
       };
     }));
 
@@ -433,7 +528,7 @@ export function DataProvider({ children }) {
 
   // Excel'dan ko'plab qarz import qilish (unikal id bilan)
   const importDebts = (rows) => {
-    const base = Date.now();
+    const base = uid();
     setDebtRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
@@ -448,8 +543,12 @@ export function DataProvider({ children }) {
   // ── 12. Avanslar ──────────────────────────────────────────────────────────
   const [advanceRows, setAdvanceRows] = useState(() => load('advance_rows', []));
   useEffect(() => save('advance_rows', advanceRows), [advanceRows]);
+  // advanceRows ning sinxron nusxasi — consumeAdvance bir tikda bir necha marta
+  // chaqirilganda (taqsimlash) har chaqiruv oldingisining natijasini ko'rishi uchun.
+  const advanceRef = useRef(advanceRows);
+  useEffect(() => { advanceRef.current = advanceRows; }, [advanceRows]);
   const addAdvanceRow = (customer, amount, note = '', channel = 'naqd') => {
-    const ts = Date.now();
+    const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     setAdvanceRows(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker, date: today,
@@ -460,18 +559,28 @@ export function DataProvider({ children }) {
     if (sum > 0) {
       const tag  = `🔗 Avans: ${customer}`;
       const link = { auto: true, sourceType: 'advance', sourceId: ts, createdAt: ts, worker: currentWorker, date: today, customer };
-      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
-      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
-      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount:  sum, desc: tag }]);
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount:  sum, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount:  sum, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  sum, desc: tag }]);
     }
   };
   const useAdvance = (id, useAmount, useNote = '') => {
-    const ts = Date.now();
     const amt = Number(useAmount);
-    setAdvanceRows(p => p.map(r => {
+    if (!(amt > 0)) return false;
+    // Avansda boridan ko'proq ishlatishni bloklaymiz. Ilgari cheklov yo'q edi:
+    // used > amount bo'lib qolar, qoldiq esa Math.max(0,...) tufayli 0 ko'rinib,
+    // ortiqcha yozilgan summa hech qayerda bilinmasdi.
+    const adv = advanceRef.current.find(r => r.id === id);
+    if (!adv) return false;
+    const rem = Math.max(0, Number(adv.amount || 0) - Number(adv.used || 0));
+    if (amt > rem + 0.001) {
+      alert(`Avansda buncha mablag' yo'q.\n\nQoldiq: ${rem.toLocaleString('ru-RU')} so'm\nSo'ralgan: ${amt.toLocaleString('ru-RU')} so'm`);
+      return false;
+    }
+    const apply = (rows) => rows.map(r => {
       if (r.id !== id) return r;
       const newUsage = {
-        id: ts,
+        id: uid(),
         date: new Date().toLocaleDateString('ru-RU'),
         amount: amt,
         note: useNote,
@@ -482,13 +591,26 @@ export function DataProvider({ children }) {
         used: Number(r.used) + amt,
         usages: [...(r.usages || []), newUsage],
       };
-    }));
+    });
+    advanceRef.current = apply(advanceRef.current);
+    setAdvanceRows(apply);
+    return true;
   };
   const deleteAdvanceRow = (id) => {
+    // Sotuvga ishlatilgan avansni o'chirib bo'lmaydi — aks holda sotuv
+    // "to'langan" bo'lib qoladi-yu, puli hech qayerda ko'rinmaydi.
+    const adv = advanceRows.find(r => r.id === id);
+    if (adv && Number(adv.used) > 0) {
+      alert(
+        `Bu avansdan ${Number(adv.used).toLocaleString('ru-RU')} so'm allaqachon sotuvga ishlatilgan.\n` +
+        `Avval tegishli sotuvni o'chiring — avans avtomatik qaytadi.`
+      );
+      return;
+    }
     setAdvanceRows(p => p.filter(r => r.id !== id));
-    setCashRows(p  => p.filter(r => r.sourceId !== id));
-    setBankRows(p  => p.filter(r => r.sourceId !== id));
-    setClickRows(p => p.filter(r => r.sourceId !== id));
+    // Faqat SHU avansdan yaratilgan avtomatik yozuvni o'chiramiz
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'advance' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
   };
   const totalAdvances     = advanceRows.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
   const totalAdvancesUsed = advanceRows.reduce((s, r) => s + Number(r.used), 0);
@@ -502,11 +624,13 @@ export function DataProvider({ children }) {
   const consumeAdvance = (customer, amount, saleId) => {
     let left = Number(amount) || 0;
     if (left <= 0) return 0;
-    const ts = Date.now();
     const today = new Date().toLocaleDateString('ru-RU');
     const plan = {};
     let applied = 0;
-    advanceRows
+    // MUHIM: advanceRows emas, advanceRef.current o'qiladi. React state async
+    // yangilanadi — taqsimlashda bir necha sotuv KETMA-KET (bir tikda) yaratilsa,
+    // ikkinchi sotuv eski holatni ko'rib AYNAN SHU avansni qayta sarflab yuborardi.
+    advanceRef.current
       .filter(r => r.customer === customer && Math.max(0, Number(r.amount) - Number(r.used)) > 0)
       .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
       .forEach(r => {
@@ -516,30 +640,38 @@ export function DataProvider({ children }) {
         plan[r.id] = use; left -= use; applied += use;
       });
     if (applied <= 0) return 0;
-    setAdvanceRows(p => p.map(r => {
+    const apply = (rows) => rows.map(r => {
       const use = plan[r.id];
       if (!use) return r;
       return { ...r, used: Number(r.used) + use,
-        usages: [...(r.usages || []), { id: ts + (r.id % 100000), saleId, date: today, amount: use, note: 'Sotuvga ishlatildi', worker: currentWorker }] };
-    }));
+        usages: [...(r.usages || []), { id: uid(), saleId, date: today, amount: use, note: 'Sotuvga ishlatildi', worker: currentWorker }] };
+    });
+    advanceRef.current = apply(advanceRef.current); // darhol — keyingi chaqiruv uchun
+    setAdvanceRows(apply);
     return applied;
   };
   // Sotuv o'chirilsa — ishlatilgan avansni qaytarish (saleId bo'yicha)
   const restoreAdvanceForSale = (saleId) => {
-    setAdvanceRows(p => p.map(r => {
+    const restore = (rows) => rows.map(r => {
       const mine = (r.usages || []).filter(u => u.saleId === saleId);
       if (!mine.length) return r;
       const back = mine.reduce((s, u) => s + Number(u.amount || 0), 0);
       return { ...r, used: Math.max(0, Number(r.used) - back), usages: (r.usages || []).filter(u => u.saleId !== saleId) };
-    }));
+    });
+    advanceRef.current = restore(advanceRef.current);
+    setAdvanceRows(restore);
   };
 
   // ── 13. Sotish ────────────────────────────────────────────────────────────
   const [salesRows, setSalesRows] = useState(() => load('sales_rows', []));
   useEffect(() => save('sales_rows', salesRows), [salesRows]);
   const addSaleRow = (entry) => {
-    const ts = Date.now();
+    const ts = uid();
     const sale = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
+    // Sanani tizim standartiga keltirish. Taqsimlashda "zavod vaqti" (erkin matn,
+    // masalan "2026-07-20 14:30") sana sifatida kelib qolardi — natijada sotuv
+    // hech qaysi kunlik/oylik filtrga tushmay, hisobotlardan yo'qolardi.
+    sale.date = toLocalDate(sale.date) || new Date().toLocaleDateString('ru-RU');
 
     // ── INTEGRATSIYA: savdo → tegishli bo'limga avtomatik yozuv ─────────────
     // Pul/qarz/qoldiq shu orqali yangilanadi. Avtomatik yozuvlar belgilanadi
@@ -549,16 +681,16 @@ export function DataProvider({ children }) {
       const tag  = `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)${sale.vehicleNo ? ` | 🚛 ${sale.vehicleNo}` : ''}`;
       const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date };
       const channel = sale.paymentChannel || 'naqd';
-      if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
-      else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
-      else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
-      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer: sale.customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+      if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), customer: sale.customer, amount: sum, paid: 0, note: tag, payments: [] }]);
       else if (channel === 'avans') {
         // Avansdan yechamiz (pul allaqachon kassada). Yetmasa — qolgani qarzga.
         const applied = consumeAdvance(sale.customer, sum, ts);
         sale.advanceUsed = applied;
         const rem = sum - applied;
-        if (rem > 0) setDebtRows(p => [...p, { ...link, id: ts + 1, customer: sale.customer, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), customer: sale.customer, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
       }
     }
     setSalesRows(p => [...p, sale]);
@@ -596,10 +728,8 @@ export function DataProvider({ children }) {
     const sale = salesRows.find(r => r.id === id);
     if (sale && sale.advanceUsed) restoreAdvanceForSale(id); // ishlatilgan avansni qaytarish
     setSalesRows(p  => p.filter(r => r.id !== id));
-    setCashRows(p   => p.filter(r => r.sourceId !== id));
-    setBankRows(p   => p.filter(r => r.sourceId !== id));
-    setClickRows(p  => p.filter(r => r.sourceId !== id));
-    setDebtRows(p   => p.filter(r => r.sourceId !== id));
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'sale' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm); setDebtRows(rm);
   };
   const totalSalesTons = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
@@ -611,7 +741,24 @@ export function DataProvider({ children }) {
     if (!t || cementTypes.includes(t)) return;
     setCementTypes(p => [...p, t]);
   };
-  const removeCementType = (name) => setCementTypes(p => p.filter(t => t !== name));
+  // Qoldig'i bor turni o'chirish — o'sha sement tur bo'yicha hisobdan
+  // tushib qolishiga olib keladi. Shuning uchun avval qoldiqni tekshiramiz.
+  const removeCementType = (name) => {
+    const kg = (skladRows || [])
+      .filter(r => r.cementType === name)
+      .reduce((s, r) => s + Number(r.kg || 0), 0);
+    if (Math.abs(kg) > 0.001) {
+      alert(`"${name}" bo'yicha skladda ${kg.toLocaleString('ru-RU')} kg qoldiq bor.\n\nAvval shu qoldiqni sotib tugating, keyin turni o'chiring.`);
+      return false;
+    }
+    const inUse = recvRows.some(r => r.cementType === name) || salesRows.some(r => r.cementType === name);
+    if (inUse && !window.confirm(
+      `"${name}" turi eski yozuvlarda ishlatilgan.\n\n` +
+      `O'chirilsa, o'sha yozuvlar tur bo'yicha hisobotlarda ko'rinmay qoladi (summalar o'zgarmaydi).\n\nDavom etamizmi?`
+    )) return false;
+    setCementTypes(p => p.filter(t => t !== name));
+    return true;
+  };
 
   // ── Asosiy sklad (kilogram hisob — CHAKANA) ──────────────────────────────────
   const [skladRows, setSkladRows] = useState(() => load('sklad_rows', []));
@@ -634,27 +781,47 @@ export function DataProvider({ children }) {
   const totalCementBalance = Number(cementOpening.tons) + _ulgurjiRecvTons - totalSoldTons - totalSalesTons;
 
   const addSkladKirim = (recvRowId, kg, desc, cementType) => {
-    const ts = Date.now();
-    setSkladRows(p => [...p, {
+    const kgN = Number(kg) || 0;
+    if (kgN <= 0) return null;
+    // Bitta yuk (recvRow) o'zida boridan ko'proq skladga o'tkazilishini bloklaymiz.
+    // Aks holda ulgurji qoldiq Math.max(0,...) bilan nolda ushlanib, farq
+    // hech qayerda ko'rinmay sement "yo'qolib" qolardi.
+    const src = recvRows.find(r => r.id === recvRowId);
+    if (src) {
+      const alreadyKg = _skladKgByRecvId[recvRowId] || 0;
+      const capacityKg = Number(src.tons || 0) * 1000 - alreadyKg;
+      if (kgN > capacityKg + 0.001) {
+        alert(
+          `Skladga o'tkazib bo'lmadi.\n\n` +
+          `Bu yukda qolgani: ${(capacityKg / 1000).toFixed(3)} tn (${Math.round(capacityKg)} kg)\n` +
+          `O'tkazmoqchi: ${(kgN / 1000).toFixed(3)} tn (${Math.round(kgN)} kg)`
+        );
+        return null;
+      }
+    }
+    const ts = uid();
+    const row = {
       id: ts, createdAt: ts, date: new Date().toLocaleDateString('ru-RU'),
-      type: 'kirim', kg: Number(kg), sourceId: recvRowId,
+      type: 'kirim', kg: kgN, sourceId: recvRowId,
       desc: desc || 'Zavoddan kirim', worker: currentWorker,
       cementType: cementType || '',
-    }]);
+    };
+    setSkladRows(p => [...p, row]);
+    return row;
   };
 
   const addSkladSotuv = ({ customer, kg, pricePerKg, channel, note, cementType }) => {
-    const ts = Date.now();
+    const ts = uid();
     const kgN  = Number(kg);
     const sum  = kgN * Number(pricePerKg);
     const td   = new Date().toLocaleDateString('ru-RU');
     const tag  = `🏗 Sklad: ${customer} (${kgN} kg)`;
     const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td, customer };
     if (sum > 0) {
-      if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
-      else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
-      else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: ts + 1, amount: sum, desc: tag }]);
-      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: ts + 1, customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+      if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), customer, amount: sum, paid: 0, note: tag, payments: [] }]);
     }
     const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, customer, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker, cementType: cementType || '' };
     setSkladRows(p => [...p, row]);
@@ -690,6 +857,12 @@ export function DataProvider({ children }) {
       (skladRows || []).filter(r => r.cementType === type).reduce((s, r) => s + Number(r.kg || 0), 0)
     ])
   );
+  // Turi ko'rsatilmagan yozuvlar hech qaysi turga tushmaydi — natijada turlar
+  // yig'indisi umumiy qoldiqdan kam chiqib, farq ko'zdan yashirin qolardi.
+  // Shu farqni alohida ko'rsatamiz (0 bo'lsa e'tiborsiz qoldiriladi).
+  const skladKgUntyped = (skladRows || [])
+    .filter(r => !r.cementType || !cementTypes.includes(r.cementType))
+    .reduce((s, r) => s + Number(r.kg || 0), 0);
 
   // ── Ulgurji sklad (ton) bo'yicha qoldiq ────────────────────────────────────
   // Chakana skladga (kg) o'tkazilgan recvRow'lar CHIQARIB TASHLANADI
@@ -709,14 +882,14 @@ export function DataProvider({ children }) {
   const [bankIncomeRows, setBankIncomeRows] = useState(() => load('bank_income_rows', []));
   useEffect(() => save('bank_income_rows', bankIncomeRows), [bankIncomeRows]);
   const addBankIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
-    const ts = Date.now();
+    const ts = uid();
     setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer }]);
   };
   const deleteBankIncomeRow = (id) => setBankIncomeRows(p => p.filter(r => r.id !== id));
   // Excel'dan bank o'tkazmalarini import — TEKSHIRILMAGAN (pending) holatda.
   // Xodim qaysi mijoz puli ekanini biriktirib tasdiqlaydi.
   const importBankIncomeRows = (rows) => {
-    const base = Date.now();
+    const base = uid();
     setBankIncomeRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
@@ -736,7 +909,7 @@ export function DataProvider({ children }) {
   const [bankExpenseRows, setBankExpenseRows] = useState(() => load('bank_expense_rows', []));
   useEffect(() => save('bank_expense_rows', bankExpenseRows), [bankExpenseRows]);
   const addBankExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
-    const ts = Date.now();
+    const ts = uid();
     setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer }]);
   };
   const deleteBankExpenseRow = (id) => setBankExpenseRows(p => p.filter(r => r.id !== id));
@@ -746,7 +919,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_pending_rows', bankPendingRows), [bankPendingRows]);
 
   const importOborotka = (rows) => {
-    const base = Date.now();
+    const base = uid();
     setBankPendingRows(p => [...p, ...rows.map((r, i) => ({
       id: base + i,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
@@ -762,7 +935,7 @@ export function DataProvider({ children }) {
   const confirmBankPendingRow = (id, { customer = '', izoh = '' } = {}) => {
     const row = bankPendingRows.find(r => r.id === id);
     if (!row) return;
-    const ts = Date.now();
+    const ts = uid();
     const desc = izoh || row.naznachenie || '';
     if (row.type === 'kirim') {
       setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, customer, worker: currentWorker }]);
@@ -783,7 +956,7 @@ export function DataProvider({ children }) {
   const [clickIncomeRows, setClickIncomeRows] = useState(() => load('click_income_rows', []));
   useEffect(() => save('click_income_rows', clickIncomeRows), [clickIncomeRows]);
   const addClickIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
-    const ts = Date.now();
+    const ts = uid();
     setClickIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteClickIncomeRow = (id) => setClickIncomeRows(p => p.filter(r => r.id !== id));
@@ -793,7 +966,7 @@ export function DataProvider({ children }) {
   const [clickExpenseRows, setClickExpenseRows] = useState(() => load('click_expense_rows', []));
   useEffect(() => save('click_expense_rows', clickExpenseRows), [clickExpenseRows]);
   const addClickExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
-    const ts = Date.now();
+    const ts = uid();
     setClickExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
   };
   const deleteClickExpenseRow = (id) => setClickExpenseRows(p => p.filter(r => r.id !== id));
@@ -810,7 +983,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('salary_payments', salaryPayments), [salaryPayments]);
 
   const addWorker = (name, salary, opts = {}) => {
-    const ts = Date.now();
+    const ts = uid();
     setWorkers(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
       name, salary: Number(salary), paid: 0,
@@ -825,7 +998,7 @@ export function DataProvider({ children }) {
   };
 
   const payWorker = (id, amount, note = '', channel = 'naqd') => {
-    const ts = Date.now();
+    const ts = uid();
     const num = Number(amount);
     const today = new Date().toLocaleDateString('ru-RU');
     const workerObj = workers.find(w => w.id === id);
@@ -838,16 +1011,37 @@ export function DataProvider({ children }) {
     if (num > 0) {
       const tag  = `🔗 Oylik: ${workerObj?.name || ''}`;
       const link = { auto: true, sourceType: 'salary', sourceId: `${id}_s${ts}`, createdAt: ts, worker: currentWorker, date: today };
-      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount: -num, desc: tag }]);
-      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount: -num, desc: tag }]);
-      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount: -num, desc: tag }]);
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount: -num, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount: -num, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount: -num, desc: tag }]);
     }
+  };
+
+  // Oylik to'lovini bekor qilish. guardAutoDelete kassa yozuvini o'chirmoqchi
+  // bo'lgan foydalanuvchini SHU yerga yo'naltiradi — ilgari bunday funksiya
+  // umuman yo'q edi, ya'ni xato kiritilgan oylikni orqaga qaytarib bo'lmasdi.
+  const deleteSalaryPayment = (paymentId) => {
+    const pay = salaryPayments.find(p => p.id === paymentId);
+    if (!pay) return;
+    setSalaryPayments(p => p.filter(x => x.id !== paymentId));
+    setWorkers(p => p.map(w => w.id === pay.workerId
+      ? { ...w, paid: Math.max(0, Number(w.paid || 0) - Number(pay.amount || 0)) }
+      : w));
+    // To'lovdan yaratilgan kassa chiqimini ham qaytaramiz
+    const sid = `${pay.workerId}_s${pay.id}`;
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'salary' && r.sourceId === sid));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
   };
 
   const updateWorker = (id, data) => setWorkers(p => p.map(w => w.id === id ? { ...w, ...data } : w));
   const deleteWorker = (id) => {
+    // Xodim o'chsa, uning oylik to'lovlaridan yaratilgan kassa chiqimlari
+    // ilgari kassada "egasiz" qolib ketardi.
+    const sids = new Set(salaryPayments.filter(x => x.workerId === id).map(x => `${id}_s${x.id}`));
     setWorkers(p => p.filter(w => w.id !== id));
     setSalaryPayments(p => p.filter(x => x.workerId !== id));
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'salary' && sids.has(r.sourceId)));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm);
   };
 
   // ── 17. Telegram zakaz ────────────────────────────────────────────────────
@@ -855,7 +1049,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('tg_orders', tgOrders), [tgOrders]);
 
   const addTgOrder = (customer, tons, note = '', worker = currentWorker) => {
-    const ts = Date.now();
+    const ts = uid();
     setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: worker || currentWorker, date: new Date().toLocaleDateString('ru-RU'), customer, tons: Number(tons), status: 'kutilmoqda', note }]);
   };
   const setTgStatus   = (id, status) => setTgOrders(p => p.map(o => o.id === id ? { ...o, status } : o));
@@ -866,7 +1060,7 @@ export function DataProvider({ children }) {
   const [dailyWorkRows, setDailyWorkRows] = useState(() => load('daily_work_rows', []));
   useEffect(() => save('daily_work_rows', dailyWorkRows), [dailyWorkRows]);
   const addDailyWorkRow = (entry) => {
-    const ts = Date.now();
+    const ts = uid();
     setDailyWorkRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry }]);
   };
   const deleteDailyWorkRow = (id) => setDailyWorkRows(p => p.filter(r => r.id !== id));
@@ -876,21 +1070,69 @@ export function DataProvider({ children }) {
   useEffect(() => save('customers', customers), [customers]);
   const genLinkCode = () => Math.random().toString(36).slice(2, 10).toUpperCase();
   const addCustomer = ({ name, address, phone, note = '' }) => {
-    const ts = Date.now();
+    const ts = uid();
     setCustomers(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
       name: name.trim(), address: address.trim(), phone: phone.trim(), note,
       linkCode: genLinkCode(),
     }]);
   };
-  const updateCustomer = (id, data) => setCustomers(p => p.map(c => c.id === id ? { ...c, ...data } : c));
-  const deleteCustomer = (id) => setCustomers(p => p.filter(c => c.id !== id));
+  // Butun tizim mijozni ISM orqali bog'laydi (sotuv, qarz, avans, sklad...).
+  // Shuning uchun ism o'zgarsa, uni HAMMA joyda birga o'zgartirish kerak —
+  // aks holda mijozning butun tarixi va qarzi "egasiz" bo'lib qolardi.
+  const updateCustomer = (id, data) => {
+    const old = customers.find(c => c.id === id);
+    const newName = String(data?.name || '').trim();
+    const oldName = String(old?.name || '').trim();
+    const renamed = old && newName && newName !== oldName;
+
+    if (renamed) {
+      const clash = customers.some(c => c.id !== id && c.name.trim().toLowerCase() === newName.toLowerCase());
+      if (clash) {
+        alert(`"${newName}" nomli mijoz allaqachon bor.\nBoshqa nom tanlang yoki eski yozuvni o'chiring.`);
+        return false;
+      }
+      const swap = (rows) => rows.map(r => r.customer === oldName ? { ...r, customer: newName } : r);
+      setSalesRows(swap); setSoldRows(swap); setDebtRows(swap);
+      setAdvanceRows(swap); setSkladRows(swap);
+      setCashRows(swap); setBankRows(swap); setClickRows(swap);
+      setBankIncomeRows(swap); setBankExpenseRows(swap);
+      setTgOrders(swap);
+      advanceRef.current = swap(advanceRef.current);
+    }
+    setCustomers(p => p.map(c => c.id === id ? { ...c, ...data } : c));
+    return true;
+  };
+
+  const deleteCustomer = (id) => {
+    const c = customers.find(x => x.id === id);
+    if (c) {
+      // Qarzi yoki avansi bor mijozni o'chirish — o'sha summa ro'yxatdan
+      // yo'qolib, hech kim uni ko'rmay qolishiga olib keladi.
+      const debt = debtRows.filter(r => r.customer === c.name)
+        .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
+      const adv = advanceRows.filter(r => r.customer === c.name)
+        .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
+      if (debt > 0 || adv > 0) {
+        const parts = [];
+        if (debt > 0) parts.push(`qarzi: ${debt.toLocaleString('ru-RU')} so'm`);
+        if (adv  > 0) parts.push(`avansi: ${adv.toLocaleString('ru-RU')} so'm`);
+        alert(
+          `"${c.name}" ni o'chirib bo'lmaydi — ${parts.join(', ')}.\n\n` +
+          `Avval hisob-kitobni yopib, keyin o'chiring.`
+        );
+        return false;
+      }
+    }
+    setCustomers(p => p.filter(x => x.id !== id));
+    return true;
+  };
   // Mijozni nazoratga olish / olib tashlash (ixtiyoriy alohida muddat bilan)
   const setMonitor = (id, monitored, monitorDays = null) =>
     setCustomers(p => p.map(c => c.id === id ? { ...c, monitored, monitorDays: monitorDays || null } : c));
   // Excel'dan ko'plab mijoz import qilish (unikal id bilan)
   const importCustomers = (rows) => {
-    const base = Date.now();
+    const base = uid();
     setCustomers(p => [...p, ...rows.map((r, i) => ({
       id: base + i, createdAt: base + i, worker: currentWorker,
       name: (r.name || '').trim(), address: (r.address || '').trim(),
@@ -915,7 +1157,7 @@ export function DataProvider({ children }) {
 
   // ── Tiketlar (zayavka uchun) ────────────────────────────────────────────────
   const addTicket = (number, marka, totalTonna) => {
-    const id = 'tk_' + Date.now();
+    const id = 'tk_' + uid();
     setTickets(p => [...p, {
       id, number: number.trim(), marka: marka.trim(),
       totalTonna: Number(totalTonna) || 0,
@@ -928,8 +1170,19 @@ export function DataProvider({ children }) {
   // Bot usedTonna ni to'g'ridan-to'g'ri state ga yozadi (db.useTicketTonna).
   // Frontend keyingi sync da yangi qiymatni oladi.
 
-  const addDriverTariff    = (name) => setDriverTariffs(p => [...p, { id: Date.now(), name: name.trim(), prices: [] }]);
-  const removeDriverTariff = (id)   => setDriverTariffs(p => p.filter(t => t.id !== id));
+  const addDriverTariff    = (name) => setDriverTariffs(p => [...p, { id: uid(), name: name.trim(), prices: [] }]);
+  // Tarif o'chsa, unga biriktirilgan haydovchilarda "egasiz" tariffId qolib,
+  // reys narxi ro'yxati bo'shab qolardi. Shuning uchun biriktirishni uzamiz.
+  const removeDriverTariff = (id) => {
+    const bound = drivers.filter(d => d.tariffId === id);
+    if (bound.length && !window.confirm(
+      `Bu tarif ${bound.length} ta haydovchiga biriktirilgan:\n${bound.map(d => `· ${d.name}`).join('\n')}\n\n` +
+      `O'chirilsa ular tarifsiz qoladi. Davom etamizmi?`
+    )) return false;
+    setDriverTariffs(p => p.filter(t => t.id !== id));
+    setDrivers(p => p.map(d => d.tariffId === id ? { ...d, tariffId: null } : d));
+    return true;
+  };
   const renameDriverTariff = (id, name) => setDriverTariffs(p => p.map(t => t.id === id ? { ...t, name } : t));
   const addPriceToTariff   = (id, price) => setDriverTariffs(p => p.map(t => {
     if (t.id !== id) return t;
@@ -942,10 +1195,23 @@ export function DataProvider({ children }) {
   ));
 
   const addDriver = (name, carNumber, phone = '', tariffId = null) => {
-    const ts = Date.now();
+    const ts = uid();
     setDrivers(p => [...p, { id: ts, name, carNumber, phone, tariffId }]);
   };
-  const updateDriver = (id, data) => setDrivers(p => p.map(d => d.id === id ? { ...d, ...data } : d));
+  // Haydovchi balansi kassa yozuvlaridagi ism bo'yicha ham yig'iladi
+  // (Kassirdan qo'lda berilgan avanslar). Nom o'zgarsa — o'sha to'lovlar
+  // haydovchidan uzilib, unga qayta to'lab yuborish xavfi tug'ilardi.
+  const updateDriver = (id, data) => {
+    const old = drivers.find(d => d.id === id);
+    const newName = String(data?.name || '').trim();
+    const oldName = String(old?.name || '').trim();
+    if (old && newName && newName !== oldName) {
+      const swap = (rows) => rows.map(r => r.customer === oldName ? { ...r, customer: newName } : r);
+      setCashRows(swap); setBankRows(swap); setClickRows(swap);
+    }
+    setDrivers(p => p.map(d => d.id === id ? { ...d, ...data } : d));
+    return true;
+  };
   const deleteDriver = (id) => {
     const tripIds = new Set(driverTrips.filter(t => t.driverId === id).map(t => t.id));
     setDrivers(p => p.filter(d => d.id !== id));
@@ -956,7 +1222,7 @@ export function DataProvider({ children }) {
   };
 
   const addDriverTrip = (driverId, destination, price, isPayment = false, note = '', channel = 'naqd') => {
-    const ts = Date.now();
+    const ts = uid();
     const amt = Number(price);
     const today = new Date().toLocaleDateString('ru-RU');
     setDriverTrips(p => {
@@ -990,9 +1256,9 @@ export function DataProvider({ children }) {
       const drv = drivers.find(d => d.id === driverId);
       const tag  = `🔗 Haydovchi to'lovi: ${drv?.name || ''}`;
       const link = { auto: true, sourceType: 'driver', sourceId: ts, createdAt: ts, worker: currentWorker, date: today };
-      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
-      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
-      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: ts + 1, amount: -amt, desc: tag }]);
+      if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
+      else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
+      else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
     }
   };
   const deleteDriverTrip = (id) => {
@@ -1157,6 +1423,10 @@ export function DataProvider({ children }) {
     salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, bankPendingRows, clickIncomeRows, clickExpenseRows,
     workers, salaryPayments, tgOrders, dailyWorkRows, customers, drivers, driverTrips, skladRows,
     tickets,
+    // Bular snapshot'ga kiradi, lekin ilgari bu ro'yxatda yo'q edi — ya'ni sklad
+    // qo'shish, sement turi qo'shish yoki tarif o'zgartirish serverga SAQLANMASDAN
+    // qolib, boshqa qurilmada ochilganda yo'qolib ketardi.
+    warehouses, driverTariffs, cementTypes,
   ]);
 
   // 3) Telegram botiga tushgan yangi zakazlarni backend navbatidan o'qib olish
@@ -1243,7 +1513,7 @@ export function DataProvider({ children }) {
     clickExpenseRows, addClickExpenseRow, deleteClickExpenseRow, totalClickExpense,
     clickNetBalance,
     // 16. Ishchilar
-    workers, addWorker, updateWorker, payWorker, deleteWorker,
+    workers, addWorker, updateWorker, payWorker, deleteWorker, deleteSalaryPayment,
     salaryPayments,
     // 17. Telegram
     tgOrders, addTgOrder, setTgStatus, deleteTgOrder, totalTgTons,
@@ -1261,7 +1531,7 @@ export function DataProvider({ children }) {
     skladSourceIds: _skladSourceIds,
     // Sement turlari
     cementTypes, addCementType, removeCementType,
-    cementBalanceByType, skladKgByType,
+    cementBalanceByType, skladKgByType, skladKgUntyped,
     // Tiketlar (zayavka uchun)
     tickets, addTicket, closeTicket, reopenTicket, deleteTicket,
   };

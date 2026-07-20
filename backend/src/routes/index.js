@@ -132,7 +132,10 @@ router.post('/notify_customer_payment', authenticate, async (req, res) => {
     // totalDebt berilmasa state dan hisoblaymiz
     let debt;
     if (totalDebt === null || totalDebt === undefined) {
-      const debtRows = state.debtRows || [];
+      // DIQQAT: state kalitlari snake_case. `state.debtRows` hech qachon mavjud
+      // emas edi — natijada bu tarmoqda qarz HAR DOIM 0 chiqib, mijozga
+      // "qarzingiz yo'q" degan noto'g'ri xabar ketardi.
+      const debtRows = state.debt_rows || [];
       debt = debtRows
         .filter(r => r.customer === customer.name)
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid || 0)), 0);

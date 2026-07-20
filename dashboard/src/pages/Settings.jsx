@@ -834,7 +834,7 @@ export default function Settings({ lang }) {
                 <input value={w.name} onChange={e => updateWarehouse(w.id, e.target.value)}
                   style={{ border: '1px solid #ddd', borderRadius: 4, padding: '4px 8px', fontSize: 13, width: 160 }} />
                 {warehouses.length > 1 && (
-                  <button onClick={() => { if (window.confirm(`"${w.name}" skladini o'chirasizmi? (yozuvlari asosiy skladga o'tadi)`)) deleteWarehouse(w.id); }}
+                  <button onClick={() => { if (window.confirm(`"${w.name}" skladini o'chirasizmi?\n\nEslatma: skladda sement qoldig'i bo'lsa o'chirilmaydi — avval qoldiqni nolga tushiring.`)) deleteWarehouse(w.id); }}
                     style={{ background: '#ffebee', color: '#c62828', border: '1px solid #ef9a9a', borderRadius: 4, cursor: 'pointer', padding: '4px 8px', fontSize: 12 }}>✕</button>
                 )}
               </div>
