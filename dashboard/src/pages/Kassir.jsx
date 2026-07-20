@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
+import ExpenseTypeSelect from '../components/ExpenseTypeSelect';
+import ExpenseReport from '../components/ExpenseReport';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
 import NotifyModal from '../components/NotifyModal';
@@ -109,8 +111,9 @@ export default function Kassir() {
     salesRows,
     appSettings, currentWorker, setCurrentWorker, workers,
     addSkladSotuv, totalSkladKg, skladRows, updateSkladRow, deleteSkladSotuv,
-    cementTypes, skladKgByType, skladKgUntyped,
+    cementTypes, skladKgByType, skladKgUntyped, currentUser,
   } = data;
+  const isAdmin = currentUser?.role === 'admin';
 
   // ── Tab holati ────────────────────────────────────────────────────────────────
   const [tab, setTab]     = useState('kirim');
@@ -119,7 +122,7 @@ export default function Kassir() {
 
   // ── Formalar ─────────────────────────────────────────────────────────────────
   const [kirim,  setKirim]  = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
-  const [chiqim, setChiqim] = useState({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
+  const [chiqim, setChiqim] = useState({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd', expenseType: '' });
   const [sklad,  setSklad]  = useState({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
 
   // ── Modallar ──────────────────────────────────────────────────────────────────
@@ -141,9 +144,9 @@ export default function Kassir() {
     : 0;
   const custAdv = kirim.customer ? advanceBalanceOf(kirim.customer) : 0;
 
-  const addRow = (channel, amount, desc, customer = '') => {
+  const addRow = (channel, amount, desc, customer = '', extra = {}) => {
     const fn = { naqd: addCashRow, bank: addBankRow, click: addClickRow }[channel];
-    if (fn) fn(amount, desc, toDay(), customer);
+    if (fn) fn(amount, desc, toDay(), customer, extra);
   };
 
   // ── KIRIM ────────────────────────────────────────────────────────────────────
@@ -187,8 +190,11 @@ export default function Kassir() {
       addRow(opt.to,   +amt, tag);
       showToast(`${fmt(amt)} so'm o'tkazildi`);
     } else {
-      const fullDesc = chiqim.note;
-      addRow(chiqim.channel, -amt, fullDesc, chiqim.customer);
+      // Xarajat turi kiritilgan bo'lsa — izohning oldiga qo'shamiz (jurnalda
+      // ko'rinishi uchun) va alohida maydon sifatida ham saqlaymiz (hisobot uchun).
+      const xt = (chiqim.expenseType || '').trim();
+      const fullDesc = xt ? (chiqim.note ? `${xt} — ${chiqim.note}` : xt) : chiqim.note;
+      addRow(chiqim.channel, -amt, fullDesc, chiqim.customer, xt ? { expenseType: xt } : {});
       showToast(`-${fmt(amt)} so'm chiqim`);
       // Haydovchiga Telegram xabari (agar mijoz haydovchi bo'lsa)
       if (chiqim.customer) {
@@ -201,7 +207,7 @@ export default function Kassir() {
         }
       }
     }
-    setChiqim({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd' });
+    setChiqim({ customer: '', amount: '', note: '', channel: 'naqd', isTransfer: false, tDir: 'bank_to_naqd', expenseType: '' });
   };
 
   // ── SKLAD SOTUV (kg) ─────────────────────────────────────────────────────────
@@ -322,8 +328,10 @@ export default function Kassir() {
     kirim:  { color: '#2e7d32', bg: '#e8f5e9', label: '➕ Kirim' },
     chiqim: { color: '#c62828', bg: '#ffebee', label: '➖ Chiqim' },
     sotuv:  { color: '#4e342e', bg: '#efebe9', label: '🏗 Sotish (kg)' },
+    // Xarajat hisoboti — faqat admin ko'radi (boshliq nazorati)
+    ...(isAdmin ? { xarajat: { color: '#00695c', bg: '#e0f2f1', label: '📊 Xarajatlar' } } : {}),
   };
-  const activeTab = TABS[tab];
+  const activeTab = TABS[tab] || TABS.kirim;
 
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13, paddingBottom: 30 }}>
@@ -442,10 +450,23 @@ export default function Kassir() {
             )}
             {!chiqim.isTransfer && (
               <FRow>
-                <Field label="Mijoz (ixtiyoriy)">
+                <Field label="Mijoz / xarajat guruhi (ixtiyoriy)">
                   <CustomerSelect value={chiqim.customer} onChange={v => setChiqim({ ...chiqim, customer: v })}
-                    placeholder="Pul kimga chiqdi? (ixtiyoriy)" accentColor="#c62828" />
+                    placeholder="Kimga / qaysi guruhga? (masalan: Ishxona xarajatlari)" accentColor="#c62828" />
                 </Field>
+                {/* Guruh tanlangach — xarajat TURI maydoni ochiladi. Har bir mayda
+                    xarajatni alohida mijoz qilib saqlash o'rniga, shu yerda
+                    turkumlanadi (moyka, taksi, remont...). Keyin admin tur bo'yicha
+                    filtrlaydi. */}
+                {chiqim.customer.trim() && (
+                  <Field label="Xarajat turi (ixtiyoriy)">
+                    <ExpenseTypeSelect
+                      group={chiqim.customer}
+                      value={chiqim.expenseType}
+                      onChange={v => setChiqim({ ...chiqim, expenseType: v })}
+                    />
+                  </Field>
+                )}
               </FRow>
             )}
             <FRow>
@@ -530,9 +551,15 @@ export default function Kassir() {
             <SaveBtn color="#4e342e" label="✓ Sotish (Chek chiqadi)" />
           </form>
         )}
+
+        {/* ─ XARAJAT HISOBOTI (faqat admin) ─ */}
+        {tab === 'xarajat' && isAdmin && (
+          <ExpenseReport cashRows={cashRows} bankRows={bankRows} clickRows={clickRows} />
+        )}
       </div>
 
-      {/* ── SKLAD SAVDO TARIXI (kg) ── */}
+      {/* ── SKLAD SAVDO TARIXI (kg) — xarajat hisobotida keraksiz ── */}
+      {tab !== 'xarajat' && (
       <div style={{ marginBottom: 20, background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
           <span style={{ fontWeight: 'bold', fontSize: 14, color: '#4e342e' }}>🏗 Sklad savdo tarixi (kg)</span>
@@ -628,8 +655,10 @@ export default function Kassir() {
           </>
         )}
       </div>
+      )}
 
-      {/* ── BUGUNGI JURNAL ── */}
+      {/* ── BUGUNGI JURNAL — xarajat hisobotida keraksiz ── */}
+      {tab !== 'xarajat' && (
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 'bold', fontSize: 14, color: '#003366' }}>📋 Bugungi kassa operatsiyalari ({journalRows.length} ta)</span>
@@ -738,6 +767,7 @@ export default function Kassir() {
           </table>
         )}
       </div>
+      )}
 
       {notifyRow && <NotifyModal name={notifyRow.name} phone={notifyRow.phone} defaultText={notifyRow.text} onClose={() => setNotifyRow(null)} />}
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}

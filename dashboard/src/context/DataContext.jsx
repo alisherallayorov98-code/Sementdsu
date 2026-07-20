@@ -233,9 +233,11 @@ export function DataProvider({ children }) {
   useEffect(() => save('cash_opening', cashOpening), [cashOpening]);
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
   const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
+  // extra — qo'shimcha maydonlar (masalan { expenseType: '571 moshin moykasi' }).
+  // Guruhlangan xarajat hisoboti shu maydon orqali ishlaydi.
+  const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
     const ts = uid();
-    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
+    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '', ...extra }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
   const updateCashRow    = (id, fields) => setCashRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -246,9 +248,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_opening', bankOpening), [bankOpening]);
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
+  const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
     const ts = uid();
-    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
+    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '', ...extra }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
   const updateBankRow    = (id, fields) => setBankRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -259,9 +261,9 @@ export function DataProvider({ children }) {
   useEffect(() => save('click_opening', clickOpening), [clickOpening]);
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
   const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
-  const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
+  const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
     const ts = uid();
-    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '' }]);
+    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '', ...extra }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
   const updateClickRow    = (id, fields) => setClickRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
