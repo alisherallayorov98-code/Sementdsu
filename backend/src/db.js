@@ -135,6 +135,9 @@ module.exports = {
       return fs.readdirSync(ACCOUNTS_DIR, { withFileTypes: true })
         .filter(d => d.isDirectory())
         .map(d => d.name)
+        // "_" bilan boshlangan papkalar — arxivga ko'chirilgan (o'chirilgan)
+        // tashkilotlar. Ular ro'yxatda ko'rinmasligi kerak (lekin diskda qoladi).
+        .filter(name => !name.startsWith('_'))
         .filter(name => fs.existsSync(path.join(ACCOUNTS_DIR, name, 'db.json')));
     } catch { return []; }
   },
