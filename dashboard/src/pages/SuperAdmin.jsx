@@ -340,6 +340,9 @@ function ActionModal({ action, onClose, onDone }) {
 
   const isDestructive = type === 'wipe' || type === 'delete';
   const needWord = type === 'delete' ? 'O\'CHIRISH' : 'TOZALASH';
+  // Apostrof turini (' ' ` ) va katta-kichik harfни e'tiborsiz qoldiramiz —
+  // o'zbek klaviaturasida bu belgilar aralashib ketadi, tugma faol bo'lmasdi.
+  const normWord = (s) => String(s).toUpperCase().replace(/[`'''ʻ]/g, '').trim();
 
   const run = async () => {
     setErr(''); setBusy(true);
@@ -360,7 +363,7 @@ function ActionModal({ action, onClose, onDone }) {
 
   const canRun = type === 'password'
     ? (workerName && password.length >= 6)
-    : (resetKey.length > 0 && confirmText === needWord);
+    : (resetKey.length > 0 && normWord(confirmText) === normWord(needWord));
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{
