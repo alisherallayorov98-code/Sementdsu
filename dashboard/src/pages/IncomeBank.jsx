@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
+import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
@@ -25,7 +26,45 @@ export default function IncomeBank({ lang }) {
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
     totalBankBalance,
     bankPendingRows, importOborotka, confirmBankPendingRow, deleteBankPendingRow,
+    payCustomerDebt, addAdvanceRow, debtRows,
   } = useData();
+
+  // Kirim/chiqim natijasi haqida qisqa xabar
+  const [msg, setMsg] = useState('');
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+
+  // ── Bank KIRIM — Kassir bilan bir xil integratsiya ────────────────────────
+  // Mijoz tanlansa: pul avval QARZni yopadi (eng eskisidan), ortig'i AVANSga
+  // yoziladi. Mijoz tanlanmasa: oddiy bank kirim (bankIncomeRows).
+  // Shu tariqa mijoz puli hech qachon "osilib" qolmaydi.
+  const submitBankIncome = (e) => {
+    e.preventDefault();
+    const amt = parseNum(incForm.amount);
+    if (!amt) return;
+    const customer = (incForm.customer || '').trim();
+    if (customer) {
+      const custDebt = debtRows.filter(r => r.customer === customer)
+        .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+      const res = payCustomerDebt(customer, amt, 'bank', incForm.desc);
+      if (res.applied === 0) {
+        addAdvanceRow(customer, amt, incForm.desc, 'bank');
+        flash(`${fmt(amt)} so'm — qarzi yo'q, avans sifatida qabul qilindi`);
+      } else if (res.leftover > 0) {
+        addAdvanceRow(customer, res.leftover, `${incForm.desc} (ortiqcha)`, 'bank');
+        flash(`${fmt(res.applied)} so'm qarzga · ${fmt(res.leftover)} so'm avansga`);
+      } else {
+        flash(`${fmt(res.applied)} so'm qarz to'lovi qabul qilindi`);
+      }
+      if (res.applied > 0) {
+        const remainDebt = Math.max(0, custDebt - res.applied);
+        api.notifyCustomerPayment(customer, res.applied, 'bank', remainDebt).catch(() => {});
+      }
+    } else {
+      addBankIncomeRow(amt, incForm.desc, todayS, '');
+      flash(`+${fmt(amt)} so'm bank kirim`);
+    }
+    setIncForm({ amount: '', desc: '', customer: '' });
+  };
 
   const [activeTab,    setActiveTab]    = useState('pending'); // pending | kirim | chiqim
   const [range,        setRange]        = useState({ from: '', to: '' });
@@ -349,15 +388,21 @@ export default function IncomeBank({ lang }) {
       {activeTab === 'kirim' && (
         <div style={{ border:'1px solid #ccc', borderTop:'none', padding:14 }}>
 
+          {msg && (
+            <div style={{ background:'#e8f5e9', color:'#1b5e20', border:'1px solid #a5d6a7', borderRadius:4, padding:'8px 12px', marginBottom:12, fontSize:13, fontWeight:'bold' }}>
+              {msg}
+            </div>
+          )}
+
           {/* Qo'lda kiritish */}
-          <form onSubmit={e => { e.preventDefault(); if(!incForm.amount) return; addBankIncomeRow(incForm.amount, incForm.desc, todayS, incForm.customer); setIncForm({ amount:'', desc:'', customer:'' }); }}
+          <form onSubmit={submitBankIncome}
             style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', padding:'8px 10px', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:4 }}>
             <input type="number" placeholder="Summa" value={incForm.amount}
               onChange={e => setIncForm(p => ({...p, amount:e.target.value}))}
               style={{ ...inp, width:130 }} required />
             <div style={{ width:180 }}>
               <CustomerSelect value={incForm.customer} onChange={v => setIncForm(p=>({...p,customer:v}))}
-                placeholder="Mijoz (ixtiyoriy)" accentColor="#0d47a1" />
+                placeholder="Mijoz (tanlansa — qarzga)" accentColor="#0d47a1" />
             </div>
             <input type="text" placeholder="Izoh (ixtiyoriy)" value={incForm.desc}
               onChange={e => setIncForm(p => ({...p, desc:e.target.value}))}
@@ -367,6 +412,12 @@ export default function IncomeBank({ lang }) {
               ↑ Qo'shish
             </button>
           </form>
+          {/* Mijoz tanlanganda pul qarzga/avansga ketishini tushuntirish */}
+          {incForm.customer.trim() && (
+            <div style={{ fontSize: 11, color: '#0d47a1', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 4, padding: '6px 10px', marginTop: -6, marginBottom: 12 }}>
+              ℹ️ <b>{incForm.customer.trim()}</b> tanlangani uchun bu pul avval qarzini yopadi, ortig'i avansga yoziladi (Kassir bilan bir xil).
+            </div>
+          )}
 
           {/* Excel hisobot */}
           <div style={{ marginBottom:10 }}>
