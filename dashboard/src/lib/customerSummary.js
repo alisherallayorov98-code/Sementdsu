@@ -7,6 +7,8 @@ export function customerSummary(name, data) {
   const {
     salesRows = [], soldRows = [], debtRows = [],
     advanceRows = [], tgOrders = [], skladRows = [],
+    cashRows = [], bankRows = [], clickRows = [],
+    bankIncomeRows = [], bankExpenseRows = [],
   } = data || {};
 
   // Chakana (sklad, kg) sotuvlarini ham ulgurji ko'rinishga keltiramiz.
@@ -39,6 +41,23 @@ export function customerSummary(name, data) {
   const usedAvans    = advs.reduce((s, r) => s + Number(r.used || 0), 0);
   const qolganAvans  = Math.max(0, totalAvans - usedAvans);
 
+  // ── BOG'LANMAGAN (osilib qolgan) pul harakatlari ─────────────────────────
+  // Mijozga biriktirilgan, lekin sotuv/qarz/avansga ULANMAGAN kassa yozuvlari.
+  // Manba: Kassir kirim (mijozsiz kiritilib keyin tahrirda mijoz qo'shilgan),
+  // Bank kirim/chiqim sahifasi (mijoz "ixtiyoriy" tanlangan) va h.k.
+  // Bular auto EMAS (auto'lar allaqachon qarz/avans/sotuv orqali ko'rinadi).
+  // Shu pullar hech qaysi bo'limda ko'rinmay "yo'qolib" ketardi — endi mijoz
+  // kartochkasida ro'yxatlanadi, shunda har raqamning izini topish mumkin.
+  const unlinked = [
+    ...cashRows.map(r => ({ ...r, _ch: 'naqd' })),
+    ...bankRows.map(r => ({ ...r, _ch: 'bank' })),
+    ...clickRows.map(r => ({ ...r, _ch: 'click' })),
+    ...bankIncomeRows.map(r => ({ ...r, _ch: 'bank', amount: Math.abs(Number(r.amount || 0)) })),
+    ...bankExpenseRows.map(r => ({ ...r, _ch: 'bank', amount: -Math.abs(Number(r.amount || 0)) })),
+  ].filter(r => !r.auto && r.customer === name);
+  const unlinkedIn  = unlinked.filter(r => Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const unlinkedOut = unlinked.filter(r => Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+
   // Oxirgi xarid vaqti (createdAt yoki id timestamp bo'yicha)
   const lastSaleAt = sales.reduce((mx, r) => Math.max(mx, Number(r.createdAt || r.id || 0)), 0);
 
@@ -49,5 +68,6 @@ export function customerSummary(name, data) {
     totalAvans, qolganAvans,
     lastSaleAt,
     salesCount: sales.length,
+    unlinked, unlinkedIn, unlinkedOut,
   };
 }

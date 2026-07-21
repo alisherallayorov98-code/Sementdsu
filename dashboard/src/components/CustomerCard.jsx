@@ -230,6 +230,38 @@ export default function CustomerCard({ name, onClose }) {
             )}
           </Section>
 
+          {/* Bog'lanmagan pul harakatlari — sotuv/qarz/avansga ULANMAGAN, lekin
+              shu mijozga biriktirilgan kassa yozuvlari. Aynan shu pullar
+              "qayerdan kelgani noaniq" bo'lib ko'rinardi. */}
+          {s.unlinked && s.unlinked.length > 0 && (
+            <Section title={`⚠️ Bog'lanmagan pul harakatlari (${s.unlinked.length})`}>
+              <div style={{ fontSize: 11, color: '#e65100', background: '#fff3e0', padding: '6px 10px', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
+                Bu yozuvlar mijozga biriktirilgan, lekin hech qanday sotuv, qarz yoki
+                avansga ulanmagan (masalan Bank kirim yoki tahrirda qo'lda biriktirilgan).
+                Jami: kirim <b>{fmt(s.unlinkedIn)}</b> · chiqim <b>{fmt(s.unlinkedOut)}</b> so'm.
+              </div>
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead><tr><th>Sana</th><th>Kanal</th><th>Izoh</th><th style={{ textAlign: 'right' }}>Summa</th></tr></thead>
+                <tbody>
+                  {[...s.unlinked].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
+                    const chLbl = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[r._ch] || r._ch;
+                    const pos = Number(r.amount) > 0;
+                    return (
+                      <tr key={r._ch + '_' + r.id}>
+                        <td style={{ fontSize: 12 }}>{r.date}</td>
+                        <td style={{ fontSize: 12 }}>{chLbl}</td>
+                        <td style={{ fontSize: 12, color: '#555' }}>{typeof r.desc === 'object' ? r.desc.latn : (r.desc || '—')}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: pos ? '#2e7d32' : '#c62828' }}>
+                          {pos ? '+' : '-'}{fmt(Math.abs(Number(r.amount)))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Section>
+          )}
+
           {/* Telegram zakazlari */}
           {s.orders.length > 0 && (
             <Section title={`Telegram zakazlari (${s.orders.length})`}>
