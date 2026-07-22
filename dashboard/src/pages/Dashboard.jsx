@@ -13,6 +13,10 @@ import { activityStatus } from '../lib/monitoring';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+// Kanallararo o'tkazma (naqd↔bank↔click) — bu KIRIM ham, CHIQIM ham emas,
+// shunchaki o'z pulingni ko'chirish. Yalpi kirim/chiqim hisobidan chiqarib
+// tashlanadi, aks holda ikkala raqam ham sun'iy shishardi.
+const isTransfer = (r) => String(r.desc || '').trim().startsWith('↔️');
 
 // Komponent ichida hisoblanadi — brauzer tab ochiq qolsa sana eskirib qolmasin
 
@@ -51,8 +55,8 @@ export default function Dashboard() {
   const todaySales = allSales.filter(r => r.date === today);
   const monthSales = allSales.filter(r => (r.date || '').endsWith(monthKey));
 
-  const kassirTodayIn  = (arr) => arr.filter(r => r.date === today && !r.auto && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
-  const kassirTodayOut = (arr) => arr.filter(r => r.date === today && !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+  const kassirTodayIn  = (arr) => arr.filter(r => r.date === today && !r.auto && !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const kassirTodayOut = (arr) => arr.filter(r => r.date === today && !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
   const todayIncome  = incomeRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0) + kassirTodayIn(cashRows) + kassirTodayIn(bankRows) + kassirTodayIn(clickRows);
   const todayExpense = expenseRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0) + kassirTodayOut(cashRows) + kassirTodayOut(bankRows) + kassirTodayOut(clickRows);
 
@@ -61,15 +65,16 @@ export default function Dashboard() {
 
   // Kirim/chiqim jami (barcha kanallar)
   const sumArr = (arr, positive = true) => (arr || []).reduce((s, r) => {
+    if (isTransfer(r)) return s;                 // o'tkazma — kirim/chiqim emas
     const v = Number(r.amount || 0);
     return positive ? s + (v > 0 ? v : 0) : s + (v < 0 ? -v : 0);
   }, 0);
   const totalIncome  = sumArr(incomeRows) + sumArr(clickIncomeRows) + sumArr(bankIncomeRows)
     + sumArr(cashRows) + sumArr(bankRows) + sumArr(clickRows);
   const totalExpense = sumArr(expenseRows) + sumArr(bankExpenseRows || []) + sumArr(clickExpenseRows || [])
-    + (cashRows || []).filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
-    + (bankRows || []).filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
-    + (clickRows || []).filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+    + (cashRows || []).filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
+    + (bankRows || []).filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
+    + (clickRows || []).filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
 
   // Eng katta qarzdorlar
   const debtByCust = {};
@@ -207,7 +212,7 @@ export default function Dashboard() {
             <Line label="Naqd chiqim"   value={`${fmt(sumArr(expenseRows))} so'm`} />
             <Line label="Bank chiqim"   value={`${fmt(sumArr(bankExpenseRows || []))} so'm`} />
             <Line label="Click chiqim"  value={`${fmt(sumArr(clickExpenseRows || []))} so'm`} />
-            <Line label="Kassir chiqim" value={`${fmt((cashRows||[]).filter(r=>!r.auto&&Number(r.amount)<0).reduce((s,r)=>s-Number(r.amount),0))} so'm`} />
+            <Line label="Kassir chiqim" value={`${fmt((cashRows||[]).filter(r=>!r.auto&&!isTransfer(r)&&Number(r.amount)<0).reduce((s,r)=>s-Number(r.amount),0))} so'm`} />
             <Line label="Jami chiqim"   value={`${fmt(totalExpense)} so'm`} color="#b71c1c" strong />
           </div>
         </div>

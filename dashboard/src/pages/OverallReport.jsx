@@ -28,8 +28,10 @@ export default function OverallReport() {
   } = useData();
 
   // ── Hisob-kitoblar ────────────────────────────────────────────────────────
-  const kassirKirim  = (arr) => arr.filter(r => !r.auto && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
-  const kassirChiqim = (arr) => arr.filter(r => !r.auto && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+  // Kanallararo o'tkazma (↔️) kirim ham, chiqim ham emas — chiqarib tashlanadi.
+  const isTransfer = (r) => String(r.desc || '').trim().startsWith('↔️');
+  const kassirKirim  = (arr) => arr.filter(r => !r.auto && !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const kassirChiqim = (arr) => arr.filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
   const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0) + kassirKirim(cashRows);
   const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0) + kassirChiqim(cashRows);
   const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows);
