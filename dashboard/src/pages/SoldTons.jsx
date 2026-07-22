@@ -105,15 +105,10 @@ export default function SoldTons({ lang }) {
       pricePerTon: form.narx, paymentChannel: form.tolov,
       izoh: form.izoh,
     });
-    // Sotuv rad etilsa (manfiy tonna) qarz ham yaratilmasligi kerak —
-    // aks holda savdosi yo'q, "arvoh" qarz paydo bo'lardi.
+    // Sotuv rad etilsa (manfiy tonna) forma tozalanmaydi.
     if (!created) return;
-    // Nasiya bo'lsa → qarz yaratish
-    if (form.tolov === 'nasiya') {
-      const amt  = Number(form.tonna) * Number(form.narx);
-      const note = `${fmtT(form.tonna)} tn × ${fmt(form.narx)} so'm/tn` + (form.izoh ? ` · ${form.izoh}` : '');
-      addDebtRow(form.mijoz, amt, note);
-    }
+    // Nasiya qarzи endi addSoldRow ichida BOG'LANGAN holda yaratiladi
+    // (sotuv o'chirilса birga o'chadi) — bu yerda qo'lda yaratmaymiz.
     setForm({ mijoz:'', tonna:'', narx:'', tolov:'naqd', izoh:'' });
   };
 

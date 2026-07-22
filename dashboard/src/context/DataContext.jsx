@@ -99,6 +99,7 @@ const guardAutoDelete = (rows, id) => {
     const src = row.sourceType;
     const msgs = {
       sale:         "Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.",
+      sold:         "Bu qarz eski sotuv (nasiya)dan avtomatik yaratilgan.\nO'chirish uchun \"Sotilgan tonna\" bo'limidan tegishli sotuvni o'chiring.",
       sklad_sale:   "Bu yozuv sklad (kg) sotuvidan avtomatik yaratilgan.\nO'chirish uchun \"Kassir → Sklad savdo tarixi\"dan tegishli sotuvni o'chiring.",
       recv:         "Bu yozuv sement olishdan avtomatik yaratilgan.\nO'chirish uchun \"Olingan tonna\" bo'limidan tegishli qatorni o'chiring.",
       debt_payment: "Bu yozuv qarz to'lovidan avtomatik yaratilgan.\nUni alohida o'chirib bo'lmaydi.",
@@ -300,9 +301,29 @@ export function DataProvider({ children }) {
     // Manfiy tonna qoldiqni yo'qdan oshiradi (addSaleRow bilan bir xil xavf)
     if (!(Number(entry?.tons) > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return null; }
     const ts = uid();
-    setSoldRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry }]);
+    const row = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
+    setSoldRows(p => [...p, row]);
+    // Nasiya bo'lsa — BOG'LANGAN qarz yaratamiz (sourceType 'sold'). Ilgari qarz
+    // SoldTons sahifasida qo'lda yaratilardi va sotuv o'chirilганда osilib qolardi
+    // (arvoh qarz). Endi sotuv bilan birga o'chadi.
+    if ((entry.paymentChannel || 'naqd') === 'nasiya') {
+      const amt = Number(row.tons || 0) * Number(row.pricePerTon || 0);
+      if (amt > 0) {
+        setDebtRows(p => [...p, {
+          id: uid(), createdAt: ts, worker: currentWorker, date: row.date,
+          customer: row.customer, amount: amt, paid: 0, payments: [],
+          note: `🔗 Eski sotuv (nasiya): ${row.customer} — ${fmtTons(row.tons)} tn`,
+          auto: true, sourceType: 'sold', sourceId: ts,
+        }]);
+      }
+    }
+    return row; // SoldTons.jsx qaytган qatorни tekshiradi
   };
-  const deleteSoldRow = (id) => setSoldRows(p => p.filter(r => r.id !== id));
+  const deleteSoldRow = (id) => {
+    setSoldRows(p => p.filter(r => r.id !== id));
+    // Bog'langan nasiya qarzini ham o'chiramiz
+    setDebtRows(p => p.filter(r => !(r.auto && r.sourceType === 'sold' && r.sourceId === id)));
+  };
   const totalSoldTons = soldRows.reduce((s, r) => s + Number(r.tons || 0), 0);
   // Eski "Sotilgan tonna" to'lov kanali bo'yicha pul tushumi (kassaga qo'shiladi)
   const _soldByCh = (ch) => soldRows
