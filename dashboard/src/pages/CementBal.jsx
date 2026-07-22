@@ -13,15 +13,26 @@ const L = {
 
 function CementBal({ lang }) {
   const { cementOpening, totalCementBalance, totalRecvTons, totalSoldTons, totalSalesTons,
-          warehouses, cementByWarehouse } = useData();
+          warehouses, cementByWarehouse, skladRows } = useData();
 
   // Sotilgan jami = eski "Sotilgan tonna" + yangi "Sotish" bo'limi
   const sotilganJami = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
+
+  // Chakana (kg) skladga o'tkazilgan tonna. Ulgurji qoldiqdan chiqarilgani uchun
+  // uni ALOHIDA ko'rsatamiz — aks holda "Ochilish + Olingan − Sotilgan" jami
+  // "Joriy qoldiq"ga to'g'ri kelmay, raqamlar qayerdan kelgani noaniq bo'lardi.
+  const skladgaOtkazilgan = (skladRows || [])
+    .filter(r => r.type === 'kirim' && r.sourceId)
+    .reduce((s, r) => s + Number(r.kg || 0), 0) / 1000;
 
   const rows = [
     { label: L.ochilish, val: fmt(cementOpening.tons) + ' tn', bg: '#fff' },
     { label: L.olingan,  val: '+' + fmt(totalRecvTons) + ' tn', bg: '#e8ffe8' },
     { label: L.sotilgan, val: '-' + fmt(sotilganJami) + ' tn', bg: '#ffe8e8' },
+    ...(skladgaOtkazilgan > 0.0001 ? [{
+      label: { latn: '🏗 Chakana skladga o\'tkazilgan', cyrl: '🏗 Чакана складга ўтказилган' },
+      val: '-' + fmt(skladgaOtkazilgan) + ' tn', bg: '#fff3e0',
+    }] : []),
     { label: L.joriy,    val: fmt(totalCementBalance) + ' tn',  bg: '#ffff00' },
   ];
 
@@ -65,6 +76,7 @@ function CementBal({ lang }) {
             { k: "Ochilish qoldig'i", v: Number(cementOpening.tons || 0) },
             { k: 'Olingan tonna', v: Number(totalRecvTons || 0) },
             { k: 'Sotilgan tonna', v: sotilganJami },
+            ...(skladgaOtkazilgan > 0.0001 ? [{ k: "Chakana skladga o'tkazilgan", v: skladgaOtkazilgan }] : []),
             { k: 'Joriy qoldiq', v: Number(totalCementBalance || 0) },
             ...cementByWarehouse.map(w => ({ k: `Sklad: ${w.name}`, v: Number(w.balance || 0) })),
           ]}
