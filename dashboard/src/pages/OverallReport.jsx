@@ -20,7 +20,7 @@ export default function OverallReport() {
     // Qarz va avans
     totalDebts, totalAdvances,
     // Xodimlar
-    workers,
+    workers, salaryPayments,
     // Haydovchilar
     drivers, driverTrips,
     // Telegram
@@ -39,15 +39,26 @@ export default function OverallReport() {
   const totalSalesSum = [...salesRows, ...soldRows].reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
   const totalSoldAll  = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
   
-  // Xodimlar qarzi
-  const totalWDebt = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - Number(w.paid)), 0);
+  // Xodimlar qarzi — JORIY OY bo'yicha (WorkerSalary sahifasi bilan bir xil).
+  // Ilgari w.paid (umr bo'yi to'plangan) ishlatilib, bir marta to'langan xodim
+  // qarzi doim 0 chiqardi — oylik tizimга o'tгандан keyin noto'g'ri edi.
+  const nowMonth = (() => { const n = new Date(); return `${String(n.getMonth()+1).padStart(2,'0')}.${n.getFullYear()}`; })();
+  const paidThisMonth = (wid) => (salaryPayments || [])
+    .filter(p => p.workerId === wid && (p.date || '').endsWith(nowMonth))
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalWDebt = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - paidThisMonth(w.id)), 0);
 
-  // Haydovchilar qarzi
+  // Haydovchilar qarzi — Kassirдан qo'lда berilgan to'lovlarни ham ayiramiz
+  // (Drivers sahifasi bilan bir xil). Ilgari faqat reys to'lovlari hisoblanib,
+  // qarz oshib ko'rinardi.
   const totalDriverDebt = drivers.reduce((sum, d) => {
     const trips = driverTrips.filter(t => t.driverId === d.id);
-    const earnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const paid     = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    return sum + Math.max(0, earnings - paid);
+    const earnings  = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
+    const tripPaid  = trips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price), 0);
+    const kassiPaid = [...(cashRows||[]), ...(bankRows||[]), ...(clickRows||[])]
+      .filter(r => !r.auto && r.customer === d.name && Number(r.amount) < 0)
+      .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
+    return sum + Math.max(0, earnings - tripPaid - kassiPaid);
   }, 0);
 
   // Telegram zakazlar
