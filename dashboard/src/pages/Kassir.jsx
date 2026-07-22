@@ -320,8 +320,11 @@ export default function Kassir() {
     ...jSkladNasiya,
   ].filter(r => r.date === today).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-  const todayIn  = journalRows.filter(r => Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
-  const todayOut = journalRows.filter(r => Number(r.amount) < 0).reduce((s, r) => s + Number(r.amount), 0);
+  // Kanallararo o'tkazma (↔️) kunlik kirim/chiqim summasiga sanalmaydi
+  // (jurnal ro'yxatida ko'rinaveradi).
+  const _isTransferRow = (r) => String(r.desc || '').trim().startsWith('↔️');
+  const todayIn  = journalRows.filter(r => !_isTransferRow(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const todayOut = journalRows.filter(r => !_isTransferRow(r) && Number(r.amount) < 0).reduce((s, r) => s + Number(r.amount), 0);
 
   // ── Tablar ────────────────────────────────────────────────────────────────────
   const TABS = {
