@@ -45,6 +45,24 @@ function isRowArray(v) {
   return Array.isArray(v) && v.every(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined);
 }
 
+// Serverdagi (bot yozgan) maydonlarni saqlash: client qatorida qiymat bo'sh
+// bo'lsa, serverdagi to'ldirilган qiymat qaytariladi. Client ataylab o'zgartirgan
+// bo'lsa (qiymat bor) — clientniki qoladi.
+function preserveServerFields(clientArr, serverArr, fields) {
+  if (!Array.isArray(clientArr) || !Array.isArray(serverArr)) return clientArr;
+  const byId = new Map(serverArr.map(r => [r.id, r]));
+  const empty = (v) => v === undefined || v === null || v === '';
+  return clientArr.map(r => {
+    const srv = byId.get(r.id);
+    if (!srv) return r;
+    let patch = null;
+    for (const f of fields) {
+      if (empty(r[f]) && !empty(srv[f])) { (patch ||= {})[f] = srv[f]; }
+    }
+    return patch ? { ...r, ...patch } : r;
+  });
+}
+
 function mergeStates(serverState, clientState) {
   const out = { ...clientState };
   for (const [key, clientVal] of Object.entries(clientState)) {
@@ -108,6 +126,29 @@ exports.put = async (req, res) => {
   for (const [k, v] of Object.entries(oldState)) {
     if (k.startsWith('__')) body[k] = v;
   }
+
+  // ── Tiket "usedTonna" — faqat bot (backend) yangilaydi ────────────────────
+  // Zayavka bot haydovchi jo'natilganda ticket.usedTonna ni to'g'ridan-to'g'ri
+  // oshiradi. Frontend butun holatni PUT qilganda esa o'zidagi ESKI usedTonna
+  // (odatda 0) bilan kelib, bot yangilanishini ustiga yozib yuborardi
+  // (merge ham qatorni id bo'yicha birlashtirib, client qiymatini afzal ko'radi).
+  // Shuning uchun har doim serverdagi joriy usedTonna'ni saqlab qolamiz.
+  if (Array.isArray(body.tickets) && Array.isArray(oldState.tickets)) {
+    const usedById = new Map(oldState.tickets.map(t => [t.id, t.usedTonna]));
+    body.tickets = body.tickets.map(t =>
+      usedById.has(t.id) ? { ...t, usedTonna: usedById.get(t.id) } : t
+    );
+  }
+
+  // ── Bot biriktirgan maydonlarni saqlash (telegramChatId, joylashuv) ───────
+  // Bot deep link orqali mijoz/xodim/haydovchining telegramChatId sini o'rnatadi
+  // (bildirishnomalar shu orqali boradi). Frontend butun holatni PUT qilganда
+  // o'zidа bu qiymat bo'lmasa, uni O'CHIRIB yuborardi — Telegram ulanishи
+  // yo'qolib, xabarlar bormay qolardi. Client qiymati bo'sh bo'lsa, serverdagini
+  // saqlaymiz (client ataylab o'zgartirgan bo'lsa — client qiymati qoladi).
+  body.customers = preserveServerFields(body.customers, oldState.customers, ['telegramChatId', 'lat', 'lon']);
+  body.drivers   = preserveServerFields(body.drivers,   oldState.drivers,   ['telegramChatId']);
+  body.workers   = preserveServerFields(body.workers,   oldState.workers,   ['telegramChatId']);
 
   if (req.user.role !== 'admin') {
     // ── XAVFSIZLIK: admin bo'lmaganlar config/xodim/ochilish bo'limlariga tegolmaydi.
