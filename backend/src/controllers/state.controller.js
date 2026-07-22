@@ -100,6 +100,19 @@ exports.put = async (req, res) => {
   const currentVersion = Number(db.getUpdatedAt(req.user.account) || 0);
   delete body.__baseVersion;
   delete body.__updatedAt;
+
+  // ── Tozalashdan keyingi eski (stale) saqlashni rad etish ─────────────────
+  // Baza tozalanganidan OLDIN yuklab olgan brauzer saqlashга urinsa, uni
+  // birlashtirmaymiz (aks holda eski ma'lumot qaytib, tozalash bekor bo'lardi).
+  // 409 qaytaramiz — client sahifani yangilab, toza holatni oladi.
+  const wipedAt = Number(oldState.__wipedAt || 0);
+  if (wipedAt && baseVersion && baseVersion < wipedAt) {
+    return res.status(409).json({
+      ok: false, reload: true,
+      error: "Baza yangilangan (tozalangan). Sahifani yangilang.",
+    });
+  }
+
   let merged = false;
   if (baseVersion > 0 && currentVersion > 0 && baseVersion !== currentVersion) {
     body = mergeStates(oldState, body);

@@ -47,7 +47,27 @@ export const api = {
 
   // Holat
   getState: () => req('/api/state'),
-  saveState: (state) => req('/api/state', { method: 'PUT', body: JSON.stringify(state) }),
+  // Holatni saqlash. Baza tozalangan bo'lsa server 409 { reload:true } qaytaradi —
+  // bunda eski (stale) holatni qayta yozmaymiz, balki sahifani yangilaymiz.
+  saveState: async (state) => {
+    const token = getToken();
+    const res = await fetch(`${API_URL}/api/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(state),
+    });
+    const body = await res.json().catch(() => null);
+    if (res.status === 409 && body?.reload) {
+      if (typeof window !== 'undefined') {
+        alert('Baza yangilangan (tozalangan). Sahifa yangilanadi.');
+        window.location.reload();
+      }
+      return { ok: false, reload: true };
+    }
+    if (res.status === 401) { setToken(null); if (typeof window !== 'undefined') window.location.reload(); throw new Error('Avtorizatsiya muddati tugadi'); }
+    if (!res.ok) throw new Error(body?.error || `API xatosi (${res.status})`);
+    return body;
+  },
 
   // Telegram navbati
   getBotOrders: () => req('/api/new_bot_orders'),

@@ -173,6 +173,10 @@ exports.wipeAccount = async (req, res) => {
   // xodimsiz tashkilotga hech kim kira olmaydi va u "o'lik" qoladi.
   next.workers = keepAdmin ? admins.map(a => ({ ...a, paid: 0 })) : [];
   delete next.__disabled;
+  // Tozalash belgisi: shundan OLDIN yuklab olgan (stale) brauzerlar saqlashга
+  // urinsa, server rad etadi va ularni yangilashга majbur qiladi — aks holda
+  // merge ular eski ma'lumotini qaytarib, tozalashni bekor qilardi.
+  next.__wipedAt = Date.now();
 
   db.setState(acc, next);
   console.warn(`[SA] 🗑  ${acc} TOZALANDI (zaxira: ${backupFile})`);

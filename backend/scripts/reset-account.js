@@ -160,6 +160,8 @@ async function confirm(question) {
     newState.workers = [];
   }
 
+  // Tozalash belgisi — stale brauzerlar eski ma'lumotni qaytara olmaydi
+  newState.__wipedAt   = Date.now();
   db.state             = newState;
   db.botOrders         = [];
   db.tgContacts        = [];
