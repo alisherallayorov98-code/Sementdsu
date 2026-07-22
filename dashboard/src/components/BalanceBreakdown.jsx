@@ -110,7 +110,7 @@ function buildParts(type, d) {
           note: toSkladTons > 0 ? `${fmtT(toSkladTons)} tn chakana skladga o'tkazilgan — bu yerdan chiqarilgan` : '',
           to: '/recv_tons' },
         { label: 'Sotilgan (yangi)', value: -(d.salesRows || []).reduce((s, r) => s + Number(r.tons || 0), 0),
-          count: (d.salesRows || []).length, to: '/sales' },
+          count: (d.salesRows || []).length, to: '/recv_tons' },
         { label: 'Sotilgan (eski)', value: -(d.soldRows || []).reduce((s, r) => s + Number(r.tons || 0), 0),
           count: (d.soldRows || []).length, to: '/sold_tons' },
       ],

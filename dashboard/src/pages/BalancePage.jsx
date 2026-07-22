@@ -75,7 +75,7 @@ function SourceDetail({ row, data, navigate, onCustomer }) {
     const s = salesRows.find(r => r.id === sid);
     customer = s?.customer || customer;
     if (s) detail = <>📦 <b>Sotuv:</b> {s.customer} — {fmtTons(s.tons)} tn × {fmt(s.pricePerTon)} = <b>{fmt(Number(s.tons)*Number(s.pricePerTon))} so'm</b> | Sana: {s.date} | To'lov: {s.paymentChannel} {s.note ? `| ${s.note}` : ''}</>;
-    nav = { path: '/sales', label: 'Sotuvlar bo\'limi' };
+    nav = { path: '/recv_tons', label: 'Olingan tonna (taqsimlash)' };
   } else if (row.sourceType === 'debt_payment') {
     // sourceId ikki xil formatda ("id_pTs" yoki "customer_pcBase") — ID bo'yicha
     // topib bo'lmaydi. Shuning uchun mijoz nomi orqali ishlaymiz.
