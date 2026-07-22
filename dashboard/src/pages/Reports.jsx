@@ -42,6 +42,37 @@ export default function Reports() {
 
   const inRange = (r) => { const t = parseDate(r.date) || Number(r.createdAt || r.id || 0); return t >= fromTs && t <= toTs; };
 
+  // ── SOF KAPITAL / JORIY BALANS ("Hammasidan hisobot"dan birlashtirildi) ────
+  // Davrga bog'liq emas — hozirgi holat. Aktiv − Majburiyat = o'z pulimiz.
+  const {
+    totalCashBalance = 0, totalBankBalance = 0, totalClickBalance = 0,
+    totalDebts = 0, totalAdvances = 0,
+    workers = [], salaryPayments = [], drivers = [], driverTrips = [],
+    cashRows = [], bankRows = [], clickRows = [],
+  } = data;
+
+  // Xodim qarzi — JORIY OY (WorkerSalary bilan bir xil)
+  const nowMonth = (() => { const n = new Date(); return `${String(n.getMonth() + 1).padStart(2, '0')}.${n.getFullYear()}`; })();
+  const paidThisMonth = (wid) => salaryPayments
+    .filter(p => p.workerId === wid && (p.date || '').endsWith(nowMonth))
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalWDebt = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - paidThisMonth(w.id)), 0);
+
+  // Haydovchi qarzi — reys + Kassir to'lovlari (Drivers bilan bir xil)
+  const totalDriverDebt = drivers.reduce((sum, d) => {
+    const trips = driverTrips.filter(t => t.driverId === d.id);
+    const earnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
+    const tripPaid = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
+    const kassiPaid = [...cashRows, ...bankRows, ...clickRows]
+      .filter(r => !r.auto && r.customer === d.name && Number(r.amount) < 0)
+      .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
+    return sum + Math.max(0, earnings - tripPaid - kassiPaid);
+  }, 0);
+
+  const totalAssets      = Number(totalCashBalance) + Number(totalBankBalance) + Number(totalClickBalance) + Number(totalDebts);
+  const totalLiabilities = Number(totalAdvances) + totalWDebt + totalDriverDebt;
+  const netCapital       = totalAssets - totalLiabilities;
+
   const handleExcel = async () => {
     setBusy(true);
     try {
@@ -99,7 +130,7 @@ export default function Reports() {
         <Big title="Davr savdosi (summa)" value={fmt(report.sales.totalSum)} unit="so'm" color="#1565c0" bg="#e3f2fd" />
         <Big title="Davr savdosi (tonna)" value={fmtT(report.sales.totalTons)} unit="tn" color="#1b5e20" bg="#e8f5e9" />
         <Big title="Davr sof pul oqimi" value={fmt(report.periodNetCash)} unit="so'm" color={report.periodNetCash >= 0 ? '#2e7d32' : '#c62828'} bg={report.periodNetCash >= 0 ? '#e8f5e9' : '#ffebee'} />
-        <Big title="Hozir jami mavjud pul" value={fmt(report.snapshot.totalMoney)} unit="so'm" color="#003366" bg="#e8eaf6" />
+        <Big title="Sof kapital (o'z pulimiz)" value={fmt(netCapital)} unit="so'm" color={netCapital >= 0 ? '#1a237e' : '#c62828'} bg="#e8eaf6" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 18 }}>
@@ -140,6 +171,23 @@ export default function Reports() {
           <Divider />
           <Row label="Mijozlar bizga qarzi" val={report.snapshot.debts} color="#2e7d32" bold />
           <Row label="Biz olgan avanslar" val={report.snapshot.advances} color="#c62828" bold />
+        </Section>
+
+        {/* Sof kapital / balans — "Hammasidan hisobot"dan birlashtirildi */}
+        <Section title="💼 Sof kapital (o'z pulimiz)" color="#1a237e">
+          <Row label="Jami aktivlar" val={totalAssets} color="#2e7d32" bold />
+          <div style={{ paddingLeft: 12, fontSize: 12, color: '#777' }}>
+            <Row label="· Kassa + bank + click" val={Number(totalCashBalance) + Number(totalBankBalance) + Number(totalClickBalance)} />
+            <Row label="· Mijozlar bizga qarzi (debitor)" val={Number(totalDebts)} />
+          </div>
+          <Row label="Jami majburiyatlar" val={totalLiabilities} color="#c62828" bold />
+          <div style={{ paddingLeft: 12, fontSize: 12, color: '#777' }}>
+            <Row label="· Biz olgan avanslar" val={Number(totalAdvances)} />
+            <Row label="· Ishchilarga qarzimiz (shu oy)" val={totalWDebt} />
+            <Row label="· Haydovchilarga qarzimiz" val={totalDriverDebt} />
+          </div>
+          <Divider />
+          <Row label="SOF KAPITAL = Aktiv − Majburiyat" val={netCapital} color={netCapital >= 0 ? '#1a237e' : '#c62828'} bold />
         </Section>
       </div>
 

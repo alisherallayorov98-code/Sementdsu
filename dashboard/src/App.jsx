@@ -25,7 +25,6 @@ import IncomeBank    from './pages/IncomeBank';
 import IncomeClick   from './pages/IncomeClick';
 import WorkerSalary  from './pages/WorkerSalary';
 import TelegramOrder from './pages/TelegramOrder';
-import OverallReport from './pages/OverallReport';
 import Customers     from './pages/Customers';
 import DayBalance    from './pages/DayBalance';
 import Kassir       from './pages/Kassir';
@@ -47,7 +46,6 @@ const FULL_MENU = [
   { path: '/worker_salary',  latn: "Ishchilar oyligi",      cyrl: "Ишчилар ойлиги",       roles: ['admin'] },
   { path: '/tg_order',       latn: "Telegram zakaz tonna",  cyrl: "Телеграм заказ тонна", roles: ['admin', 'sotuvchi'] },
   { path: '/reports',        latn: "📊 Hisobotlar",          cyrl: "📊 Ҳисоботлар",         roles: ['admin'] },
-  { path: '/overall_report', latn: "Hammasidan hisobot",    cyrl: "Ҳаммасидан ҳисобот",   roles: ['admin'] },
   { path: '/customers',      latn: "Mijozlar bazasi",       cyrl: "Мижозлар базаси",      roles: ['admin', 'sotuvchi'] },
   { path: '/monitoring',     latn: "🔔 Mijoz nazorati",      cyrl: "🔔 Мижоз назорати",     roles: ['admin', 'sotuvchi'] },
   { path: '/map',            latn: "🗺 Xarita",              cyrl: "🗺 Харита",             roles: ['admin', 'sotuvchi', 'omborchi'] },
@@ -156,7 +154,8 @@ function App() {
               <Route path="/worker_salary"  element={<WorkerSalary   lang={lang} />} />
               <Route path="/tg_order"       element={<TelegramOrder  lang={lang} />} />
               <Route path="/reports"        element={<Reports />} />
-              <Route path="/overall_report" element={<OverallReport  lang={lang} />} />
+              {/* "Hammasidan hisobot" (/overall_report) "Hisobotlar" ichiga
+                  birlashtirildi — sof kapital/balans endi shu yerda. */}
               <Route path="/customers"      element={<Customers      lang={lang} />} />
               <Route path="/monitoring"     element={<Monitoring />} />
               <Route path="/map"            element={<MapPage />} />
