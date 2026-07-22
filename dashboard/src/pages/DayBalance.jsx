@@ -118,8 +118,12 @@ export default function DayBalance({ lang }) {
       })),
     ];
 
-    const dayIn  = dayTx.filter(t => t.sign > 0).reduce((s, t) => s + Number(t.amount), 0);
-    const dayOut = dayTx.filter(t => t.sign < 0).reduce((s, t) => s + Number(t.amount), 0);
+    // Kanallararo o'tkazma (↔️) kunlik kirim/chiqim SUMMASIGA sanalmaydi —
+    // u o'z pulingni ko'chirish, ikkala oyog'i qo'shilib raqamni shishirardi.
+    // (Jurnal ro'yxatida esa ko'rinaveradi.)
+    const isTransfer = (t) => String(t.desc || '').trim().startsWith('↔️');
+    const dayIn  = dayTx.filter(t => t.sign > 0 && !isTransfer(t)).reduce((s, t) => s + Number(t.amount), 0);
+    const dayOut = dayTx.filter(t => t.sign < 0 && !isTransfer(t)).reduce((s, t) => s + Number(t.amount), 0);
 
     return {
       naqdBalance, bankBalance, clickBalance, total,
