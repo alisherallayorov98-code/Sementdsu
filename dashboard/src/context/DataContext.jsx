@@ -99,6 +99,7 @@ const guardAutoDelete = (rows, id) => {
     const src = row.sourceType;
     const msgs = {
       sale:         "Bu yozuv sotuvdan avtomatik yaratilgan.\nO'chirish uchun \"Sotish\" bo'limidan tegishli savdoni o'chiring.",
+      sklad_sale:   "Bu yozuv sklad (kg) sotuvidan avtomatik yaratilgan.\nO'chirish uchun \"Kassir → Sklad savdo tarixi\"dan tegishli sotuvni o'chiring.",
       recv:         "Bu yozuv sement olishdan avtomatik yaratilgan.\nO'chirish uchun \"Olingan tonna\" bo'limidan tegishli qatorni o'chiring.",
       debt_payment: "Bu yozuv qarz to'lovidan avtomatik yaratilgan.\nUni alohida o'chirib bo'lmaydi.",
       advance:      "Bu yozuv avans qabul qilishdan avtomatik yaratilgan.\nO'chirish uchun \"Avanslar\" bo'limidan tegishli avansni o'chiring.",
@@ -359,6 +360,22 @@ export function DataProvider({ children }) {
       );
       return false;
     }
+    // Bu yukdan chakana skladga o'tkazilgan kg allaqachon sotilgan bo'lsa,
+    // yukni o'chirish sklad kirimини yo'q qilib, qoldiqни minusга tushiradi
+    // (kirim yo'qoladi, sotuv chiqimи qoladi). Shuni bloklaymiz.
+    const myKirimKg = skladRows
+      .filter(r => r.type === 'kirim' && r.sourceId === id)
+      .reduce((s, r) => s + Number(r.kg || 0), 0);
+    if (myKirimKg > 0) {
+      const skladNet = skladRows.reduce((s, r) => s + Number(r.kg || 0), 0);
+      if (skladNet - myKirimKg < -0.001) {
+        alert(
+          `Bu yukdan skladga ${Math.round(myKirimKg)} kg o'tkazilgan va uning bir qismi allaqachon sotilgan.\n\n` +
+          `Yukni o'chirsa sklad qoldig'i minusга tushadi. Avval tegishli sklad sotuvini bekor qiling.`
+        );
+        return false;
+      }
+    }
     setRecvRows(p => p.filter(r => r.id !== id));
     // Cascade: eski versiyalarda yaratilgan auto chiqim yozuvlari bo'lsa ham o'chirish.
     // sourceType tekshiruvi MUHIM — busiz boshqa bo'limning bir xil id'li yozuvi
@@ -531,12 +548,27 @@ export function DataProvider({ children }) {
     else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
   };
   const deleteDebtRow = (id) => {
+    // To'lovi bor qarzni o'chirib bo'lmaydi. Sabab: to'lov Kassa orqali
+    // (payCustomerDebt — sourceId "mijoz_pc...") qilingan bo'lsa, uni bu yerdan
+    // ishonchli topib o'chirib bo'lmaydi (bitta to'lov bir necha qarzga taqsimlangan
+    // bo'lishi mumkin). O'chirsak — qarz yo'qoladi-yu, olingan pul kassada osilib
+    // qoladi. Shuning uchun avval to'lovni bekor qilishni talab qilamiz.
+    const d = debtRows.find(r => r.id === id);
+    if (d && Number(d.paid) > 0) {
+      alert(
+        `Bu qarzda ${Number(d.paid).toLocaleString('ru-RU')} so'm to'lov qayd etilgan.\n\n` +
+        `Avval to'lovni bekor qiling (Kassa yoki Qarzlar bo'limidan), keyin qarzni o'chiring.`
+      );
+      return false;
+    }
     setDebtRows(p => guardAutoDelete(p, id));
-    // Ushbu qarzning to'lovlaridan yaratilgan auto kirim yozuvlarini ham o'chirish
+    // Eski (payDebt) uslubidagi to'lovlardan qolgan auto yozuvlar bo'lsa tozalash.
+    // paid=0 bo'lgani uchun odatda hech narsa topilmaydi — faqat himoya.
     const prefix = `${id}_p`;
     setCashRows(p  => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
     setBankRows(p  => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
     setClickRows(p => p.filter(r => !r.auto || !String(r.sourceId || '').startsWith(prefix)));
+    return true;
   };
   // ── Mijoz qarzini bittada qabul qilish (kassir uchun — eng oson) ──────────
   // Summa mijozning qarzlariga ESKISIDAN boshlab taqsimlanadi, kassaga kirim
