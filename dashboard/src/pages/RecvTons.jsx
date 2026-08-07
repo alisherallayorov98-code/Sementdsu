@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
+import { sameName, uniqueNames } from '../lib/customerRef';
 import SupplierSelect from '../components/SupplierSelect';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -243,13 +244,15 @@ export default function RecvTons({ lang }) {
       if (sp.type === 'mijoz' && (!sp.customer || !sp.pricePerTon)) { alert('Mijoz uchun mijoz ismi va narxini kiriting'); return; }
     }
     addSupplier({ name: verifyRow.source });
-    // 1) Tasdiqlash → yetkazib beruvchiga qarz
-    verifyRecvRow(verifyRow.id, {
+    // 1) Tasdiqlash → yetkazib beruvchiga qarz.
+    // Natija TEKSHIRILADI: tasdiqlash rad etilsa (masalan tonna 0), quyidagi
+    // taqsimlash baribir bajarilib, tasdiqlanmagan yukdan sotuv yaratilardi.
+    if (!verifyRecvRow(verifyRow.id, {
       source: verifyRow.source, brand: verifyRow.brand,
       tons, pricePerTon: Number(verifyRow.pricePerTon) || 0,
       paymentChannel: verifyRow.paymentChannel,
       warehouseId: verifyRow.warehouseId || myWh,
-    });
+    })) return;
     // 2) Taqsimlash — har bir qator
     const vehicleNo = verifyRow.vehicleNo || '';
     const desc = `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`;
@@ -277,11 +280,13 @@ export default function RecvTons({ lang }) {
   };
 
   // ── Filtrlar ──────────────────────────────────────────────────────────────
-  const sourceList = [...new Set(recvRows.map(r => r.source).filter(Boolean))];
+  // Manba nomlari normallashtirilib yagonalashtiriladi: "Kizilkum sement" va
+  // "Kizilkum Sement" filtr ro'yxatida ikki qator bo'lib chiqmasin.
+  const sourceList = uniqueNames(recvRows.map(r => r.source));
   const brandList  = [...new Set(recvRows.map(r => r.brand).filter(Boolean))];
 
   let filtered = recvRows;
-  if (filterSource) filtered = filtered.filter(r => r.source === filterSource);
+  if (filterSource) filtered = filtered.filter(r => sameName(r.source, filterSource));
   if (filterBrand)  filtered = filtered.filter(r => r.brand  === filterBrand);
   filtered = filterByRange(filtered, range); // sanadan–sanagacha
 
@@ -340,7 +345,7 @@ export default function RecvTons({ lang }) {
   // ── Modal: manbaa tarixi + Akt Sverka ────────────────────────────────────
   const renderModal = () => {
     if (!modalSource) return null;
-    const srcRows   = recvRows.filter(r => r.source === modalSource);
+    const srcRows   = recvRows.filter(r => sameName(r.source, modalSource));
     const totTons   = srcRows.reduce((s,r) => s+Number(r.tons||0), 0);
     const totSum    = srcRows.reduce((s,r) => s+Number(r.tons||0)*Number(r.pricePerTon||0), 0);
 

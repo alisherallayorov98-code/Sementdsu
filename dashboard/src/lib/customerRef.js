@@ -14,16 +14,34 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ism kaliti: registr, ortiqcha probel va apostrof turlari farqi yo'qoladi.
-export const custKey = (s) => String(s ?? '')
+// Mijoz, yetkazib beruvchi va haydovchi — hammasi ism bilan bog'lanadi,
+// shuning uchun kalit umumiy.
+export const nameKey = (s) => String(s ?? '')
   .trim()
   .toLowerCase()
   .replace(/[ʻʼ'`’‘]/g, "'")
   .replace(/\s+/g, ' ');
 
-// Ikki ism bir mijozni bildiradimi?
-export const sameCust = (a, b) => {
-  const ka = custKey(a);
-  return ka !== '' && ka === custKey(b);
+// Ikki ism bir shaxsni/tashkilotni bildiradimi?
+export const sameName = (a, b) => {
+  const ka = nameKey(a);
+  return ka !== '' && ka === nameKey(b);
+};
+
+// Mijozga xos nomlar (mavjud kod shu nomlar bilan ishlaydi)
+export const custKey  = nameKey;
+export const sameCust = sameName;
+
+// Ro'yxatni normallashtirilgan ism bo'yicha yagonalashtirish.
+// `preferred` — kanonik yozuvlar (baza) birinchi kelsin: ko'rsatiladigan nom
+// o'shandan olinadi, tranzaksiyalardagi turlicha yozilgan variantlar emas.
+export const uniqueNames = (...lists) => {
+  const byKey = new Map();
+  lists.flat().forEach(n => {
+    const k = nameKey(n);
+    if (k && !byKey.has(k)) byKey.set(k, String(n).trim());
+  });
+  return [...byKey.values()];
 };
 
 // Yozuv shu mijozniki ekanligini aniqlaydi.

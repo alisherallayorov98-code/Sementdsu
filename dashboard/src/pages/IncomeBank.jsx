@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import { custRows } from '../lib/customerRef';
+import { parseNum } from '../lib/parseNum';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -16,8 +17,6 @@ const todayStr = () => {
   return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
 };
 
-const parseNum = (v) =>
-  Number(String(v ?? '').replace(/\s/g, '').replace(/,/g, '.')) || 0;
 
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function IncomeBank({ lang }) {

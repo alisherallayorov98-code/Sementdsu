@@ -3,9 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
-
-const normName = (s) => String(s ?? '').trim().toLowerCase();
-const parseAmount = (v) => Number(String(v ?? '').replace(/\s/g, '').replace(/,/g, '')) || 0;
+// Ilgari bu yerda o'z summa parseri bor edi: u vergulni O'CHIRIB tashlardi,
+// ya'ni "1 378 756,50" → 137875650 bo'lib summa 100 barobar oshardi.
+import { parseNum as parseAmount } from '../lib/parseNum';
+import { nameKey as normName } from '../lib/customerRef';
 
 // Parol yacheykasi: yangi parolni kiriting, eski hashni ko'rsatmaydi
 function PasswordCell({ workerId, onSave }) {
@@ -572,7 +573,7 @@ export default function Settings({ lang }) {
     });
     const res = importDebts(clean) || {};
     return {
-      added: clean.length,
+      added: res.added ?? clean.length,
       skipped,
       extra: res.newCustomers ? `Mijozlar bazasiga yangi qo'shildi: ${res.newCustomers} ta` : '',
     };

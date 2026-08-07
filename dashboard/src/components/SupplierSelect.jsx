@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../context/DataContext';
+import { sameName } from '../lib/customerRef';
 
 export default function SupplierSelect({
   value = '',
@@ -31,13 +32,13 @@ export default function SupplierSelect({
   const [newSup, setNewSup] = useState({ name: '', phone: '', note: '' });
 
   // Nom → telefon (saqlangan yetkazib beruvchilardan)
-  const phoneOf = (name) => suppliers.find(s => s.name === name)?.phone || '';
+  const phoneOf = (name) => suppliers.find(s => sameName(s.name, name))?.phone || '';
 
   const query = value.trim();
   const suggestions = query.length >= 2
     ? supplierList.filter(n => n.toLowerCase().includes(query.toLowerCase())).slice(0, 12)
     : [];
-  const exactMatch = supplierList.some(n => n.trim().toLowerCase() === query.toLowerCase());
+  const exactMatch = supplierList.some(n => sameName(n, query));
   const isNewName  = query.length >= 2 && !exactMatch;
 
   const select = (name) => { onChange(name); setOpen(false); };

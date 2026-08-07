@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../context/DataContext';
+import { sameName } from '../lib/customerRef';
 
 export default function CustomerSelect({
   value = '',
@@ -56,7 +57,7 @@ export default function CustomerSelect({
 
   // Yozilgan nom bazada bormi?
   const allNames = [...customers, ...drivers, ...workers];
-  const exactMatch = allNames.some(x => x.name.trim().toLowerCase() === query.toLowerCase());
+  const exactMatch = allNames.some(x => sameName(x.name, query));
   const isNewName  = query.length >= 2 && !exactMatch;
 
   const highlight = (text, q) => {

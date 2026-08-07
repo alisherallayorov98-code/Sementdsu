@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import SupplierSelect from '../components/SupplierSelect';
+import { sameName } from '../lib/customerRef';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
@@ -241,7 +242,7 @@ export default function SupplierDebts() {
               To'lov tarixi: {history}
             </div>
             {(() => {
-              const list = supplierPayments.filter(p => p.supplier === history).sort((a, b) => b.createdAt - a.createdAt);
+              const list = supplierPayments.filter(p => sameName(p.supplier, history)).sort((a, b) => b.createdAt - a.createdAt);
               if (!list.length) return <p style={{ color: '#888', fontStyle: 'italic' }}>To'lov yo'q.</p>;
               return (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

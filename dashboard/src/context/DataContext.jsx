@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
-import { sameCust, custRows, custFields, findCust, custKey } from '../lib/customerRef';
+import { sameCust, custRows, custFields, findCust, custKey, sameName, uniqueNames } from '../lib/customerRef';
+import { parseNum } from '../lib/parseNum';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
@@ -51,19 +52,7 @@ const uid = () => {
   return _lastId;
 };
 
-// Tashqi manbadan (Excel) kelgan sonni ishonchli o'qish.
-// Number("12,5") = NaN — mahalliy Excel kasrni VERGUL bilan, minglarni probel
-// bilan yozadi. `Number(x) || 0` naqshi bunday qiymatni JIMGINA 0 ga
-// aylantirardi: masalan 12 500 000 so'mlik qarz 0 bo'lib import bo'lardi.
-const parseNum = (v) => {
-  if (typeof v === 'number') return isFinite(v) ? v : 0;
-  const s = String(v ?? '').trim()
-    .replace(/\s| /g, '')
-    .replace(',', '.');
-  if (!s) return 0;
-  const n = Number(s);
-  return isFinite(n) ? n : 0;
-};
+// Tashqi manbadan (Excel) kelgan sonni ishonchli o'qish — lib/parseNum.js
 
 // Erkin kiritilgan sana/vaqtni (masalan "2026-07-20 14:30" yoki "20.07.2026")
 // tizim standarti "kk.oo.yyyy" ga keltirish. Tanib bo'lmasa — null.
@@ -410,9 +399,10 @@ export function DataProvider({ children }) {
   // Excel'dan ko'plab "Olingan tonna" import — TEKSHIRILMAGAN (pending) holatda.
   // Pul (zavodga to'lov) tasdiqlangandagina yoziladi.
   const importRecvRows = (rows) => {
-    const base = uid();
-    setRecvRows(p => [...p, ...rows.map((r, i) => ({
-      id: base + i, createdAt: base + i, worker: currentWorker,
+    // id har qator uchun uid() dan: "base + i" generator hisoblagichini surmay,
+    // o'sha diapazonni keyingi yozuvlar qayta band qilishi mumkin edi.
+    setRecvRows(p => [...p, ...rows.map((r) => { const id = uid(); return {
+      id, createdAt: id, worker: currentWorker,
       date: r.date || (() => { const d = new Date((r.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? new Date().toLocaleDateString('ru-RU') : d.toLocaleDateString('ru-RU'); })(),
       source: r.source || '', brand: r.brand || '', vehicleNo: r.vehicleNo || '',
       tons: parseNum(r.tons), pricePerTon: parseNum(r.pricePerTon),
@@ -420,15 +410,23 @@ export function DataProvider({ children }) {
       cardName: r.cardName || '', factoryTime: r.factoryTime || '', izoh: r.izoh || '',
       warehouseId: r.warehouseId || defaultWhId,
       pending: true, // tekshirilmagan — sariq
-    }))]);
+    }; })]);
   };
   // Tasdiqlash: maydonlarni yangilab, pending'ni olib tashlaydi.
   // Kassadan pul YECHILMAYDI — bu summa yetkazib beruvchi qarzimizga qo'shiladi.
   const verifyRecvRow = (id, patch = {}) => {
     const cur = recvRows.find(r => r.id === id);
-    if (!cur || !cur.pending) return;
+    if (!cur || !cur.pending) return false;
     const m = { ...cur, ...patch, pending: false };
+    // Excel importida tonna tekshirilmaydi (fayl har xil bo'lishi mumkin), shu
+    // sababli tasdiqlash — oxirgi to'siq. Manfiy/nol tonna sement qoldig'ini
+    // yo'qdan oshirib, keyin sotib bo'lmaydigan "arvoh" qoldiq qoldirardi.
+    if (!(parseNum(m.tons) > 0)) {
+      alert("Tonna 0 dan katta bo'lishi kerak. Tasdiqlashdan oldin to'g'rilang.");
+      return false;
+    }
     setRecvRows(p => p.map(r => r.id === id ? m : r));
+    return true;
   };
   const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
   const pendingRecvCount = recvRows.filter(r => r.pending).length;
@@ -441,7 +439,7 @@ export function DataProvider({ children }) {
     const nm = String(name || '').trim();
     if (!nm) return;
     const ts = uid();
-    setSuppliers(p => p.some(s => s.name.toLowerCase() === nm.toLowerCase())
+    setSuppliers(p => p.some(s => sameName(s.name, nm))
       ? p
       : [...p, { id: ts, createdAt: ts, worker: currentWorker, name: nm, phone: String(phone).trim(), note }]);
   };
@@ -452,12 +450,12 @@ export function DataProvider({ children }) {
     const newName = String(data?.name || '').trim();
     const oldName = String(old?.name || '').trim();
     if (old && newName && newName !== oldName) {
-      if (suppliers.some(s => s.id !== id && s.name.trim().toLowerCase() === newName.toLowerCase())) {
+      if (suppliers.some(s => s.id !== id && sameName(s.name, newName))) {
         alert(`"${newName}" nomli yetkazib beruvchi allaqachon bor.`);
         return false;
       }
-      setRecvRows(p => p.map(r => r.source === oldName ? { ...r, source: newName } : r));
-      setSupplierPayments(p => p.map(x => x.supplier === oldName ? { ...x, supplier: newName } : x));
+      setRecvRows(p => p.map(r => sameName(r.source, oldName) ? { ...r, source: newName } : r));
+      setSupplierPayments(p => p.map(x => sameName(x.supplier, oldName) ? { ...x, supplier: newName } : x));
     }
     setSuppliers(p => p.map(s => s.id === id ? { ...s, ...data } : s));
     return true;
@@ -511,18 +509,23 @@ export function DataProvider({ children }) {
     setCashRows(rm); setBankRows(rm); setClickRows(rm);
   };
 
-  // Yetkazib beruvchilar ro'yxati (recv manbalari + saqlanganlar + to'lovlar)
-  const supplierList = [...new Set([
-    ...recvRows.map(r => r.source).filter(Boolean),
-    ...suppliers.map(s => s.name).filter(Boolean),
-    ...supplierPayments.map(p => p.supplier).filter(Boolean),
-  ])];
+  // Yetkazib beruvchilar ro'yxati (saqlanganlar + recv manbalari + to'lovlar).
+  // Nomlar normallashtirilib yagonalashtiriladi: "Kizilkum sement" Excel'dan,
+  // "Kizilkum Sement" qo'lda kiritilgan bo'lsa — bu bitta zavod. Ilgari ular
+  // ikki qator bo'lib, olingan yuk bittasiga, to'lov ikkinchisiga yozilardi:
+  // qarz to'lanmagandek ko'rinib, to'langan pul hisobotdan yo'qolardi.
+  // Baza (suppliers) birinchi — ko'rsatiladigan nom o'shandan olinadi.
+  const supplierList = uniqueNames(
+    suppliers.map(s => s.name),
+    recvRows.map(r => r.source),
+    supplierPayments.map(p => p.supplier),
+  );
   // Tasdiqlangan (pending bo'lmagan) olingan sementning umumiy summasi = qarz
   const supplierReceivedOf = (name) => recvRows
-    .filter(r => r.source === name && !r.pending)
+    .filter(r => sameName(r.source, name) && !r.pending)
     .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
   const supplierPaidOf = (name) => supplierPayments
-    .filter(p => p.supplier === name)
+    .filter(p => sameName(p.supplier, name))
     .reduce((s, p) => s + Number(p.amount || 0), 0);
   const supplierDebtOf = (name) => Math.max(0, supplierReceivedOf(name) - supplierPaidOf(name));
   const totalSupplierDebt    = supplierList.reduce((s, n) => s + supplierDebtOf(n), 0);
@@ -537,21 +540,36 @@ export function DataProvider({ children }) {
   const [debtRows, setDebtRows] = useState(() => load('debt_rows', []));
   useEffect(() => save('debt_rows', debtRows), [debtRows]);
   const addDebtRow = (customer, amount, note = '') => {
+    // Manfiy qarz umumiy qarz summasini kamaytirib, hisobotni buzardi.
+    if (!(parseNum(amount) > 0)) { alert("Qarz summasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
     setDebtRows(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
       date: new Date().toLocaleDateString('ru-RU'),
-      ...custFields(customers, customer), amount: Number(amount), paid: 0, note,
+      ...custFields(customers, customer), amount: parseNum(amount), paid: 0, note,
       payments: [],
     }]);
+    return true;
   };
   const payDebt = (id, payAmount, payNote = '', channel = 'naqd') => {
-    const ts = uid();
-    const amt = Number(payAmount);
-    const today = new Date().toLocaleDateString('ru-RU');
+    const amt = parseNum(payAmount);
     // Mijoz ismini topamiz (description uchun)
     const debtRow = debtRows.find(r => r.id === id);
     const customer = debtRow?.customer || '';
+    // Manfiy/nol to'lov kassaga manfiy kirim yozib, qoldiqni buzardi.
+    if (!(amt > 0)) { alert("To'lov summasi 0 dan katta bo'lishi kerak."); return false; }
+    // Qarzdan ortiq to'lov: qoldiq Math.max(0,...) bilan hisoblangani uchun
+    // ortiqcha summa hech qaysi bo'limda ko'rinmay yo'qolardi (paySupplier
+    // bilan bir xil holat — u yerda ogohlantirish bor edi, bu yerda yo'q).
+    const rem = debtRow ? Math.max(0, Number(debtRow.amount) - Number(debtRow.paid)) : 0;
+    if (amt > rem + 0.001 && !window.confirm(
+      `Qolgan qarz: ${rem.toLocaleString('ru-RU')} so'm\n` +
+      `To'lamoqchisiz: ${amt.toLocaleString('ru-RU')} so'm\n\n` +
+      `${(amt - rem).toLocaleString('ru-RU')} so'm ORTIQCHA — bu summa qarz hisobida ko'rinmaydi.\n` +
+      `Ortiqcha pulni avans sifatida kiritish to'g'riroq. Davom etamizmi?`
+    )) return false;
+    const ts = uid();
+    const today = new Date().toLocaleDateString('ru-RU');
     setDebtRows(p => p.map(r => {
       if (r.id !== id) return r;
       return {
@@ -568,6 +586,7 @@ export function DataProvider({ children }) {
     if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
     else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
     else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
+    return true;
   };
   const deleteDebtRow = (id) => {
     // To'lovi bor qarzni o'chirib bo'lmaydi. Sabab: to'lov Kassa orqali
@@ -650,9 +669,13 @@ export function DataProvider({ children }) {
   const importDebts = (rows) => {
     const byKey = new Map(customers.map(c => [custKey(c.name), c]));
     const fresh = [];
+    // Ism yo'q yoki summa musbat emas — qator o'tkazib yuboriladi. Chaqiruvchi
+    // (Settings) ham filtrlaydi, lekin himoya shu yerda ham turishi kerak:
+    // manfiy summa qarz hisobotini kamaytirib yuborardi.
     const prepared = rows.map((r) => {
       const raw = String(r.customer ?? '').trim();
       const key = custKey(raw);
+      if (!key || !(parseNum(r.amount) > 0)) return null;
       let c = key ? byKey.get(key) : null;
       if (!c && key) {
         const cid = uid();
@@ -675,7 +698,7 @@ export function DataProvider({ children }) {
         amount: parseNum(r.amount), paid: 0,
         note: r.note || '', payments: [],
       };
-    });
+    }).filter(Boolean);
     if (fresh.length) setCustomers(p => [...p, ...fresh]);
     setDebtRows(p => [...p, ...prepared]);
     return { added: prepared.length, newCustomers: fresh.length };
@@ -1055,15 +1078,14 @@ export function DataProvider({ children }) {
   // Excel'dan bank o'tkazmalarini import — TEKSHIRILMAGAN (pending) holatda.
   // Xodim qaysi mijoz puli ekanini biriktirib tasdiqlaydi.
   const importBankIncomeRows = (rows) => {
-    const base = uid();
-    setBankIncomeRows(p => [...p, ...rows.map((r, i) => ({
-      id: base + i, createdAt: base + i, worker: currentWorker,
+    setBankIncomeRows(p => [...p, ...rows.map((r) => { const id = uid(); return {
+      id, createdAt: id, worker: currentWorker,
       date: r.date || new Date().toLocaleDateString('ru-RU'),
       amount: parseNum(r.amount),
       desc: r.desc || '',
-      customer: r.customer || '',
+      ...custFields(customers, r.customer),
       pending: true, // tekshirilmagan — sariq
-    }))]);
+    }; })]);
   };
   // Tasdiqlash: mijoz/izoh biriktirib, pending'ni olib tashlaydi
   const verifyBankIncomeRow = (id, patch = {}) =>
@@ -1085,9 +1107,8 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_pending_rows', bankPendingRows), [bankPendingRows]);
 
   const importOborotka = (rows) => {
-    const base = uid();
-    setBankPendingRows(p => [...p, ...rows.map((r, i) => ({
-      id: base + i,
+    setBankPendingRows(p => [...p, ...rows.map((r) => ({
+      id: uid(),
       date: r.date || new Date().toLocaleDateString('ru-RU'),
       orgName: r.orgName || '',
       amount: parseNum(r.amount),
