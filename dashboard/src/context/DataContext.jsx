@@ -82,6 +82,27 @@ function beep() {
   } catch { /* ovoz ixtiyoriy */ }
 }
 
+// Sotuv o'chirilganda u yaratgan nasiya qarzi ham o'chadi. Lekin o'sha qarzga
+// TO'LOV qilingan bo'lsa, to'lov kassaga alohida yozuv (sourceType:
+// 'debt_payment') sifatida tushgan va sotuv bilan birga o'chmaydi: qarz
+// yo'qolib, olingan pul kassada egasiz qolardi — balans hech qachon
+// to'g'rilanmaydigan holatga kelardi.
+// deleteDebtRow da bunday himoya bor edi, sotuv orqali o'chirishda yo'q edi.
+const blockIfDebtPaid = (debtRows, sourceType, sourceId) => {
+  const paid = debtRows
+    .filter(r => r.auto && r.sourceType === sourceType && r.sourceId === sourceId)
+    .reduce((s, r) => s + Number(r.paid || 0), 0);
+  if (paid > 0) {
+    alert(
+      `Bu sotuvdan yaratilgan qarzga ${paid.toLocaleString('ru-RU')} so'm to'lov qayd etilgan.\n\n` +
+      `Sotuvni o'chirsak, qarz yo'qoladi-yu olingan pul kassada egasiz qoladi.\n` +
+      `Avval to'lovni bekor qiling, keyin sotuvni o'chiring.`
+    );
+    return true;
+  }
+  return false;
+};
+
 // Avtomatik yaratilgan yozuvni qo'lda o'chirishdan himoya qilish.
 const guardAutoDelete = (rows, id) => {
   const row = rows.find(r => r.id === id);
@@ -310,9 +331,11 @@ export function DataProvider({ children }) {
     return row; // SoldTons.jsx qaytган qatorни tekshiradi
   };
   const deleteSoldRow = (id) => {
+    if (blockIfDebtPaid(debtRows, 'sold', id)) return false;
     setSoldRows(p => p.filter(r => r.id !== id));
     // Bog'langan nasiya qarzini ham o'chiramiz
     setDebtRows(p => p.filter(r => !(r.auto && r.sourceType === 'sold' && r.sourceId === id)));
+    return true;
   };
   const totalSoldTons = soldRows.reduce((s, r) => s + Number(r.tons || 0), 0);
   // Eski "Sotilgan tonna" to'lov kanali bo'yicha pul tushumi (kassaga qo'shiladi)
@@ -908,11 +931,13 @@ export function DataProvider({ children }) {
   const updateSaleRow = (id, fields) => setSalesRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
   // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi
   const deleteSaleRow = (id) => {
+    if (blockIfDebtPaid(debtRows, 'sale', id)) return false;
     const sale = salesRows.find(r => r.id === id);
     if (sale && sale.advanceUsed) restoreAdvanceForSale(id); // ishlatilgan avansni qaytarish
     setSalesRows(p  => p.filter(r => r.id !== id));
     const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'sale' && r.sourceId === id));
     setCashRows(rm); setBankRows(rm); setClickRows(rm); setDebtRows(rm);
+    return true;
   };
   const totalSalesTons = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
@@ -1022,10 +1047,12 @@ export function DataProvider({ children }) {
   const updateSkladRow = (id, fields) => setSkladRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
 
   const deleteSkladSotuv = (id) => {
+    if (blockIfDebtPaid(debtRows, 'sklad_sale', id)) return false;
     setSkladRows(p => p.filter(r => r.id !== id));
     const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id));
     setCashRows(rm); setBankRows(rm); setClickRows(rm);
     setDebtRows(p => p.filter(r => !(r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id)));
+    return true;
   };
 
   // ── Tur bo'yicha balanslar ─────────────────────────────────────────────────────
@@ -1470,9 +1497,22 @@ export function DataProvider({ children }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const [backendOnline, setBackendOnline] = useState(true);
   const hydratedRef = useRef(false); // backenddan yuklanmaguncha saqlamaymiz
+  // hydratedRef ning render uchun ko'rinadigan nusxasi. UI shu bo'yicha kirish
+  // formalarini bloklaydi: yuklab bo'lmagan holatda kiritilgan yozuv keyingi
+  // muvaffaqiyatli yuklashda serverdagi holat bilan ustidan yozilib, JIMGINA
+  // yo'qolardi (foydalanuvchi "Server o'chiq" belgisini ko'rsa ham ishlayverardi).
+  const [hydratedState, setHydratedState] = useState(false);
+  // Token yo'q bo'lsa baribir "yuklanmagan" — buni shu yerda hisoblaymiz,
+  // effekt ichida setState qilmaslik uchun (chiqishda ortiqcha render bermasin).
+  const hydrated = hydratedState && !!token;
+  const markHydrated = (v) => { hydratedRef.current = v; setHydratedState(v); };
   const baseVersionRef = useRef(0);  // oxirgi ko'rilgan server versiyasi (to'qnashuv nazorati)
   const [retryTick, setRetryTick] = useState(0);
   const saveTimer   = useRef(null);
+  const retryTimer  = useRef(null);
+  const [saveRetry, setSaveRetry] = useState(0);
+  // Serverga hali yozilmagan o'zgarish bormi (debounce kutayotgan yoki yuborilayotgan)
+  const [dirty, setDirty] = useState(false);
 
   // ── Bildirishnoma (Telegram/SMS) holati ──────────────────────────────────
   const [tgContacts, setTgContacts] = useState([]);
@@ -1597,7 +1637,7 @@ export function DataProvider({ children }) {
         if (!cancelled) {
           setBackendOnline(true);
           // FAQAT muvaffaqiyatli yuklashdan keyin saqlashga ruxsat beramiz.
-          setTimeout(() => { hydratedRef.current = true; }, 0);
+          setTimeout(() => { markHydrated(true); }, 0);
         }
       } catch (err) {
         // MUHIM: yuklash muvaffaqiyatsiz bo'lsa hydratedRef OCHILMAYDI.
@@ -1632,7 +1672,7 @@ export function DataProvider({ children }) {
           baseVersionRef.current = remote.__updatedAt || 0;
         }
         setBackendOnline(true);
-        setTimeout(() => { hydratedRef.current = true; }, 0);
+        setTimeout(() => { markHydrated(true); }, 0);
       } catch { /* keyingi urinishda */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1641,12 +1681,17 @@ export function DataProvider({ children }) {
   // 2) Har bir o'zgarishdan keyin — butun holatni serverga saqlash (debounce 800ms)
   useEffect(() => {
     if (!hydratedRef.current || !token) return;
+    // "Saqlanmoqda…" ko'rsatkichi va sahifadan chiqish ogohlantirishi uchun.
+    // Bu qasddan effekt ichida: belgi aynan holat o'zgarganda yonishi kerak.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDirty(true);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       // Server bilan to'qnashuvni aniqlash uchun ko'rgan versiyamizni yuboramiz
       api.saveState({ ...snapshot, __baseVersion: baseVersionRef.current })
         .then(async (r) => {
           setBackendOnline(true);
+          setDirty(false);
           baseVersionRef.current = r?.updatedAt || 0;
           // Boshqa xodim bilan to'qnashuv birlashtirildi — uning yozuvlarini
           // biz ham ko'rishimiz uchun serverdan yangi holatni olamiz.
@@ -1662,11 +1707,20 @@ export function DataProvider({ children }) {
             } catch { /* keyingi saqlashda */ }
           }
         })
-        .catch(() => setBackendOnline(false));
+        .catch(() => {
+          setBackendOnline(false);
+          // Saqlash muvaffaqiyatsiz — 5 soniyadan keyin QAYTA urinamiz.
+          // Ilgari urinish shu yerda tugardi: keyingi o'zgarish bo'lmasa (xodim
+          // oxirgi yozuvni kiritib turib qolsa) o'sha yozuv hech qachon
+          // serverga bormasdi va faqat brauzerda qolib ketardi.
+          if (retryTimer.current) clearTimeout(retryTimer.current);
+          retryTimer.current = setTimeout(() => setSaveRetry(x => x + 1), 5000);
+        });
     }, 800);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    saveRetry,
     appSettings, cashOpening, cashRows, bankOpening, bankRows, clickOpening, clickRows,
     cementOpening, incomeRows, expenseRows, soldRows, recvRows, debtRows, advanceRows,
     salesRows, suppliers, supplierPayments, bankIncomeRows, bankExpenseRows, bankPendingRows, clickIncomeRows, clickExpenseRows,
@@ -1677,6 +1731,22 @@ export function DataProvider({ children }) {
     // qolib, boshqa qurilmada ochilganda yo'qolib ketardi.
     warehouses, driverTariffs, cementTypes,
   ]);
+
+  // 2b) Saqlanmagan o'zgarish bilan sahifani yopishdan ogohlantirish.
+  // Saqlash 800ms kechikish bilan ketadi va tarmoq sekin bo'lsa bir necha
+  // soniya davom etadi — shu oraliqda tab yopilsa yozuv yo'qolardi.
+  useEffect(() => {
+    if (!dirty || !token) return;
+    const onLeave = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onLeave);
+    return () => window.removeEventListener('beforeunload', onLeave);
+  }, [dirty, token]);
+
+  // Timerlarni tozalash (komponent yo'q qilinganda osilib qolmasin)
+  useEffect(() => () => {
+    if (saveTimer.current)  clearTimeout(saveTimer.current);
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+  }, []);
 
   // 3) Telegram botiga tushgan yangi zakazlarni backend navbatidan o'qib olish
   useEffect(() => {
@@ -1718,7 +1788,7 @@ export function DataProvider({ children }) {
     // Auth & Settings
     currentUser, token, login, signup, logout, currentWorker, setCurrentWorker,
     appSettings, updateAppSettings,
-    backendOnline,
+    backendOnline, hydrated, dirty,
     // Bildirishnoma (Telegram/SMS)
     tgContacts, notifyMeta, refreshTgContacts, tgChatIdFor, tgLocationFor,
     // 2. Naqd pul

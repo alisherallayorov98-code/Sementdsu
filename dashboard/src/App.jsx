@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { useData } from './context/DataContext';
 import GlobalSearch from './components/GlobalSearch';
+import ConnectionBlock from './components/ConnectionBlock';
 
 // Pages
 import Login         from './pages/Login';
@@ -58,11 +59,21 @@ const FULL_MENU = [
 function App() {
   const [lang, setLang] = useState('latn');
   const location = useLocation();
-  const { currentUser, token, logout, appSettings, backendOnline } = useData();
+  const { currentUser, token, logout, appSettings, backendOnline, hydrated, dirty } = useData();
 
   // Token (yoki foydalanuvchi) bo'lmasa — kirish oynasi
   if (!currentUser || !token) {
     return <Login lang={lang} />;
+  }
+
+  // ── Serverdan holat YUKLANMAGAN bo'lsa — ishlashga yo'l qo'ymaymiz ────────
+  // Ilgari bu holatda dastur odatdagidek ochilar, faqat kichik "Server o'chiq"
+  // belgisi turardi. Xodim ishlashda davom etardi, yozuvlari esa faqat
+  // brauzerda qolardi — server tiklangan zahoti holat serverdagi nusxa bilan
+  // ALMASHTIRILIB, o'sha yozuvlar hech qanday ogohlantirishsiz yo'qolardi.
+  // Endi kirish bloklanadi: yo'qotilgan ma'lumotdan ko'ra kutish yaxshiroq.
+  if (!hydrated) {
+    return <ConnectionBlock themeColor={appSettings.themeColor} onLogout={logout} />;
   }
 
   // Rollarga qarab menyuni filtrlash.
@@ -91,10 +102,18 @@ function App() {
             🔄 <span style={{ fontSize: 10, opacity: 0.85 }}>Ctrl+Shift+R</span>
           </button>
 
-          {/* Server bilan aloqa holati */}
-          {!backendOnline && (
-            <div title="Server bilan aloqa yo'q. O'zgarishlar vaqtincha faqat shu qurilmada saqlanmoqda." style={{ color: '#fff', fontSize: 12, background: '#c62828', padding: '4px 10px', borderRadius: 12, fontWeight: 'bold' }}>
-              ⚠ Server o'chiq
+          {/* Saqlash holati — xodim yozuvi serverga yetganini ko'rib tursin */}
+          {!backendOnline ? (
+            <div title="Server bilan aloqa yo'q. Yozuvlar saqlanmayapti — qayta urinilmoqda." style={{ color: '#fff', fontSize: 12, background: '#c62828', padding: '4px 10px', borderRadius: 12, fontWeight: 'bold' }}>
+              ⚠ Saqlanmadi — qayta urinilmoqda
+            </div>
+          ) : dirty ? (
+            <div title="O'zgarishlar serverga yozilmoqda." style={{ color: '#fff', fontSize: 12, background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: 12 }}>
+              ⏳ Saqlanmoqda…
+            </div>
+          ) : (
+            <div title="Barcha o'zgarishlar serverga saqlandi." style={{ color: '#a5d6a7', fontSize: 12, padding: '4px 10px', borderRadius: 12 }}>
+              ✓ Saqlandi
             </div>
           )}
           {/* Xodim profili */}

@@ -11,7 +11,14 @@ const { DATA_DIR } = require('./config');
 
 const ACCOUNTS_DIR    = path.join(DATA_DIR, 'accounts');
 const BACKUP_INTERVAL = 60 * 60 * 1000;
-const MAX_BACKUPS     = 72;
+// Zaxira ikki qatlamli:
+//   soatlik (db-YYYY-MM-DD-HH)  — 72 ta = oxirgi 3 kun, "hozirgina" xatolar uchun
+//   kunlik  (db-kunlik-YYYY-MM-DD) — 120 ta = ~4 oy
+// Faqat soatlik bo'lganda tarix 3 kun edi: noto'g'ri import yoki ommaviy
+// o'chirish bir hafta o'tib sezilsa, tiklash uchun hech narsa qolmasdi.
+const MAX_BACKUPS       = 72;
+const MAX_DAILY_BACKUPS = 120;
+const DAILY_PREFIX      = 'db-kunlik-';
 
 const ensure = (d) => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); };
 ensure(ACCOUNTS_DIR);
@@ -62,7 +69,15 @@ function sanitize(acc) {
 
 function restore(acc) {
   try {
-    const files = fs.readdirSync(backupDir(acc)).filter(f => f.endsWith('.json')).sort().reverse();
+    // Saralash NOM bo'yicha emas, fayl vaqti bo'yicha: papkada endi turli
+    // prefiksli nusxalar bor (db-…, db-kunlik-…, db-QOLDA-…) va alfavit tartibi
+    // eng yangisini bermaydi — buzilgan bazani eski nusxadan tiklab yuborardi.
+    const dir = backupDir(acc);
+    const files = fs.readdirSync(dir)
+      .filter(f => f.endsWith('.json'))
+      .map(f => { try { return { f, t: fs.statSync(path.join(dir, f)).mtimeMs }; } catch { return { f, t: 0 }; } })
+      .sort((a, b) => b.t - a.t)
+      .map(x => x.f);
     for (const f of files) {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(backupDir(acc), f), 'utf8'));
@@ -95,10 +110,19 @@ function load(acc) {
   return db;
 }
 
+// Har bir turkumni (soatlik / kunlik) o'z chegarasigacha qisqartirish.
+// QO'LDA olingan nusxalar (db-QOLDA-..., tozalash oldidan) hech qachon
+// o'chirilmaydi — ular aynan falokat holatlari uchun saqlanadi.
 function cleanupBackups(acc) {
+  const trim = (files, max) => {
+    while (files.length > max) {
+      try { fs.unlinkSync(path.join(backupDir(acc), files.shift())); } catch { /* ignore */ }
+    }
+  };
   try {
-    const files = fs.readdirSync(backupDir(acc)).filter(f => f.endsWith('.json')).sort();
-    while (files.length > MAX_BACKUPS) fs.unlinkSync(path.join(backupDir(acc), files.shift()));
+    const all = fs.readdirSync(backupDir(acc)).filter(f => f.endsWith('.json')).sort();
+    trim(all.filter(f => f.startsWith(DAILY_PREFIX)), MAX_DAILY_BACKUPS);
+    trim(all.filter(f => f.startsWith('db-') && !f.startsWith(DAILY_PREFIX) && !f.startsWith('db-QOLDA')), MAX_BACKUPS);
   } catch { /* ignore */ }
 }
 
@@ -107,9 +131,16 @@ function maybeBackup(acc, db) {
   if (now - (lastBackup[acc] || 0) < BACKUP_INTERVAL) return;
   lastBackup[acc] = now;
   ensure(backupDir(acc));
-  const stamp = new Date().toISOString().slice(0, 13).replace(/[:T]/g, '-');
+  const iso   = new Date().toISOString();
+  const stamp = iso.slice(0, 13).replace(/[:T]/g, '-'); // YYYY-MM-DD-HH
+  const day   = iso.slice(0, 10);                       // YYYY-MM-DD
   try {
-    fs.writeFileSync(path.join(backupDir(acc), `db-${stamp}.json`), JSON.stringify(db));
+    const payload = JSON.stringify(db);
+    fs.writeFileSync(path.join(backupDir(acc), `db-${stamp}.json`), payload);
+    // Kunlik nusxa — kuniga bittasi (birinchi yozuvda yaratiladi, keyin tegilmaydi:
+    // shu kunning ENG ERTA holati saqlanadi, ya'ni kun davomidagi xatodan oldingisi).
+    const dailyFile = path.join(backupDir(acc), `${DAILY_PREFIX}${day}.json`);
+    if (!fs.existsSync(dailyFile)) fs.writeFileSync(dailyFile, payload);
     cleanupBackups(acc);
   } catch (e) { console.error(`[DB:${acc}] backup xatosi:`, e.message); }
 }
