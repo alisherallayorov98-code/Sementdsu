@@ -15,6 +15,23 @@ import * as XLSX from 'xlsx';
 
 const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/[ʻʼ'`]/g, "'");
 
+// Excel sanasi → "dd.mm.yyyy".
+// Excel katakda sanani seriya raqami sifatida saqlaydi (masalan 46209 = 06.07.2026).
+// cellDates:true bilan o'qiganda Date keladi, lekin ba'zi fayllarda baribir
+// raqam bo'lib qoladi — shuning uchun ikkala holat ham qo'lda qayta ishlanadi.
+const pad2 = (n) => String(n).padStart(2, '0');
+const fmtDate = (d) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+const toDateStr = (v) => {
+  if (v === '' || v == null) return '';
+  if (v instanceof Date && !isNaN(v)) return fmtDate(v);
+  if (typeof v === 'number' && isFinite(v)) {
+    // Excel epoxasi: 1899-12-30 (1900 kabisa xatosi hisobga olingan)
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return isNaN(d) ? String(v) : fmtDate(d);
+  }
+  return String(v).trim();
+};
+
 export default function ExcelImport({ title, color = '#003366', sheetName, templateName, columns, onImport, hint }) {
   const [preview, setPreview] = useState(null); // { rows, total, invalid }
 
@@ -35,7 +52,7 @@ export default function ExcelImport({ title, color = '#003366', sheetName, templ
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
@@ -50,7 +67,9 @@ export default function ExcelImport({ title, color = '#003366', sheetName, templ
               const v = lk[norm(alias)];
               if (v !== undefined && v !== '') { val = v; break; }
             }
-            obj[col.key] = typeof val === 'string' ? val.trim() : val;
+            if (col.type === 'date')      obj[col.key] = toDateStr(val);
+            else if (col.type === 'text') obj[col.key] = String(val ?? '').trim();
+            else obj[col.key] = typeof val === 'string' ? val.trim() : val;
           });
           return obj;
         });
@@ -71,7 +90,9 @@ export default function ExcelImport({ title, color = '#003366', sheetName, templ
     const res = onImport(preview.rows) || {};
     const added = res.added ?? preview.rows.length;
     const skipped = res.skipped ?? 0;
-    alert(`✅ Import tugadi!\n\nQo'shildi: ${added} ta` + (skipped ? `\nO'tkazib yuborildi (dublikat yoki bo'sh): ${skipped} ta` : ''));
+    alert(`✅ Import tugadi!\n\nQo'shildi: ${added} ta`
+      + (skipped ? `\nO'tkazib yuborildi (dublikat yoki bo'sh): ${skipped} ta` : '')
+      + (res.extra ? `\n${res.extra}` : ''));
     setPreview(null);
   };
 

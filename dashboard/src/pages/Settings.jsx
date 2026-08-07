@@ -558,17 +558,30 @@ export default function Settings({ lang }) {
   };
 
   // ── Excel import: Qarzlar ─────────────────────────────────────────────────
+  // 1C oborotkasida qarz manfiy ishora bilan chiqadi (-1378756000) — moduli olinadi.
+  // Import qilingan mijoz mijozlar bazasida bo'lmasa, avtomatik ochiladi:
+  // qarz mijozga NOMI bo'yicha bog'lanadi, shuning uchun baza bilan mos bo'lishi shart.
   const importDebtsHandler = (rows) => {
     const clean = [];
+    const newCustomers = [];
+    // Qarz mijozga NOMI bo'yicha (r.customer === c.name) bog'lanadi va taqqoslash
+    // qat'iy — shuning uchun bazadagi kanonik yozuv ishlatiladi, Excel'dagi emas.
+    const known = new Map(customers.map(c => [normName(c.name), String(c.name).trim()]));
     let skipped = 0;
     rows.forEach(r => {
-      const customer = String(r.customer || '').trim();
-      const amount = parseAmount(r.amount);
-      if (!customer || amount <= 0) { skipped++; return; }
-      clean.push({ customer, amount, note: r.note, date: r.date });
+      const raw = String(r.customer || '').trim();
+      const amount = Math.abs(parseAmount(r.amount));
+      if (!raw || amount <= 0) { skipped++; return; }
+      const key = normName(raw);
+      if (!known.has(key)) {
+        known.set(key, raw);
+        newCustomers.push({ name: raw, phone: '', address: '', note: 'Excel importdan' });
+      }
+      clean.push({ customer: known.get(key), amount, note: r.note, date: r.date });
     });
+    if (newCustomers.length) importCustomers(newCustomers);
     importDebts(clean);
-    return { added: clean.length, skipped };
+    return { added: clean.length, skipped, extra: newCustomers.length ? `Mijozlar bazasiga yangi qo'shildi: ${newCustomers.length} ta` : '' };
   };
 
   // ── Zaxira (backup) funksiyalari ──────────────────────────────────────────
@@ -714,8 +727,8 @@ export default function Settings({ lang }) {
             templateName="mijozlar-shablon.xlsx"
             hint="Bir xil ismli mijoz allaqachon bo'lsa, qayta qo'shilmaydi (o'tkazib yuboriladi)."
             columns={[
-              { key: 'name',    header: 'Ism',     aliases: ['nomi', 'mijoz', 'name', 'фио', 'наименование'], required: true },
-              { key: 'phone',   header: 'Telefon', aliases: ['tel', 'phone', 'телефон'] },
+              { key: 'name',    header: 'Ism',     aliases: ['nomi', 'mijoz', 'name', 'фио', 'наименование'], required: true, type: 'text' },
+              { key: 'phone',   header: 'Telefon', aliases: ['tel', 'phone', 'телефон'], type: 'text' },
               { key: 'address', header: 'Manzil',  aliases: ['address', 'adres', 'адрес'] },
               { key: 'note',    header: 'Izoh',    aliases: ['note', 'eslatma', 'комментарий'] },
             ]}
@@ -727,12 +740,12 @@ export default function Settings({ lang }) {
             color="#c62828"
             sheetName="Qarzlar"
             templateName="qarzlar-shablon.xlsx"
-            hint="Summa raqam bo'lishi kerak (masalan: 1500000). Bo'sh yoki noto'g'ri summa o'tkazib yuboriladi."
+            hint="Summa raqam bo'lishi kerak (masalan: 1500000). Manfiy summa (1C oborotkasi) ham qabul qilinadi — moduli olinadi. Sana ustunini Excelda sana formatida qoldiring. Mijoz bazada bo'lmasa avtomatik ochiladi."
             columns={[
-              { key: 'customer', header: 'Mijoz',        aliases: ['ism', 'name', 'контрагент'], required: true },
+              { key: 'customer', header: 'Mijoz',        aliases: ['ism', 'name', 'контрагент'], required: true, type: 'text' },
               { key: 'amount',   header: 'Qarz summasi', aliases: ['summa', 'qarz', 'amount', 'сумма', 'долг'], required: true },
-              { key: 'note',     header: 'Izoh',         aliases: ['note', 'комментарий'] },
-              { key: 'date',     header: 'Sana',         aliases: ['date', 'дата'] },
+              { key: 'note',     header: 'Izoh',         aliases: ['note', 'комментарий'], type: 'text' },
+              { key: 'date',     header: 'Sana',         aliases: ['date', 'дата'], type: 'date' },
             ]}
             onImport={importDebtsHandler}
           />
