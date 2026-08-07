@@ -356,12 +356,22 @@ module.exports = {
   },
 
   // ── Tiket qoldig'ini kamaytirish (bot tomonidan chaqiriladi) ────────────────
+  // Ikkinchi qavat himoya: chaqiruvchi (bot) qoldiqni oldindan tekshiradi,
+  // lekin bu yerda ham cheklanadi — aks holda qoldiq manfiyga tushib,
+  // tiket nazorati ma'nosini yo'qotardi.
   useTicketTonna(acc, ticketId, tonna) {
     const db = load(acc);
     const tickets = db.state.tickets || [];
     const idx = tickets.findIndex(t => t.id === ticketId);
     if (idx === -1) return null;
-    tickets[idx] = { ...tickets[idx], usedTonna: (tickets[idx].usedTonna || 0) + Number(tonna) };
+    const t   = tickets[idx];
+    const rem = Number(t.totalTonna || 0) - Number(t.usedTonna || 0);
+    const use = Number(tonna);
+    if (!(use > 0) || use > rem + 0.001) {
+      console.warn(`[DB:${acc}] Tiket ${t.number}: ${use} t so'raldi, qoldiq ${rem} t — rad etildi.`);
+      return null;
+    }
+    tickets[idx] = { ...t, usedTonna: Number(t.usedTonna || 0) + use };
     db.state.tickets = tickets;
     persist(acc);
     return tickets[idx];

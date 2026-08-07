@@ -1,0 +1,127 @@
+// Ichki tekshiruv (auditState) testlari — cd dashboard && npm test
+//
+// Har test bitta buzilish turini yaratadi va tekshiruv uni TOPISHI kerak.
+// Bu testlar tekshiruvning o'zi ishlashiga kafolat beradi: kelajakda kimdir
+// auditState ni buzsa, xatolar jimgina o'tib ketmasin.
+import test from 'node:test';
+import assert from 'node:assert';
+import { auditState, auditSummary } from './auditState.js';
+
+const codes = (st) => auditState(st).map(f => f.code);
+
+test('toza holatda hech qanday topilma yo\'q', () => {
+  const st = {
+    debtRows: [{ id: 1, customer: 'Ali', amount: 1000, paid: 400, payments: [{ id: 9, amount: 400 }] }],
+    customers: [{ id: 5, name: 'Ali' }],
+    totalCashBalance: 500000,
+  };
+  assert.deepStrictEqual(auditState(st), []);
+  assert.strictEqual(auditSummary(auditState(st)).toza, true);
+});
+
+test('qarzdagi paid to\'lovlar yig\'indisiga mos kelmasa topiladi', () => {
+  const st = {
+    debtRows: [{ id: 1, customer: 'Ali', amount: 1000, paid: 900, payments: [{ id: 9, amount: 400 }] }],
+    customers: [{ id: 5, name: 'Ali' }],
+  };
+  assert.ok(codes(st).includes('debt-paid-mismatch'));
+});
+
+test('qarzdan ortiq to\'lov topiladi', () => {
+  const st = {
+    debtRows: [{ id: 1, customer: 'Ali', amount: 1000, paid: 1500, payments: [{ id: 9, amount: 1500 }] }],
+    customers: [{ id: 5, name: 'Ali' }],
+  };
+  assert.ok(codes(st).includes('debt-overpaid'));
+});
+
+test('avansdan ortiq sarf topiladi', () => {
+  const st = {
+    advanceRows: [{ id: 1, customer: 'Ali', amount: 500, used: 800, usages: [{ id: 2, amount: 800 }] }],
+    customers: [{ id: 5, name: 'Ali' }],
+  };
+  assert.ok(codes(st).includes('advance-overused'));
+});
+
+test('xodim oyligidagi nomuvofiqlik topiladi', () => {
+  const st = {
+    workers: [{ id: 1, name: 'Vali', paid: 500000 }],
+    salaryPayments: [{ id: 2, workerId: 1, amount: 300000 }],
+  };
+  assert.ok(codes(st).includes('worker-paid-mismatch'));
+});
+
+test('takrorlangan id topiladi', () => {
+  const st = { cashRows: [{ id: 7, amount: 10 }, { id: 7, amount: 20 }] };
+  assert.ok(codes(st).includes('duplicate-id'));
+});
+
+test('manfiy qarz topiladi', () => {
+  const st = { debtRows: [{ id: 1, customer: 'A', amount: -5000, paid: 0, payments: [] }], customers: [{ id: 1, name: 'A' }] };
+  assert.ok(codes(st).includes('negative-amount'));
+});
+
+test('sotuvi o\'chirilgan yetim kassa yozuvi topiladi', () => {
+  const st = {
+    salesRows: [],   // sotuv o'chirilgan
+    cashRows: [{ id: 2, auto: true, sourceType: 'sale', sourceId: 99, amount: 700000, desc: 'Sotuv' }],
+  };
+  assert.ok(codes(st).includes('orphan-auto-row'));
+});
+
+test('manfiy kassa qoldig\'i ogohlantirish beradi', () => {
+  const st = { totalCashBalance: -120000 };
+  const f = auditState(st).find(x => x.code === 'negative-balance');
+  assert.ok(f);
+  assert.strictEqual(f.level, 'ogoh');
+});
+
+test('bazada yo\'q mijoz ogohlantirish beradi', () => {
+  const st = {
+    debtRows: [{ id: 1, customer: 'Notanish aka', amount: 100, paid: 0, payments: [] }],
+    customers: [],
+  };
+  assert.ok(codes(st).includes('unknown-customer'));
+});
+
+test('mijoz nomi boshqacha yozilgan bo\'lsa ham tanilaadi (registr/probel)', () => {
+  const st = {
+    debtRows: [{ id: 1, customer: '  ALI  aka ', amount: 100, paid: 0, payments: [] }],
+    customers: [{ id: 5, name: 'Ali aka' }],
+  };
+  assert.ok(!codes(st).includes('unknown-customer'));
+});
+
+test('yetkazib beruvchiga ortiqcha to\'lov ogohlantirish beradi', () => {
+  const st = {
+    recvRows: [{ id: 1, source: 'Zavod', tons: 10, pricePerTon: 100000, pending: false }],
+    supplierPayments: [{ id: 2, supplier: 'Zavod', amount: 1500000 }],
+  };
+  assert.ok(codes(st).includes('supplier-overpaid'));
+});
+
+test('buzuq sana topiladi (Excel seriya raqami va 2 xonali yil)', () => {
+  const st = {
+    cashRows: [
+      { id: 1, date: '46209', amount: 100 },       // Excel seriya raqami
+      { id: 2, date: '23.06.26', amount: 100 },    // 2 xonali yil → 1926
+      { id: 3, date: '23.06.2026', amount: 100 },  // to'g'ri
+    ],
+  };
+  const f = auditState(st).find(x => x.code === 'bad-date');
+  assert.ok(f, 'buzuq sana topilishi kerak');
+  assert.ok(f.detail[0].includes('2 ta'), 'aynan 2 ta buzuq sana');
+});
+
+test('sanasi bo\'sh yozuv buzuq deb hisoblanmaydi', () => {
+  const st = { cashRows: [{ id: 1, amount: 100 }, { id: 2, date: '', amount: 50 }] };
+  assert.ok(!codes(st).includes('bad-date'));
+});
+
+test('1 so\'mgacha yaxlitlash farqi xato deb hisoblanmaydi', () => {
+  const st = {
+    debtRows: [{ id: 1, customer: 'A', amount: 1000, paid: 400.4, payments: [{ id: 9, amount: 400 }] }],
+    customers: [{ id: 1, name: 'A' }],
+  };
+  assert.ok(!codes(st).includes('debt-paid-mismatch'));
+});

@@ -7,7 +7,12 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// Ma'lumotlar papkasi. Odatda backend/data, lekin DATA_DIR env bilan
+// ko'chirsa bo'ladi — testlar vaqtinchalik papkada ishlashi uchun ham shart
+// (aks holda test haqiqiy bazaga akkaunt yozib qo'yardi).
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function loadJwtSecret() {

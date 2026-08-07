@@ -3,6 +3,7 @@
 // Faqat telegramChatId ulangan va qolgan qarzi > 0 bo'lgan mijozlarga.
 const cron = require('node-cron');
 const db   = require('../db');
+const { nameKey, findByName } = require('./nameKey');
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -12,17 +13,27 @@ async function sendDebtReminders(bot, accountId = 'default') {
   const debtRows = state.debt_rows || [];
   const customers = state.customers || [];
 
-  // Mijoz bo'yicha qoldiq qarz hisoblash
-  const debtByCustomer = {};
+  // Mijoz bo'yicha qoldiq qarz hisoblash.
+  // Guruh kaliti — normallashtirilgan ism: xom nom ishlatilganda "Ali aka" va
+  // "ali aka " ikki guruh bo'lib, bitta mijozga ikkita eslatma ketardi va
+  // har birida qarzning faqat bir qismi ko'rsatilardi.
+  const debtByCustomer = new Map();
   for (const r of debtRows) {
     const rem = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
     if (rem <= 0) continue;
-    debtByCustomer[r.customer] = (debtByCustomer[r.customer] || 0) + rem;
+    const key = nameKey(r.customer);
+    if (!key) continue;
+    const prev = debtByCustomer.get(key);
+    debtByCustomer.set(key, {
+      // Ko'rsatiladigan nom: bazadagi kanonik yozuv ustuvor
+      name: findByName(customers, r.customer)?.name || prev?.name || String(r.customer).trim(),
+      remaining: (prev?.remaining || 0) + rem,
+    });
   }
 
   let sent = 0, skipped = 0;
-  for (const [customerName, remaining] of Object.entries(debtByCustomer)) {
-    const cust = customers.find(c => c.name === customerName);
+  for (const { name: customerName, remaining } of debtByCustomer.values()) {
+    const cust = findByName(customers, customerName);
     const chatId = cust?.telegramChatId
       || db.findChatId(accountId, cust?.phone || '');
 

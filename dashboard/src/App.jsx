@@ -10,6 +10,7 @@ import Settings      from './pages/Settings';
 import Dashboard     from './pages/Dashboard';
 import Reports       from './pages/Reports';
 import Audit         from './pages/Audit';
+import SelfAudit     from './pages/SelfAudit';
 import ServerStatus  from './pages/ServerStatus';
 import Monitoring    from './pages/Monitoring';
 import Distribution  from './pages/Distribution';
@@ -52,6 +53,7 @@ const FULL_MENU = [
   { path: '/map',            latn: "🗺 Xarita",              cyrl: "🗺 Харита",             roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/day_balance',    latn: "Sana bo'yicha qoldiq",  cyrl: "Сана бўйича қолдиқ",   roles: ['admin', 'sotuvchi'] },
   { path: '/audit',          latn: "🔒 Nazorat (Audit)",     cyrl: "🔒 Назорат (Аудит)",    roles: ['admin'] },
+  { path: '/tekshiruv',      latn: "🔍 Tekshiruv",           cyrl: "🔍 Текширув",           roles: ['admin'] },
   { path: '/server',         latn: "🖥 Server holati",       cyrl: "🖥 Сервер ҳолати",      roles: ['admin'] },
   { path: '/settings',       latn: "Sozlamalar (Admin)",    cyrl: "Созламалар (Админ)",   roles: ['admin'] },
 ];
@@ -180,6 +182,7 @@ function App() {
               <Route path="/map"            element={<MapPage />} />
               <Route path="/day_balance"    element={<DayBalance     lang={lang} />} />
               <Route path="/audit"          element={<Audit />} />
+              <Route path="/tekshiruv"      element={<SelfAudit />} />
               <Route path="/server"         element={<ServerStatus />} />
               <Route path="/settings"       element={<Settings       lang={lang} />} />
             </Routes>

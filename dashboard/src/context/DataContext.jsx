@@ -288,9 +288,14 @@ export function DataProvider({ children }) {
   // ── 7. Kirim (naqd) ───────────────────────────────────────────────────────
   const [incomeRows, setIncomeRows] = useState(() => load('income_rows', []));
   useEffect(() => save('income_rows', incomeRows), [incomeRows]);
+  // Manfiy kirim aslida chiqim bo'lib, qoldiqni jimgina kamaytirardi (va
+  // "Kirim" hisobotida musbat summa sifatida ko'rinmasdi).
   const addIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+    const amt = parseNum(amount);
+    if (!(amt > 0)) { alert("Kirim summasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
-    setIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: amt, desc }]);
+    return true;
   };
   const deleteIncomeRow = (id) => setIncomeRows(p => p.filter(r => r.id !== id));
 
@@ -298,8 +303,11 @@ export function DataProvider({ children }) {
   const [expenseRows, setExpenseRows] = useState(() => load('expense_rows', []));
   useEffect(() => save('expense_rows', expenseRows), [expenseRows]);
   const addExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU')) => {
+    const amt = parseNum(amount);
+    if (!(amt > 0)) { alert("Chiqim summasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
-    setExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc }]);
+    setExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: amt, desc }]);
+    return true;
   };
   const deleteExpenseRow = (id) => setExpenseRows(p => p.filter(r => r.id !== id));
   const _incomeSum  = incomeRows.reduce((s, r)  => s + Number(r.amount || 0), 0);
@@ -926,9 +934,67 @@ export function DataProvider({ children }) {
 
     return sale; // chek chiqarish uchun
   };
-  // Savdoni tahrirlash (faqat meta-maydonlar: customer, note, vehicleNo va h.k.)
-  // Narx va tonna o'zgarsa — cashRow/debtRow lar manual yangilanishi kerak!
-  const updateSaleRow = (id, fields) => setSalesRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
+  // Savdoni tahrirlash.
+  //
+  // Ilgari bu shunchaki maydonlarni almashtirardi va izohda "narx/tonna
+  // o'zgarsa cashRow/debtRow manual yangilanishi kerak" deb yozilgan edi —
+  // lekin tahrir oynasi (RecvTons → RecvEditModal) aynan NARX va TO'LOV
+  // KANALINI o'zgartirishga ruxsat berardi. Natijada:
+  //   · narx oshirilsa — sotuv 6 mln, kassada esa eski 5 mln qolardi
+  //   · kanal naqd→nasiya qilinsa — kassada pul turardi, qarz esa yaratilmasdi
+  //     (mijoz qarzga olgan, dasturda "to'langan" ko'rinardi)
+  //   · mijoz almashtirilsa — qarz eski mijozda qolardi
+  // Endi pulga taalluqli maydon o'zgarsa, bog'langan avtomatik yozuvlar
+  // qayta yaratiladi (o'chirish + qo'shish bilan bir xil mantiq).
+  const updateSaleRow = (id, fields) => {
+    const old = salesRows.find(r => r.id === id);
+    if (!old) return false;
+    const next = { ...old, ...fields };
+
+    const money = (r) => Number(r.tons || 0) * Number(r.pricePerTon || 0);
+    const chOf  = (r) => r.paymentChannel || 'naqd';
+    const needsRelink =
+      Math.abs(money(old) - money(next)) > 0.001 ||
+      chOf(old) !== chOf(next) ||
+      !sameCust(old.customer, next.customer);
+
+    if (!needsRelink) {                       // izoh, mashina raqami va h.k.
+      setSalesRows(p => p.map(r => r.id === id ? next : r));
+      return true;
+    }
+
+    // To'lovi bor qarzni qayta yaratib bo'lmaydi — to'lov kassada egasiz qolardi
+    if (blockIfDebtPaid(debtRows, 'sale', id)) return false;
+
+    // Eski izlarni tozalaymiz (avansni qaytarish ham shu yerda)
+    if (old.advanceUsed) restoreAdvanceForSale(id);
+    const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'sale' && r.sourceId === id));
+    setCashRows(rm); setBankRows(rm); setClickRows(rm); setDebtRows(rm);
+
+    // Yangi qiymatlar bo'yicha qaytadan bog'laymiz
+    const sum = money(next);
+    const ch  = chOf(next);
+    const cf  = custFields(customers, next.customer);
+    next.customer = cf.customer; next.customerId = cf.customerId;
+    next.advanceUsed = 0;
+
+    if (sum > 0) {
+      const tag  = `🔗 Sotuv: ${next.customer} (${fmtTons(next.tons)} tn)${next.vehicleNo ? ` | 🚛 ${next.vehicleNo}` : ''}`;
+      const link = { auto: true, sourceType: 'sale', sourceId: id, createdAt: next.createdAt || id, worker: currentWorker, date: next.date };
+      if      (ch === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (ch === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (ch === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
+      else if (ch === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), ...cf, amount: sum, paid: 0, note: tag, payments: [] }]);
+      else if (ch === 'avans') {
+        const applied = consumeAdvance(next.customer, sum, id);
+        next.advanceUsed = applied;
+        const rem = sum - applied;
+        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), ...cf, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+      }
+    }
+    setSalesRows(p => p.map(r => r.id === id ? next : r));
+    return true;
+  };
   // Savdo o'chsa — u yaratgan barcha avtomatik yozuvlar ham o'chadi
   const deleteSaleRow = (id) => {
     if (blockIfDebtPaid(debtRows, 'sale', id)) return false;
@@ -1044,7 +1110,18 @@ export function DataProvider({ children }) {
 
   const totalSkladKg = skladRows.reduce((s, r) => s + Number(r.kg || 0), 0);
 
-  const updateSkladRow = (id, fields) => setSkladRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
+  // Sklad sotuvini tahrirlash. Tahrir oynasi mijozni almashtirishga ruxsat
+  // beradi — bog'langan qarz va kassa yozuvi ham o'sha mijozga o'tishi kerak,
+  // aks holda qarz eski mijozda qolib, yangisida ko'rinmasdi.
+  const updateSkladRow = (id, fields) => {
+    const cf = fields.customer !== undefined ? custFields(customers, fields.customer) : null;
+    const patch = cf ? { ...fields, ...cf } : fields;
+    setSkladRows(p => p.map(r => r.id === id ? { ...r, ...patch } : r));
+    if (!cf) return;
+    const relink = (rows) => rows.map(r =>
+      (r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id) ? { ...r, ...cf } : r);
+    setCashRows(relink); setBankRows(relink); setClickRows(relink); setDebtRows(relink);
+  };
 
   const deleteSkladSotuv = (id) => {
     if (blockIfDebtPaid(debtRows, 'sklad_sale', id)) return false;
@@ -1213,8 +1290,12 @@ export function DataProvider({ children }) {
   };
 
   const payWorker = (id, amount, note = '', channel = 'naqd') => {
+    const num = parseNum(amount);
+    // Manfiy/nol summada quyidagi `if (num > 0)` sharti ishlamay, kassadan
+    // chiqim YOZILMASDI — lekin xodimning "to'langan" summasi baribir
+    // o'zgarardi. Ikkalasi orasidagi bu farqni keyin topib bo'lmasdi.
+    if (!(num > 0)) { alert("To'lov summasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
-    const num = Number(amount);
     const today = new Date().toLocaleDateString('ru-RU');
     const workerObj = workers.find(w => w.id === id);
     setWorkers(p => p.map(w => w.id === id ? { ...w, paid: Number(w.paid) + num } : w));
@@ -1264,8 +1345,11 @@ export function DataProvider({ children }) {
   useEffect(() => save('tg_orders', tgOrders), [tgOrders]);
 
   const addTgOrder = (customer, tons, note = '', worker = currentWorker) => {
+    const t = parseNum(tons);
+    if (!(t > 0)) { alert("Zakaz tonnasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
-    setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: worker || currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...custFields(customers, customer), tons: Number(tons), status: 'kutilmoqda', note }]);
+    setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: worker || currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...custFields(customers, customer), tons: t, status: 'kutilmoqda', note }]);
+    return true;
   };
   const setTgStatus   = (id, status) => setTgOrders(p => p.map(o => o.id === id ? { ...o, status } : o));
   const deleteTgOrder = (id) => setTgOrders(p => p.filter(o => o.id !== id));
@@ -1447,8 +1531,11 @@ export function DataProvider({ children }) {
   };
 
   const addDriverTrip = (driverId, destination, price, isPayment = false, note = '', channel = 'naqd') => {
+    const amt = parseNum(price);
+    // Manfiy summa haydovchi balansini teskari yo'nalishda o'zgartirardi:
+    // "to'lov" balansni oshirib, "reys" kamaytirib yuborardi.
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
-    const amt = Number(price);
     const today = new Date().toLocaleDateString('ru-RU');
     setDriverTrips(p => {
       const updated = [...p, {
@@ -1485,6 +1572,7 @@ export function DataProvider({ children }) {
       else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
       else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount: -amt, desc: tag }]);
     }
+    return true;
   };
   const deleteDriverTrip = (id) => {
     setDriverTrips(p => p.filter(t => t.id !== id));

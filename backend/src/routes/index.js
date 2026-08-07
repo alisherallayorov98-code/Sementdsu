@@ -12,6 +12,10 @@ const superadmin = require('../controllers/superadmin.controller');
 const debtReminder = require('../services/debtReminder.service');
 const db        = require('../db');
 const { DEFAULT_ACCOUNT } = require('../config');
+// Ism bo'yicha qidirish frontend bilan bir xil qoidada (registr/probel farqi
+// yo'qoladi) — aks holda "Ali aka" va "ali aka " boshqa-boshqa bo'lib,
+// Telegram xabari jimgina yuborilmay qolardi.
+const { sameName, findByName } = require('../services/nameKey');
 
 const router = express.Router();
 
@@ -84,7 +88,7 @@ router.post('/notify_customer_sale', authenticate, async (req, res) => {
 
     const state     = db.getState(acc);
     const customers = state.customers || [];
-    const customer  = customers.find(c => c.name.trim().toLowerCase() === String(customerName).trim().toLowerCase());
+    const customer  = findByName(customers, customerName);
 
     if (!customer)                return res.json({ ok: false, error: 'Mijoz topilmadi' });
     if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
@@ -137,7 +141,7 @@ router.post('/notify_customer_payment', authenticate, async (req, res) => {
 
     const state     = db.getState(acc);
     const customers = state.customers || [];
-    const customer  = customers.find(c => c.name.trim().toLowerCase() === String(customerName).trim().toLowerCase());
+    const customer  = findByName(customers, customerName);
 
     if (!customer)                return res.json({ ok: false, error: 'Mijoz topilmadi' });
     if (!customer.telegramChatId) return res.json({ ok: false, error: 'Mijoz Telegram ga ulanmagan' });
@@ -153,7 +157,7 @@ router.post('/notify_customer_payment', authenticate, async (req, res) => {
       // "qarzingiz yo'q" degan noto'g'ri xabar ketardi.
       const debtRows = state.debt_rows || [];
       debt = debtRows
-        .filter(r => r.customer === customer.name)
+        .filter(r => sameName(r.customer, customer.name))
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid || 0)), 0);
     } else {
       debt = Number(totalDebt);
@@ -190,7 +194,7 @@ router.post('/driver_payment_notify', authenticate, async (req, res) => {
     const state   = db.getState(acc);
     const drivers = state.drivers || [];
     const trips   = state.driver_trips || [];
-    const driver  = drivers.find(d => d.name.trim().toLowerCase() === String(driverName).trim().toLowerCase());
+    const driver  = findByName(drivers, driverName);
 
     if (!driver) return res.json({ ok: false, error: 'Haydovchi topilmadi' });
     if (!driver.telegramChatId) return res.json({ ok: false, error: 'Haydovchi Telegram ga ulanmagan' });
@@ -201,11 +205,14 @@ router.post('/driver_payment_notify', authenticate, async (req, res) => {
 
     // To'lovlar: driver_trips (isPayment) + kassir chiqim yozuvlari (cashRows/bankRows/clickRows)
     const tripPaid = driverTrips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
-    const driverNameLc = driver.name.trim().toLowerCase();
-    const kassiPaid = ['cashRows', 'bankRows', 'clickRows'].reduce((sum, key) => {
+    // DIQQAT: state kalitlari snake_case (cash_rows, …). Ilgari bu yerda
+    // camelCase yozilgani uchun `state[key]` HAR DOIM bo'sh chiqib, kassadan
+    // berilgan avanslar hisobga olinmasdi: haydovchiga "sizga X to'lanishi
+    // kerak" degan oshirilgan balans xabar qilinardi.
+    const kassiPaid = ['cash_rows', 'bank_rows', 'click_rows'].reduce((sum, key) => {
       const rows = state[key] || [];
       return sum + rows
-        .filter(r => Number(r.amount) < 0 && (r.customer || '').trim().toLowerCase() === driverNameLc)
+        .filter(r => Number(r.amount) < 0 && sameName(r.customer, driver.name))
         .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
     }, 0);
     // amount — hozir berilgan to'lov, state hali saqlanmagan bo'lishi mumkin

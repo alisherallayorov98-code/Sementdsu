@@ -385,13 +385,35 @@ function start(acc = DEFAULT_ACCOUNT) {
       if (!sess) return;
       try {
         const cfg     = getConfig(userAcc);
+
+        // ── Tiket qoldig'i YETARLIMI — guruhga yuborishdan OLDIN ───────────
+        // Ilgari tekshiruv umuman yo'q edi: 100 tonnalik tiketdan 500 tonna
+        // zayavka yuborilsa, qoldiq -400 bo'lib ketardi va tiket nazorati
+        // ma'nosini yo'qotardi. Tekshiruv yuborishdan oldin turishi kerak —
+        // zayavka guruhga ketgandan keyin uni qaytarib bo'lmaydi.
+        const tonna = Number(sess.values.tonna || sess.values.ton || 0);
+        if (sess.ticketId && tonna > 0) {
+          const t = db.getOpenTickets(userAcc).find(x => x.id === sess.ticketId);
+          if (!t) {
+            bot.sendMessage(chatId, '❌ Tiket topilmadi yoki yopilgan. Qaytadan boshlang.', MAIN_MENU);
+            clearSession(chatId);
+            return;
+          }
+          const rem = Number(t.totalTonna || 0) - Number(t.usedTonna || 0);
+          if (tonna > rem + 0.001) {
+            bot.sendMessage(chatId,
+              `❌ *Tiketda yetarli tonna yo'q.*\n\n📦 ${t.number} — qoldi: *${rem} t*\nSiz so'radingiz: *${tonna} t*\n\nKamroq tonna bilan qayta urinib ko'ring.`,
+              { parse_mode: 'Markdown', ...MAIN_MENU });
+            return;   // sessiya saqlanadi — foydalanuvchi tonnani tuzatishi mumkin
+          }
+        }
+
         const counter = sess._counter ?? db.nextZayavkaCounter(userAcc);
         const text    = renderTemplate(cfg.template || '', sess.values, counter);
         const sent    = await sendToGroup(userAcc, text);
 
         let ticketMsg = '';
         if (sess.ticketId) {
-          const tonna   = Number(sess.values.tonna || sess.values.ton || 0);
           const updated = db.useTicketTonna(userAcc, sess.ticketId, tonna);
           if (updated) ticketMsg = `\n📦 *${updated.number}* qoldi: *${(updated.totalTonna||0)-(updated.usedTonna||0)} t*`;
         }
