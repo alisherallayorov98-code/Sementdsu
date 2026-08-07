@@ -26,24 +26,15 @@ function stripPasswords(state) {
 //   10:02  B sotuv qiladi  → PUT (B ning nusxasida A ning sotuvi YO'Q)
 // Natijada A ning sotuvi butunlay o'chib ketardi — hech qanday ogohlantirishsiz.
 //
-// Yechim: client o'zi ko'rgan versiyani (__baseVersion) qaytaradi. Agar server
-// versiyasi undan farq qilsa — demak oradan boshqa birov yozgan. Bunday holatda
-// ustiga yozmaymiz, balki id bo'yicha BIRLASHTIRAMIZ: clientda yo'q, lekin
-// serverda bor qatorlar saqlanib qoladi.
+// Yechim: client o'zi ko'rgan versiyani (__baseVersion) qaytaradi. Server
+// versiyasi undan farq qilsa — oradan boshqa birov yozgan; ustiga yozmaymiz,
+// balki BIRLASHTIRAMIZ (services/stateMerge.js: qator + qator ichidagi to'lov
+// ro'yxatlari + hosila yig'indilar).
 //
-// Kelishuv: to'qnashuv oynasida qilingan o'chirish bekor bo'lishi mumkin.
-// Bu — sotuvni butunlay yo'qotishdan ko'ra ancha xavfsiz.
+// O'chirish esa tombstone (__deleted) orqali hurmat qilinadi — birlashtirish
+// o'chirilgan yozuvni qayta tiriltirmaydi.
 // ─────────────────────────────────────────────────────────────────────────────
-function mergeRows(serverArr, clientArr) {
-  const byId = new Map();
-  for (const r of clientArr) if (r && r.id !== undefined) byId.set(r.id, r);
-  const extra = serverArr.filter(r => r && r.id !== undefined && !byId.has(r.id));
-  return extra.length ? [...clientArr, ...extra] : clientArr;
-}
-
-function isRowArray(v) {
-  return Array.isArray(v) && v.every(x => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined);
-}
+const { mergeStates, mergeTombstones } = require('../services/stateMerge');
 
 // Serverdagi (bot yozgan) maydonlarni saqlash: client qatorida qiymat bo'sh
 // bo'lsa, serverdagi to'ldirilган qiymat qaytariladi. Client ataylab o'zgartirgan
@@ -63,24 +54,12 @@ function preserveServerFields(clientArr, serverArr, fields) {
   });
 }
 
-function mergeStates(serverState, clientState) {
-  const out = { ...clientState };
-  for (const [key, clientVal] of Object.entries(clientState)) {
-    const serverVal = serverState[key];
-    if (isRowArray(clientVal) && isRowArray(serverVal)) {
-      out[key] = mergeRows(serverVal, clientVal);
-    }
-  }
-  // Clientda umuman yo'q bo'limlar serverdan saqlanib qoladi
-  for (const [key, serverVal] of Object.entries(serverState)) {
-    if (out[key] === undefined) out[key] = serverVal;
-  }
-  return out;
-}
-
 // GET /api/state
 exports.get = (req, res) => {
-  const state = stripPasswords(db.getState(req.user.account));
+  // __deleted (o'chirilganlar tarixi) faqat server ichida kerak — client uni
+  // ishlatmaydi, javobni esa bekorga kattalashtiradi.
+  const { __deleted, ...rest } = db.getState(req.user.account);
+  const state = stripPasswords(rest);
   // Versiya belgisi — client uni PUT da qaytaradi (to'qnashuvni aniqlash uchun)
   res.json({ ...state, __updatedAt: db.getUpdatedAt(req.user.account) });
 };
@@ -98,6 +77,9 @@ exports.put = async (req, res) => {
   // ── To'qnashuv nazorati (yuqoridagi izohga qarang) ───────────────────────
   const baseVersion    = Number(body.__baseVersion || 0);
   const currentVersion = Number(db.getUpdatedAt(req.user.account) || 0);
+  // O'chirilgan yozuvlar ro'yxati: client shu safar o'chirganlari + serverda
+  // saqlangan tarix (boshqa xodimning eski nusxasi ularni qaytarmasin).
+  const tombstones = mergeTombstones(oldState.__deleted, body.__deleted);
   delete body.__baseVersion;
   delete body.__updatedAt;
 
@@ -115,7 +97,7 @@ exports.put = async (req, res) => {
 
   let merged = false;
   if (baseVersion > 0 && currentVersion > 0 && baseVersion !== currentVersion) {
-    body = mergeStates(oldState, body);
+    body = mergeStates(oldState, body, tombstones);
     merged = true;
     console.warn(`[state] To'qnashuv birlashtirildi (akkaunt: ${req.user.account}, base=${baseVersion}, joriy=${currentVersion})`);
   }
@@ -139,6 +121,11 @@ exports.put = async (req, res) => {
   for (const [k, v] of Object.entries(oldState)) {
     if (k.startsWith('__')) body[k] = v;
   }
+  // O'chirilganlar tarixi — yuqoridagi tozalashdan KEYIN yoziladi (u ham `__`
+  // bilan boshlanadi, aks holda eski qiymat bilan qayta tiklanib qolardi).
+  // 30 kundan eskilari mergeTombstones ichida tashlab yuboriladi.
+  if (tombstones.length) body.__deleted = tombstones;
+  else delete body.__deleted;
 
   // ── Tiket "usedTonna" — faqat bot (backend) yangilaydi ────────────────────
   // Zayavka bot haydovchi jo'natilganda ticket.usedTonna ni to'g'ridan-to'g'ri

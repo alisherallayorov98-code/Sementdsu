@@ -1510,6 +1510,16 @@ export function DataProvider({ children }) {
   const [retryTick, setRetryTick] = useState(0);
   const saveTimer   = useRef(null);
   const retryTimer  = useRef(null);
+  // ── O'chirilgan yozuvlarni qayd qilish (tombstone) ───────────────────────
+  // Server to'qnashuvda holatlarni birlashtiradi: clientda yo'q, serverda bor
+  // qator saqlanib qoladi. O'chirish esa aynan shunday ko'rinadi — natijada
+  // o'chirilgan yozuv boshqa xodimning eski nusxasi orqali QAYTA TIRILARDI.
+  // Shuning uchun har saqlashdan oldin oldingi holat bilan solishtirib,
+  // yo'qolgan id larni ro'yxatga olamiz va PUT bilan yuboramiz.
+  // Solishtirish usuli tanlangan: o'nlab o'chirish joyining har birini qo'lda
+  // belgilash kerak bo'lmaydi va yangi kod yozilganda ham o'zi ishlaydi.
+  const prevIdsRef  = useRef(null);   // { [key]: Set<id> }
+  const tombsRef    = useRef([]);     // [{ key, id, at }] — yuborilishi kutilayotgan
   const [saveRetry, setSaveRetry] = useState(0);
   // Serverga hali yozilmagan o'zgarish bormi (debounce kutayotgan yoki yuborilayotgan)
   const [dirty, setDirty] = useState(false);
@@ -1615,6 +1625,36 @@ export function DataProvider({ children }) {
     tickets:            tickets,
   };
 
+  // Holatdagi har bir qatorli bo'lim uchun id to'plami
+  const idMapOf = (state) => {
+    const out = {};
+    for (const [key, val] of Object.entries(state)) {
+      if (Array.isArray(val) && val.every(x => x && typeof x === 'object' && x.id !== undefined)) {
+        out[key] = new Set(val.map(x => x.id));
+      }
+    }
+    return out;
+  };
+
+  // Oldingi holat bilan solishtirib, yo'qolgan (o'chirilgan) id larni yig'ish.
+  // Natija tombsRef ga to'planadi va keyingi PUT bilan yuboriladi.
+  const collectTombstones = (state) => {
+    const now  = idMapOf(state);
+    const prev = prevIdsRef.current;
+    prevIdsRef.current = now;
+    if (!prev) return;                       // birinchi marta — solishtiruv yo'q
+    const at = Date.now();
+    for (const [key, prevSet] of Object.entries(prev)) {
+      const nowSet = now[key];
+      if (!nowSet) continue;                 // bo'lim umuman yo'q — o'chirish deb hisoblamaymiz
+      for (const id of prevSet) {
+        if (!nowSet.has(id)) tombsRef.current.push({ key, id, at });
+      }
+    }
+    // Ro'yxat cheksiz o'smasin (server ham 30 kundan eskisini tashlaydi)
+    if (tombsRef.current.length > 2000) tombsRef.current = tombsRef.current.slice(-2000);
+  };
+
   // 1) Tizimga kirilgach (token bor) — serverdan butun holatni yuklab olish
   useEffect(() => {
     if (!token) { hydratedRef.current = false; return; }
@@ -1633,6 +1673,9 @@ export function DataProvider({ children }) {
             if (remote[key] !== undefined) setter(remote[key]);
           }
           baseVersionRef.current = remote.__updatedAt || 0;
+          // Serverdan kelgan holat — o'chirishlarni solishtirish uchun boshlang'ich
+          prevIdsRef.current = idMapOf(remote);
+          tombsRef.current = [];
         }
         if (!cancelled) {
           setBackendOnline(true);
@@ -1670,6 +1713,8 @@ export function DataProvider({ children }) {
             if (remote[key] !== undefined) setter(remote[key]);
           }
           baseVersionRef.current = remote.__updatedAt || 0;
+          prevIdsRef.current = idMapOf(remote);
+          tombsRef.current = [];
         }
         setBackendOnline(true);
         setTimeout(() => { markHydrated(true); }, 0);
@@ -1687,11 +1732,25 @@ export function DataProvider({ children }) {
     setDirty(true);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      // Oldingi holat bilan solishtirib, o'chirilganlarni aniqlaymiz — server
+      // birlashtirishda ularni qayta tiriltirmasligi uchun.
+      collectTombstones(snapshot);
+      // NUSXA olinadi: tombsRef.current ning o'ziga ishora qilinsa, so'rov
+      // ketayotganda yangi o'chirish qo'shilishi bilan uzunlik ham o'zgarib,
+      // quyidagi tozalash hali yuborilmagan yozuvni ham o'chirib yuborardi.
+      const sentTombs = tombsRef.current.slice();
+      const sentCount = sentTombs.length;
       // Server bilan to'qnashuvni aniqlash uchun ko'rgan versiyamizni yuboramiz
-      api.saveState({ ...snapshot, __baseVersion: baseVersionRef.current })
+      api.saveState({
+        ...snapshot,
+        __baseVersion: baseVersionRef.current,
+        ...(sentTombs.length ? { __deleted: sentTombs } : {}),
+      })
         .then(async (r) => {
           setBackendOnline(true);
           setDirty(false);
+          // Yuborilganlari serverda saqlandi — mahalliy navbatni tozalaymiz
+          tombsRef.current = tombsRef.current.slice(sentCount);
           baseVersionRef.current = r?.updatedAt || 0;
           // Boshqa xodim bilan to'qnashuv birlashtirildi — uning yozuvlarini
           // biz ham ko'rishimiz uchun serverdan yangi holatni olamiz.
@@ -1703,6 +1762,10 @@ export function DataProvider({ children }) {
                   if (remote[key] !== undefined) setter(remote[key]);
                 }
                 baseVersionRef.current = remote.__updatedAt || baseVersionRef.current;
+                // Birlashtirilgan holat yangi asos bo'ladi: aks holda serverdan
+                // kelgan (boshqa xodim qo'shgan) qatorlar keyingi solishtirishda
+                // "o'chirilgan" deb qaralib, tombstone'ga tushib qolardi.
+                prevIdsRef.current = idMapOf(remote);
               }
             } catch { /* keyingi saqlashda */ }
           }
