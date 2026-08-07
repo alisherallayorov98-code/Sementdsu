@@ -160,6 +160,13 @@ export default function CustomerCard({ name, onClose }) {
         <div style={{ padding: 18 }}>
           {/* Asosiy raqamlar */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+            {/* Sof balans — bitta raqamda holat: manfiy = qarzdor, musbat = puli bizda */}
+            {box(
+              s.balans < 0 ? "Balans (qarzdor)" : s.balans > 0 ? "Balans (puli bizda)" : "Balans",
+              (s.balans === 0 ? '0' : `${s.balans > 0 ? '+' : '−'}${fmt(Math.abs(s.balans))}`) + " so'm",
+              s.balans < 0 ? '#c62828' : s.balans > 0 ? '#2e7d32' : '#757575',
+              s.balans < 0 ? '#ffebee' : s.balans > 0 ? '#e8f5e9' : '#f5f5f5',
+            )}
             {box("Qoldiq qarz (bizga)", fmt(s.qolganQarz) + " so'm", '#c62828', '#ffebee')}
             {box("Qoldiq avans",        fmt(s.qolganAvans) + " so'm", '#1565c0', '#e3f2fd')}
             {box("Jami xarid",          fmt(s.totalXarid) + " so'm", '#2e7d32', '#e8f5e9')}

@@ -52,6 +52,13 @@ export function customerSummary(arg, data) {
   const usedAvans    = advs.reduce((s, r) => s + Number(r.used || 0), 0);
   const qolganAvans  = Math.max(0, totalAvans - usedAvans);
 
+  // Sof balans — bitta raqamda mijozning holati (MoySklad uslubida):
+  //   manfiy  = mijoz bizga qarzdor
+  //   musbat  = mijozning bizda oldindan to'langan puli bor
+  // DIQQAT: bu faqat KO'RSATISH uchun. Qarz va avans bazada har doim musbat
+  // saqlanadi — manfiy summa filtrlar va hisob-kitoblarni buzadi.
+  const balans = qolganAvans - qolganQarz;
+
   // ── BOG'LANMAGAN (osilib qolgan) pul harakatlari ─────────────────────────
   // Mijozga biriktirilgan, lekin sotuv/qarz/avansga ULANMAGAN kassa yozuvlari.
   // Manba: Kassir kirim (mijozsiz kiritilib keyin tahrirda mijoz qo'shilgan),
@@ -76,7 +83,7 @@ export function customerSummary(arg, data) {
     sales, debts, advs, orders,
     totalTon, totalXarid,
     totalQarz, totalTolandi, qolganQarz,
-    totalAvans, qolganAvans,
+    totalAvans, qolganAvans, balans,
     lastSaleAt,
     salesCount: sales.length,
     unlinked, unlinkedIn, unlinkedOut,

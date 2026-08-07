@@ -21,7 +21,7 @@ export default function Customers() {
   const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
   const [modalName, setModalName] = useState(null); // ochilgan mijoz kartochkasi (nom)
-  const [sortBy, setSortBy]     = useState('date'); // date | name | debt | xarid | avans | recent
+  const [sortBy, setSortBy]     = useState('date'); // date | name | debt | xarid | avans | balans | recent
   const [onlyDebt, setOnlyDebt] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
@@ -78,6 +78,7 @@ export default function Customers() {
   if (sortBy === 'debt')   filtered.sort((a, b) => b._s.qolganQarz - a._s.qolganQarz);
   if (sortBy === 'xarid')  filtered.sort((a, b) => b._s.totalXarid - a._s.totalXarid);
   if (sortBy === 'avans')  filtered.sort((a, b) => b._s.qolganAvans - a._s.qolganAvans);
+  if (sortBy === 'balans') filtered.sort((a, b) => a._s.balans - b._s.balans); // eng manfiy (qarzdor) birinchi
   if (sortBy === 'recent') filtered.sort((a, b) => b._s.lastSaleAt - a._s.lastSaleAt);
   if (sortBy === 'date')   filtered.sort((a, b) => b.id - a.id);
   useEffect(() => { setPage(1); }, [search, sortBy, onlyDebt]);
@@ -102,6 +103,7 @@ export default function Customers() {
       'Tonna': c._s.totalTon,
       'Qolgan qarz (som)': c._s.qolganQarz,
       'Qoldiq avans (som)': c._s.qolganAvans,
+      'Balans (som)': c._s.balans,
       'Oxirgi xarid': dateOf(c._s.lastSaleAt),
       'Izoh': c.note || '',
     }));
@@ -141,6 +143,7 @@ export default function Customers() {
           <option value="debt">↓ Qarz bo'yicha</option>
           <option value="xarid">↓ Xarid bo'yicha</option>
           <option value="avans">↓ Avans bo'yicha</option>
+          <option value="balans">↑ Balans (eng qarzdori yuqorida)</option>
           <option value="recent">↓ Oxirgi xarid</option>
         </select>
         <button onClick={() => setOnlyDebt(v => !v)} style={{
@@ -213,6 +216,7 @@ export default function Customers() {
               <th style={{ textAlign: 'right', width: 70 }}>Tonna</th>
               <th style={{ textAlign: 'right', width: 120 }}>Qolgan qarz</th>
               <th style={{ textAlign: 'right', width: 110 }}>Qoldiq avans</th>
+              <th style={{ textAlign: 'right', width: 120 }} title="Qoldiq avans − qolgan qarz. Manfiy = mijoz qarzdor.">Balans</th>
               <th style={{ width: 85 }}>Oxirgi xarid</th>
               <th style={{ width: 40, textAlign: 'center' }}>Bot</th>
               <th style={{ width: 90 }}>Amal</th>
@@ -230,7 +234,8 @@ export default function Customers() {
                       <td><input value={editData.name}    onChange={e => setEditData({...editData, name: e.target.value})}    style={{ ...inp, width: '100%', fontSize: 12 }} /></td>
                       <td><input value={editData.phone}   onChange={e => setEditData({...editData, phone: e.target.value})}   style={{ ...inp, width: '100%', fontSize: 12 }} placeholder="+998..." /></td>
                       <td><input value={editData.address} onChange={e => setEditData({...editData, address: e.target.value})} style={{ ...inp, width: '100%', fontSize: 12 }} /></td>
-                      <td colSpan={5}><input value={editData.note} onChange={e => setEditData({...editData, note: e.target.value})} style={{ ...inp, width: '100%', fontSize: 12 }} placeholder="Izoh" /></td>
+                      {/* Xarid | Tonna | Qarz | Avans | Balans | Oxirgi xarid | Bot = 7 ustun */}
+                      <td colSpan={7}><input value={editData.note} onChange={e => setEditData({...editData, note: e.target.value})} style={{ ...inp, width: '100%', fontSize: 12 }} placeholder="Izoh" /></td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button onClick={() => saveEdit(c.id)} style={greenBtn}>✓</button>
@@ -273,6 +278,11 @@ export default function Customers() {
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#6a1b9a', fontWeight: st.qolganAvans > 0 ? 'bold' : 'normal' }}>
                         {st.qolganAvans > 0 ? fmt(st.qolganAvans) : <span style={{ color: '#bbb' }}>—</span>}
+                      </td>
+                      {/* Sof balans: manfiy = qarzdor (qizil), musbat = oldindan to'lagan (yashil) */}
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold',
+                                   color: st.balans < 0 ? '#c62828' : st.balans > 0 ? '#2e7d32' : '#bbb' }}>
+                        {st.balans === 0 ? '—' : `${st.balans > 0 ? '+' : '−'}${fmt(Math.abs(st.balans))}`}
                       </td>
                       <td style={{ fontSize: 11, color: '#777' }}>{dateOf(st.lastSaleAt)}</td>
                       <td style={{ textAlign: 'center' }}>
