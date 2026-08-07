@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
+import { custRows } from '../lib/customerRef';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -74,7 +75,7 @@ export default function SoldTons({ lang }) {
   const {
     soldRows, addSoldRow, deleteSoldRow,
     debtRows, addDebtRow, payDebt, deleteDebtRow,
-    currentWorker, setCurrentWorker, appSettings,
+    currentWorker, setCurrentWorker, appSettings, custRef,
   } = data;
 
   const [form, setForm]               = useState({ mijoz:'', tonna:'', narx:'', tolov:'naqd', izoh:'' });
@@ -114,7 +115,7 @@ export default function SoldTons({ lang }) {
 
   // ── Mijozning joriy umumiy qarzi ──────────────────────────────────────────
   const getCustomerDebt = (name) =>
-    debtRows.filter(d => d.customer === name)
+    custRows(debtRows, custRef(name))
             .reduce((s, d) => s + Math.max(0, Number(d.amount) - Number(d.paid)), 0);
 
   // ── Sana oralig'i bo'yicha ko'rsatiladigan qatorlar ───────────────────────
@@ -169,8 +170,8 @@ export default function SoldTons({ lang }) {
   // ── Modal: Mijoz qarz tarixi + Akt Sverka ─────────────────────────────────
   const renderModal = () => {
     if (!modalCustomer) return null;
-    const custDebts  = debtRows.filter(d => d.customer === modalCustomer);
-    const custSales  = soldRows.filter(r => r.customer === modalCustomer);
+    const custDebts  = custRows(debtRows, custRef(modalCustomer));
+    const custSales  = custRows(soldRows, custRef(modalCustomer));
     const totalDebt  = custDebts.reduce((s,d) => s+Number(d.amount), 0);
     const totalPaid  = custDebts.reduce((s,d) => s+Number(d.paid||0), 0);
     const remaining  = totalDebt - totalPaid;

@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import CustomerCard from './CustomerCard';
+import { custKey, custRows } from '../lib/customerRef';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -27,29 +28,36 @@ export default function GlobalSearch() {
     if (query.length < 2) return [];
     const has = (v) => String(v || '').toLowerCase().includes(query);
 
-    // 1) Barcha mijoz nomlarini yig'ish (mijozlar bazasi + tranzaksiyalardan)
-    const names = new Set(customers.map(c => c.name));
+    // 1) Barcha mijozlarni yig'ish (mijozlar bazasi + tranzaksiyalardan).
+    // Kalit — normallashtirilgan ism: "Ali aka" va "ali aka " ikki qator bo'lib
+    // chiqmasin. Bazadagi mijoz ustuvor (uning id'si va telefoni bor).
+    const byKey = new Map();
+    customers.forEach(c => byKey.set(custKey(c.name), c));
     [debtRows, advanceRows, salesRows, soldRows, tgOrders].forEach(arr =>
-      arr.forEach(r => { if (r.customer) names.add(r.customer); })
+      arr.forEach(r => {
+        const k = custKey(r.customer);
+        if (k && !byKey.has(k)) byKey.set(k, { name: String(r.customer).trim() });
+      })
     );
 
     const custResults = [];
-    for (const name of names) {
-      const c = customers.find(x => x.name === name);
+    for (const ref of byKey.values()) {
+      const registered = ref.id != null;
+      const name = ref.name;
       // Nom/telefon/manzil mosmi?
-      let match = has(name) || has(c?.phone) || has(c?.address);
+      let match = has(name) || has(ref.phone) || has(ref.address);
       // Yoki shu mijozning qarz/avans/sotuv izohi yoki summasi mosmi?
       if (!match) {
         match =
-          debtRows.some(r => r.customer === name && (has(r.note) || has(r.amount))) ||
-          advanceRows.some(r => r.customer === name && (has(r.note) || has(r.amount))) ||
-          [...salesRows, ...soldRows].some(r => r.customer === name && (has(r.note) || has(r.tons) || has(r.pricePerTon))) ||
-          tgOrders.some(o => o.customer === name && (has(o.note) || has(o.tons)));
+          custRows(debtRows, ref).some(r => has(r.note) || has(r.amount)) ||
+          custRows(advanceRows, ref).some(r => has(r.note) || has(r.amount)) ||
+          custRows([...salesRows, ...soldRows], ref).some(r => has(r.note) || has(r.tons) || has(r.pricePerTon)) ||
+          custRows(tgOrders, ref).some(o => has(o.note) || has(o.tons));
       }
       if (match) {
-        const qoldiqQarz = debtRows.filter(r => r.customer === name)
+        const qoldiqQarz = custRows(debtRows, ref)
           .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
-        custResults.push({ name, phone: c?.phone, qoldiqQarz, registered: !!c });
+        custResults.push({ name, phone: ref.phone, qoldiqQarz, registered });
       }
     }
     custResults.sort((a, b) => b.qoldiqQarz - a.qoldiqQarz);

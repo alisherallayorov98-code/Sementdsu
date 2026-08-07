@@ -5,6 +5,7 @@ import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
+import { custKey, findCust } from '../lib/customerRef';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -44,11 +45,14 @@ export default function Debts({ lang }) {
     .filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()))
     .slice().reverse();
 
+  // Guruh kaliti — normallashtirilgan ism (yoki customerId): aks holda "Ali aka"
+  // va "ali aka " bir mijozning qarzini ikki qatorga bo'lib ko'rsatardi.
   const groupMap = {};
   allRows.forEach(r => {
-    if (!groupMap[r.customer])
-      groupMap[r.customer] = { customer: r.customer, rows: [], totalAmount: 0, totalPaid: 0, allPayments: [] };
-    const g = groupMap[r.customer];
+    const key = r.customerId != null ? `#${r.customerId}` : custKey(r.customer);
+    if (!groupMap[key])
+      groupMap[key] = { customer: r.customer, rows: [], totalAmount: 0, totalPaid: 0, allPayments: [] };
+    const g = groupMap[key];
     g.rows.push(r);
     g.totalAmount += Number(r.amount || 0);
     g.totalPaid   += Number(r.paid   || 0);
@@ -91,7 +95,7 @@ export default function Debts({ lang }) {
 
   // ── Eslatma ───────────────────────────────────────────────────────────────
   const openReminder = (g) => {
-    const phone = customers.find(c => c.name === g.customer)?.phone || '';
+    const phone = findCust(customers, g.customer)?.phone || '';
     const text  = `Hurmatli ${g.customer}! Sizning qoldiq qarzingiz ${fmt(g.remaining)} so'm. Iltimos, to'lovni amalga oshiring. Rahmat!`;
     setReminder({ name: g.customer, phone, text });
   };
@@ -104,7 +108,7 @@ export default function Debts({ lang }) {
     remaining:     g.remaining,
     debtDays:      g.debtDays ?? 0,
     lastPayment:   g.lastPaymentStr,
-    phone:         customers.find(c => c.name === g.customer)?.phone || '',
+    phone:         findCust(customers, g.customer)?.phone || '',
   }));
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -249,7 +253,7 @@ export default function Debts({ lang }) {
               const lvl = g.level;
               const rowBg = g.remaining > 0 ? AGE_COLORS[lvl] : '#e6ffe6';
               const ageBadge = g.remaining > 0 ? AGE_BADGE[lvl] : null;
-              const phone = customers.find(c => c.name === g.customer)?.phone || '';
+              const phone = findCust(customers, g.customer)?.phone || '';
               return (
                 <tr key={g.customer} style={{ background: rowBg }}>
                   <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{(page-1)*PAGE_SIZE+i+1}</td>

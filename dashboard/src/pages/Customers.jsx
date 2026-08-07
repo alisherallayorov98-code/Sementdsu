@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import { customerSummary } from '../lib/customerSummary';
+import { sameCust } from '../lib/customerRef';
 import CustomerCard from '../components/CustomerCard';
 import Paginator from '../components/Paginator';
 import { api } from '../api';
@@ -39,13 +40,14 @@ export default function Customers() {
   };
 
   // ── Yagona hisoblagich (yangi "Sotish" + eski "Sotilgan tonna" birga) ─────
-  const stat = (name) => customerSummary(name, data);
+  // Mijoz obyektini beramiz (ism emas) — bog'lanish customerId bo'yicha ketadi.
+  const stat = (c) => customerSummary(c, data);
 
   // ── Qo'shish ─────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name) return;
-    const exists = customers.some(c => c.name.toLowerCase() === form.name.trim().toLowerCase());
+    const exists = customers.some(c => sameCust(c.name, form.name));
     if (exists && !window.confirm(`"${form.name}" allaqachon mavjud. Qo'shilsinmi?`)) return;
     const phone = form.phone.trim() === '+998' ? '' : form.phone.trim();
     addCustomer({ ...form, phone });
@@ -68,7 +70,7 @@ export default function Customers() {
       (c.phone || '').includes(search) ||
       (c.address || '').toLowerCase().includes(search.toLowerCase())
     )
-    .map(c => ({ ...c, _s: stat(c.name) }));
+    .map(c => ({ ...c, _s: stat(c) }));
 
   if (onlyDebt) filtered = filtered.filter(c => c._s.qolganQarz > 0);
 
@@ -82,7 +84,7 @@ export default function Customers() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Umumiy statistika ─────────────────────────────────────────────────────
-  const allStats = customers.map(c => stat(c.name));
+  const allStats = customers.map(c => stat(c));
   const totalDebtAll  = allStats.reduce((s, x) => s + x.qolganQarz, 0);
   const totalAvansAll = allStats.reduce((s, x) => s + x.qolganAvans, 0);
   const totalXaridAll = allStats.reduce((s, x) => s + x.totalXarid, 0);

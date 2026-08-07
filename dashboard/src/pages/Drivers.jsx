@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
+import { sameCust } from '../lib/customerRef';
 import { api } from '../api';
 import Paginator from '../components/Paginator';
 
@@ -125,7 +126,7 @@ export default function Drivers({ lang }) {
     const tripPaid      = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
     // Kassirdan qo'lda kiritilgan to'lovlar (auto emas — driverTrips orqali yaratilgan avtomatiklar ikki marta sanalmaydi)
     const kassiPaid = drv ? [...(cashRows || []), ...(bankRows || []), ...(clickRows || [])]
-      .filter(r => !r.auto && r.customer === drv.name && Number(r.amount) < 0)
+      .filter(r => !r.auto && sameCust(r.customer, drv.name) && Number(r.amount) < 0)
       .reduce((s, r) => s + Math.abs(Number(r.amount)), 0) : 0;
     const totalPaid = tripPaid + kassiPaid;
     const balance   = totalEarnings - totalPaid;

@@ -9,6 +9,7 @@ import { customerSummary } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
 import { exportAktSverka } from '../lib/excelExport';
 import NotifyModal from './NotifyModal';
+import { findCust } from '../lib/customerRef';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -16,8 +17,9 @@ const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) :
 export default function CustomerCard({ name, onClose }) {
   const data = useData();
   const { customers, appSettings, setMonitor, tgChatIdFor, tgLocationFor, updateCustomer } = data;
-  const cust = customers.find(c => c.name === name);
-  const s = customerSummary(name, data);
+  const cust = findCust(customers, name);
+  // Bazadagi mijoz topilsa uni beramiz — qidiruv customerId bo'yicha ketadi.
+  const s = customerSummary(cust || name, data);
   const act = cust?.monitored ? activityStatus(s, cust, Number(appSettings?.monitorDays) || 14) : null;
   const tgLinked   = !!(cust?.telegramChatId) || (cust?.phone ? !!tgChatIdFor(cust.phone) : false);
   const botName    = 'sementchiuzbot';

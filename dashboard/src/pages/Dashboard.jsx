@@ -44,7 +44,7 @@ export default function Dashboard() {
   const globalDays = Number(appSettings?.monitorDays) || 14;
   const quietCustomers = customers
     .filter(c => c.monitored)
-    .map(c => ({ c, act: activityStatus(customerSummary(c.name, data), c, globalDays) }))
+    .map(c => ({ c, act: activityStatus(customerSummary(c, data), c, globalDays) }))
     .filter(m => m.act.status.key === 'alert' || m.act.status.key === 'never')
     .sort((a, b) => (b.act.daysSince || 9999) - (a.act.daysSince || 9999));
 

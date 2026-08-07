@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import { custRows } from '../lib/customerRef';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import CustomerCard from '../components/CustomerCard';
@@ -80,7 +81,7 @@ function SourceDetail({ row, data, navigate, onCustomer }) {
     // sourceId ikki xil formatda ("id_pTs" yoki "customer_pcBase") — ID bo'yicha
     // topib bo'lmaydi. Shuning uchun mijoz nomi orqali ishlaymiz.
     customer = customer || custFromDesc(row.desc);
-    const totalQarz = debtRows.filter(r => r.customer === customer)
+    const totalQarz = custRows(debtRows, customer)
       .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
     detail = <>💰 <b>Qarz to'lovi:</b> {customer || '—'} — <b>{fmt(Math.abs(row.amount))} so'm</b> to'landi | Sana: {row.date} | Qolgan qarz: {fmt(totalQarz)} so'm</>;
     nav = { path: '/debts', label: 'Qarzlar bo\'limi' };

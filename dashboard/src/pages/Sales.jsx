@@ -10,6 +10,7 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
 import { api } from '../api';
+import { findCust } from '../lib/customerRef';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -36,7 +37,7 @@ export default function Sales({ lang }) {
   const [notifyRow, setNotifyRow] = useState(null); // { name, phone, text }
   const [card, setCard] = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
-  const phoneOf = (name) => customers.find(c => c.name === name)?.phone || '';
+  const phoneOf = (name) => findCust(customers, name)?.phone || '';
   const CH_LBL = { naqd: 'Naqd', bank: 'Bank', click: 'Click', nasiya: 'Nasiya (qarzga)' };
   const saleMsg = (r) => {
     const total = Number(r.tons || 0) * Number(r.pricePerTon || 0);

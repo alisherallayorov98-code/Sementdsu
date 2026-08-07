@@ -40,7 +40,7 @@ export default function Monitoring() {
     return customers
       .filter(c => c.monitored)
       .map(c => {
-        const s = customerSummary(c.name, data);
+        const s = customerSummary(c, data);
         const act = activityStatus(s, c, globalDays);
         return { c, s, act };
       })

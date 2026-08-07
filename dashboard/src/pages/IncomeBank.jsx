@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
+import { custRows } from '../lib/customerRef';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -26,7 +27,7 @@ export default function IncomeBank({ lang }) {
     bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
     totalBankBalance,
     bankPendingRows, importOborotka, confirmBankPendingRow, deleteBankPendingRow,
-    payCustomerDebt, addAdvanceRow, debtRows,
+    payCustomerDebt, addAdvanceRow, debtRows, custRef,
   } = useData();
 
   // Kirim/chiqim natijasi haqida qisqa xabar
@@ -43,7 +44,7 @@ export default function IncomeBank({ lang }) {
     if (!amt) return;
     const customer = (incForm.customer || '').trim();
     if (customer) {
-      const custDebt = debtRows.filter(r => r.customer === customer)
+      const custDebt = custRows(debtRows, custRef(customer))
         .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
       const res = payCustomerDebt(customer, amt, 'bank', incForm.desc);
       if (res.applied === 0) {

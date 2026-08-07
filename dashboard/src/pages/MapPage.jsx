@@ -72,7 +72,7 @@ export default function MapPage() {
     .map(c => {
       const loc = (c.lat != null && c.lon != null) ? { lat: c.lat, lon: c.lon } : (c.phone ? tgLocationFor(c.phone) : null);
       if (!loc) return null;
-      const s = customerSummary(c.name, data);
+      const s = customerSummary(c, data);
       const act = c.monitored ? activityStatus(s, c, globalDays) : null;
       const per = periodByCust[c.name] || { tons: 0, sum: 0 };
       return {

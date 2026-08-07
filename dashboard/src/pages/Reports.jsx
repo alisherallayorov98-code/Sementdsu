@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { sameCust } from '../lib/customerRef';
 import { buildReport, parseDate } from '../lib/reportData';
 import { generateReportExcel } from '../lib/reportExcel';
 
@@ -64,7 +65,7 @@ export default function Reports() {
     const earnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
     const tripPaid = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
     const kassiPaid = [...cashRows, ...bankRows, ...clickRows]
-      .filter(r => !r.auto && r.customer === d.name && Number(r.amount) < 0)
+      .filter(r => !r.auto && sameCust(r.customer, d.name) && Number(r.amount) < 0)
       .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
     return sum + Math.max(0, earnings - tripPaid - kassiPaid);
   }, 0);

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
+import { custRows } from '../lib/customerRef';
 import ExpenseTypeSelect from '../components/ExpenseTypeSelect';
 import ExpenseReport from '../components/ExpenseReport';
 import { printSaleReceipt } from '../lib/receipt';
@@ -111,7 +112,7 @@ export default function Kassir() {
     salesRows,
     appSettings, currentWorker, setCurrentWorker, workers,
     addSkladSotuv, totalSkladKg, skladRows, updateSkladRow, deleteSkladSotuv,
-    cementTypes, skladKgByType, skladKgUntyped, currentUser,
+    cementTypes, skladKgByType, skladKgUntyped, currentUser, custRef,
   } = data;
   const isAdmin = currentUser?.role === 'admin';
 
@@ -140,7 +141,7 @@ export default function Kassir() {
 
   // ── Mijoz holati (kirim tab) ──────────────────────────────────────────────────
   const custDebt = kirim.customer
-    ? debtRows.filter(r => r.customer === kirim.customer).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
+    ? custRows(debtRows, custRef(kirim.customer)).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
     : 0;
   const custAdv = kirim.customer ? advanceBalanceOf(kirim.customer) : 0;
 

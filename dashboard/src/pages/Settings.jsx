@@ -559,29 +559,23 @@ export default function Settings({ lang }) {
 
   // ── Excel import: Qarzlar ─────────────────────────────────────────────────
   // 1C oborotkasida qarz manfiy ishora bilan chiqadi (-1378756000) — moduli olinadi.
-  // Import qilingan mijoz mijozlar bazasida bo'lmasa, avtomatik ochiladi:
-  // qarz mijozga NOMI bo'yicha bog'lanadi, shuning uchun baza bilan mos bo'lishi shart.
+  // Mijozni bazaga bog'lash (va yo'g'ini ochish) importDebts ichida bajariladi:
+  // shunda qarz darhol customerId bilan yoziladi.
   const importDebtsHandler = (rows) => {
     const clean = [];
-    const newCustomers = [];
-    // Qarz mijozga NOMI bo'yicha (r.customer === c.name) bog'lanadi va taqqoslash
-    // qat'iy — shuning uchun bazadagi kanonik yozuv ishlatiladi, Excel'dagi emas.
-    const known = new Map(customers.map(c => [normName(c.name), String(c.name).trim()]));
     let skipped = 0;
     rows.forEach(r => {
-      const raw = String(r.customer || '').trim();
+      const customer = String(r.customer || '').trim();
       const amount = Math.abs(parseAmount(r.amount));
-      if (!raw || amount <= 0) { skipped++; return; }
-      const key = normName(raw);
-      if (!known.has(key)) {
-        known.set(key, raw);
-        newCustomers.push({ name: raw, phone: '', address: '', note: 'Excel importdan' });
-      }
-      clean.push({ customer: known.get(key), amount, note: r.note, date: r.date });
+      if (!customer || amount <= 0) { skipped++; return; }
+      clean.push({ customer, amount, note: r.note, date: r.date });
     });
-    if (newCustomers.length) importCustomers(newCustomers);
-    importDebts(clean);
-    return { added: clean.length, skipped, extra: newCustomers.length ? `Mijozlar bazasiga yangi qo'shildi: ${newCustomers.length} ta` : '' };
+    const res = importDebts(clean) || {};
+    return {
+      added: clean.length,
+      skipped,
+      extra: res.newCustomers ? `Mijozlar bazasiga yangi qo'shildi: ${res.newCustomers} ta` : '',
+    };
   };
 
   // ── Zaxira (backup) funksiyalari ──────────────────────────────────────────

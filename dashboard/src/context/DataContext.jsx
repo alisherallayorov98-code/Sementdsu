@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
+import { sameCust, custRows, custFields, findCust, custKey } from '../lib/customerRef';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
@@ -239,7 +240,7 @@ export function DataProvider({ children }) {
   // Guruhlangan xarajat hisoboti shu maydon orqali ishlaydi.
   const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
     const ts = uid();
-    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '', ...extra }]);
+    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer), ...extra }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
   const updateCashRow    = (id, fields) => setCashRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -252,7 +253,7 @@ export function DataProvider({ children }) {
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
   const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
     const ts = uid();
-    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '', ...extra }]);
+    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer), ...extra }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
   const updateBankRow    = (id, fields) => setBankRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -265,7 +266,7 @@ export function DataProvider({ children }) {
   const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
   const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
     const ts = uid();
-    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer: customer || '', ...extra }]);
+    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer), ...extra }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
   const updateClickRow    = (id, fields) => setClickRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -301,7 +302,7 @@ export function DataProvider({ children }) {
     // Manfiy tonna qoldiqni yo'qdan oshiradi (addSaleRow bilan bir xil xavf)
     if (!(Number(entry?.tons) > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return null; }
     const ts = uid();
-    const row = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
+    const row = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry, ...custFields(customers, entry?.customer) };
     setSoldRows(p => [...p, row]);
     // Nasiya bo'lsa — BOG'LANGAN qarz yaratamiz (sourceType 'sold'). Ilgari qarz
     // SoldTons sahifasida qo'lda yaratilardi va sotuv o'chirilганда osilib qolardi
@@ -311,7 +312,7 @@ export function DataProvider({ children }) {
       if (amt > 0) {
         setDebtRows(p => [...p, {
           id: uid(), createdAt: ts, worker: currentWorker, date: row.date,
-          customer: row.customer, amount: amt, paid: 0, payments: [],
+          customer: row.customer, customerId: row.customerId, amount: amt, paid: 0, payments: [],
           note: `🔗 Eski sotuv (nasiya): ${row.customer} — ${fmtTons(row.tons)} tn`,
           auto: true, sourceType: 'sold', sourceId: ts,
         }]);
@@ -540,7 +541,7 @@ export function DataProvider({ children }) {
     setDebtRows(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
       date: new Date().toLocaleDateString('ru-RU'),
-      customer, amount: Number(amount), paid: 0, note,
+      ...custFields(customers, customer), amount: Number(amount), paid: 0, note,
       payments: [],
     }]);
   };
@@ -603,8 +604,8 @@ export function DataProvider({ children }) {
     // Eng eski qarzdan boshlab to'lash rejasi
     const plan = {};
     let applied = 0;
-    debtRows
-      .filter(r => r.customer === customer && Math.max(0, Number(r.amount) - Number(r.paid)) > 0)
+    custRows(debtRows, custRef(customer))
+      .filter(r => Math.max(0, Number(r.amount) - Number(r.paid)) > 0)
       .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
       .forEach(r => {
         if (left <= 0) return;
@@ -639,15 +640,45 @@ export function DataProvider({ children }) {
     return { applied, leftover: Math.max(0, (Number(amount) || 0) - applied) };
   };
 
-  // Excel'dan ko'plab qarz import qilish (unikal id bilan)
+  // Excel'dan ko'plab qarz import qilish (unikal id bilan).
+  // Mijoz bazasi bilan bir amalda bog'lanadi: bazada yo'q ism uchun shu yerda
+  // mijoz ochiladi va qarzga uning id'si beriladi. Buni chaqiruvchi tomonda
+  // (importCustomers + importDebts ketma-ket) qilib bo'lmaydi — setCustomers
+  // asinxron, ikkinchi chaqiruv yangi mijozlarni hali ko'rmaydi va qarzlar
+  // id'siz qolardi.
+  // Qaytaradi: { added, newCustomers }
   const importDebts = (rows) => {
-    const base = uid();
-    setDebtRows(p => [...p, ...rows.map((r, i) => ({
-      id: base + i, createdAt: base + i, worker: currentWorker,
-      date: r.date || new Date().toLocaleDateString('ru-RU'),
-      customer: r.customer, amount: parseNum(r.amount), paid: 0,
-      note: r.note || '', payments: [],
-    }))]);
+    const byKey = new Map(customers.map(c => [custKey(c.name), c]));
+    const fresh = [];
+    const prepared = rows.map((r) => {
+      const raw = String(r.customer ?? '').trim();
+      const key = custKey(raw);
+      let c = key ? byKey.get(key) : null;
+      if (!c && key) {
+        const cid = uid();
+        c = {
+          id: cid, createdAt: cid, worker: currentWorker,
+          name: raw, address: '', phone: '', note: 'Excel importdan',
+          linkCode: genLinkCode(),
+        };
+        byKey.set(key, c);
+        fresh.push(c);
+      }
+      // id uid() dan olinadi: "base + i" ko'rinishi generatorning ichki
+      // hisoblagichini surmaydi, ya'ni o'sha diapazonni keyinroq boshqa yozuv
+      // qayta band qilib, ikkalasi bir id bilan qolib ketishi mumkin edi.
+      const rid = uid();
+      return {
+        id: rid, createdAt: rid, worker: currentWorker,
+        date: r.date || new Date().toLocaleDateString('ru-RU'),
+        customer: c ? c.name : raw, customerId: c ? c.id : undefined,
+        amount: parseNum(r.amount), paid: 0,
+        note: r.note || '', payments: [],
+      };
+    });
+    if (fresh.length) setCustomers(p => [...p, ...fresh]);
+    setDebtRows(p => [...p, ...prepared]);
+    return { added: prepared.length, newCustomers: fresh.length };
   };
   const totalDebts    = debtRows.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
   const totalDebtsPaid = debtRows.reduce((s, r) => s + Number(r.paid), 0);
@@ -665,7 +696,7 @@ export function DataProvider({ children }) {
     const today = new Date().toLocaleDateString('ru-RU');
     setAdvanceRows(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker, date: today,
-      customer, amount: Number(amount), used: 0, note, usages: [],
+      ...custFields(customers, customer), amount: Number(amount), used: 0, note, usages: [],
     }]);
     // ── INTEGRATSIYA: avans → tegishli kassaga kirim ─────────────────────────
     const sum = Number(amount);
@@ -729,8 +760,7 @@ export function DataProvider({ children }) {
   const totalAdvancesUsed = advanceRows.reduce((s, r) => s + Number(r.used), 0);
   const totalAdvancesAll  = advanceRows.reduce((s, r) => s + Number(r.amount), 0);
   // Mijozning qoldiq avansi
-  const advanceBalanceOf = (customer) => advanceRows
-    .filter(r => r.customer === customer)
+  const advanceBalanceOf = (customer) => custRows(advanceRows, custRef(customer))
     .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
   // Sotuvda avansdan yechish — eng eski avansdan boshlab, sourceId (saleId) bilan
   // belgilab. Qaytarilgan: ishlatilgan summa.
@@ -743,8 +773,8 @@ export function DataProvider({ children }) {
     // MUHIM: advanceRows emas, advanceRef.current o'qiladi. React state async
     // yangilanadi — taqsimlashda bir necha sotuv KETMA-KET (bir tikda) yaratilsa,
     // ikkinchi sotuv eski holatni ko'rib AYNAN SHU avansni qayta sarflab yuborardi.
-    advanceRef.current
-      .filter(r => r.customer === customer && Math.max(0, Number(r.amount) - Number(r.used)) > 0)
+    custRows(advanceRef.current, custRef(customer))
+      .filter(r => Math.max(0, Number(r.amount) - Number(r.used)) > 0)
       .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
       .forEach(r => {
         if (left <= 0) return;
@@ -794,7 +824,7 @@ export function DataProvider({ children }) {
       return null;
     }
     const ts = uid();
-    const sale = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry };
+    const sale = { id: ts, createdAt: ts, worker: currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...entry, ...custFields(customers, entry?.customer) };
     // Sanani tizim standartiga keltirish. Taqsimlashda "zavod vaqti" (erkin matn,
     // masalan "2026-07-20 14:30") sana sifatida kelib qolardi — natijada sotuv
     // hech qaysi kunlik/oylik filtrga tushmay, hisobotlardan yo'qolardi.
@@ -806,29 +836,32 @@ export function DataProvider({ children }) {
     const sum = Number(sale.tons || 0) * Number(sale.pricePerTon || 0);
     if (sum > 0) {
       const tag  = `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)${sale.vehicleNo ? ` | 🚛 ${sale.vehicleNo}` : ''}`;
+      // DIQQAT: link'ga customerId QO'YILMAYDI. Kassa yozuvlarida mijoz maydoni
+      // ataylab bo'sh — customerSummary shu bo'shliqqa qarab "bog'lanmagan pul"ni
+      // ajratadi. customerId qo'shilsa, sotuvdan tushgan naqd u yerga ikkinchi
+      // marta kirib, mijoz kartochkasidagi summa ikkilanardi.
       const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date };
       const channel = sale.paymentChannel || 'naqd';
       if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
-      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), customer: sale.customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), customer: sale.customer, customerId: sale.customerId, amount: sum, paid: 0, note: tag, payments: [] }]);
       else if (channel === 'avans') {
         // Avansdan yechamiz (pul allaqachon kassada). Yetmasa — qolgani qarzga.
         const applied = consumeAdvance(sale.customer, sum, ts);
         sale.advanceUsed = applied;
         const rem = sum - applied;
-        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), customer: sale.customer, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), customer: sale.customer, customerId: sale.customerId, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
       }
     }
     setSalesRows(p => [...p, sale]);
 
     // ── Mijozga Telegram xabari (fire-and-forget) ────────────────────────────
-    const cust = customers.find(c => c.name === sale.customer);
+    const cust = customers.find(c => c.id === sale.customerId) || findCust(customers, sale.customer);
     const directChatId = cust?.telegramChatId || null;
     const custPhone    = cust?.phone || '';
     if (directChatId || custPhone) {
-      const existingDebt = debtRows
-        .filter(r => r.customer === sale.customer)
+      const existingDebt = custRows(debtRows, cust || sale.customer)
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
       const newDebt = (sale.paymentChannel === 'nasiya') ? sum : 0;
       const totalDebt = existingDebt + newDebt;
@@ -948,14 +981,15 @@ export function DataProvider({ children }) {
     const sum  = kgN * prcN;
     const td   = new Date().toLocaleDateString('ru-RU');
     const tag  = `🏗 Sklad: ${customer} (${kgN} kg)`;
-    const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td, customer };
+    const cf   = custFields(customers, customer);
+    const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td, ...cf };
     if (sum > 0) {
       if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
-      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), customer, amount: sum, paid: 0, note: tag, payments: [] }]);
+      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), amount: sum, paid: 0, note: tag, payments: [] }]);
     }
-    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, customer, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker, cementType: cementType || '' };
+    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, ...cf, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker, cementType: cementType || '' };
     setSkladRows(p => [...p, row]);
     return row;
   };
@@ -1015,7 +1049,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_income_rows', bankIncomeRows), [bankIncomeRows]);
   const addBankIncomeRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = uid();
-    setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer }]);
+    setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer) }]);
   };
   const deleteBankIncomeRow = (id) => setBankIncomeRows(p => p.filter(r => r.id !== id));
   // Excel'dan bank o'tkazmalarini import — TEKSHIRILMAGAN (pending) holatda.
@@ -1042,7 +1076,7 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_expense_rows', bankExpenseRows), [bankExpenseRows]);
   const addBankExpenseRow = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '') => {
     const ts = uid();
-    setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, customer }]);
+    setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer) }]);
   };
   const deleteBankExpenseRow = (id) => setBankExpenseRows(p => p.filter(r => r.id !== id));
 
@@ -1069,10 +1103,11 @@ export function DataProvider({ children }) {
     if (!row) return;
     const ts = uid();
     const desc = izoh || row.naznachenie || '';
+    const cf = custFields(customers, customer);
     if (row.type === 'kirim') {
-      setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, customer, worker: currentWorker }]);
+      setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, ...cf, worker: currentWorker }]);
     } else {
-      setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, customer, worker: currentWorker }]);
+      setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, ...cf, worker: currentWorker }]);
     }
     setBankPendingRows(p => p.filter(r => r.id !== id));
   };
@@ -1182,7 +1217,7 @@ export function DataProvider({ children }) {
 
   const addTgOrder = (customer, tons, note = '', worker = currentWorker) => {
     const ts = uid();
-    setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: worker || currentWorker, date: new Date().toLocaleDateString('ru-RU'), customer, tons: Number(tons), status: 'kutilmoqda', note }]);
+    setTgOrders(p => [...p, { id: ts, createdAt: ts, worker: worker || currentWorker, date: new Date().toLocaleDateString('ru-RU'), ...custFields(customers, customer), tons: Number(tons), status: 'kutilmoqda', note }]);
   };
   const setTgStatus   = (id, status) => setTgOrders(p => p.map(o => o.id === id ? { ...o, status } : o));
   const deleteTgOrder = (id) => setTgOrders(p => p.filter(o => o.id !== id));
@@ -1201,6 +1236,10 @@ export function DataProvider({ children }) {
   const [customers, setCustomers] = useState(() => load('customers', []));
   useEffect(() => save('customers', customers), [customers]);
   const genLinkCode = () => Math.random().toString(36).slice(2, 10).toUpperCase();
+  // Ism → mijoz obyekti (bazada bo'lsa). Shu obyekt bilan qidirilganda yozuvlar
+  // avval customerId, keyin ism bo'yicha topiladi — ya'ni ismi qo'lda o'zgartirib
+  // yuborilgan eski yozuv ham mijozdan uzilib qolmaydi.
+  const custRef = (name) => findCust(customers, name) || name;
   const addCustomer = ({ name, address, phone, note = '' }) => {
     const ts = uid();
     setCustomers(p => [...p, {
@@ -1209,9 +1248,9 @@ export function DataProvider({ children }) {
       linkCode: genLinkCode(),
     }]);
   };
-  // Butun tizim mijozni ISM orqali bog'laydi (sotuv, qarz, avans, sklad...).
-  // Shuning uchun ism o'zgarsa, uni HAMMA joyda birga o'zgartirish kerak —
-  // aks holda mijozning butun tarixi va qarzi "egasiz" bo'lib qolardi.
+  // Yozuvlar mijozga customerId bilan bog'lanadi, lekin ism ham har yozuvda
+  // saqlanadi (ro'yxatlarda shu ko'rsatiladi, eski yozuvlarda esa bog'lanishning
+  // o'zi shu). Shuning uchun ism o'zgarganda hamma joyda birga yangilanadi.
   const updateCustomer = (id, data) => {
     const old = customers.find(c => c.id === id);
     const newName = String(data?.name || '').trim();
@@ -1219,12 +1258,16 @@ export function DataProvider({ children }) {
     const renamed = old && newName && newName !== oldName;
 
     if (renamed) {
-      const clash = customers.some(c => c.id !== id && c.name.trim().toLowerCase() === newName.toLowerCase());
+      const clash = customers.some(c => c.id !== id && sameCust(c.name, newName));
       if (clash) {
         alert(`"${newName}" nomli mijoz allaqachon bor.\nBoshqa nom tanlang yoki eski yozuvni o'chiring.`);
         return false;
       }
-      const swap = (rows) => rows.map(r => r.customer === oldName ? { ...r, customer: newName } : r);
+      // Nomi bo'yicha ham, id'si bo'yicha ham tegishli qatorlar yangilanadi:
+      // id'si borlarida ism allaqachon farq qilib ketgan bo'lishi mumkin.
+      const swap = (rows) => rows.map(r =>
+        (r.customerId != null ? r.customerId === id : sameCust(r.customer, oldName))
+          ? { ...r, customer: newName } : r);
       setSalesRows(swap); setSoldRows(swap); setDebtRows(swap);
       setAdvanceRows(swap); setSkladRows(swap);
       setCashRows(swap); setBankRows(swap); setClickRows(swap);
@@ -1241,9 +1284,9 @@ export function DataProvider({ children }) {
     if (c) {
       // Qarzi yoki avansi bor mijozni o'chirish — o'sha summa ro'yxatdan
       // yo'qolib, hech kim uni ko'rmay qolishiga olib keladi.
-      const debt = debtRows.filter(r => r.customer === c.name)
+      const debt = custRows(debtRows, c)
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
-      const adv = advanceRows.filter(r => r.customer === c.name)
+      const adv = custRows(advanceRows, c)
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
       if (debt > 0 || adv > 0) {
         const parts = [];
@@ -1264,13 +1307,15 @@ export function DataProvider({ children }) {
     setCustomers(p => p.map(c => c.id === id ? { ...c, monitored, monitorDays: monitorDays || null } : c));
   // Excel'dan ko'plab mijoz import qilish (unikal id bilan)
   const importCustomers = (rows) => {
-    const base = uid();
-    setCustomers(p => [...p, ...rows.map((r, i) => ({
-      id: base + i, createdAt: base + i, worker: currentWorker,
-      name: (r.name || '').trim(), address: (r.address || '').trim(),
-      phone: (r.phone || '').trim(), note: r.note || '',
-      linkCode: Math.random().toString(36).slice(2, 10).toUpperCase(),
-    }))]);
+    setCustomers(p => [...p, ...rows.map(r => {
+      const id = uid();
+      return {
+        id, createdAt: id, worker: currentWorker,
+        name: (r.name || '').trim(), address: (r.address || '').trim(),
+        phone: (r.phone || '').trim(), note: r.note || '',
+        linkCode: genLinkCode(),
+      };
+    })]);
   };
 
   // ── 18. Haydovchilar va Qatnovlar ─────────────────────────────────────────
@@ -1338,7 +1383,7 @@ export function DataProvider({ children }) {
     const newName = String(data?.name || '').trim();
     const oldName = String(old?.name || '').trim();
     if (old && newName && newName !== oldName) {
-      const swap = (rows) => rows.map(r => r.customer === oldName ? { ...r, customer: newName } : r);
+      const swap = (rows) => rows.map(r => sameCust(r.customer, oldName) ? { ...r, customer: newName } : r);
       setCashRows(swap); setBankRows(swap); setClickRows(swap);
     }
     setDrivers(p => p.map(d => d.id === id ? { ...d, ...data } : d));
@@ -1703,7 +1748,7 @@ export function DataProvider({ children }) {
     // 6. Kunlik ish
     dailyWorkRows, addDailyWorkRow, deleteDailyWorkRow,
     // Mijozlar bazasi
-    customers, addCustomer, updateCustomer, deleteCustomer, importCustomers, setMonitor,
+    customers, addCustomer, updateCustomer, deleteCustomer, importCustomers, setMonitor, custRef,
     // Haydovchilar
     drivers, addDriver, updateDriver, deleteDriver,
     driverTrips, addDriverTrip, deleteDriverTrip,
