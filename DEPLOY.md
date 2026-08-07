@@ -60,11 +60,39 @@ boshqasiga ko'rinmaydi (token ichida `account`).
 
 ---
 
+## Ishga tushirishdan oldin — majburiy tekshiruv
+
+**1. `DEFAULT_ACCOUNT` to'g'ri ko'rsatilganmi?**
+Telegram bot oqimi (zakazlar, haydovchi reyslari, mijoz ulanishlari) AYNAN shu
+akkauntga yozadi. Noto'g'ri bo'lsa xato chiqmaydi — bot ma'lumotlari boshqa
+papkaga tushib, dasturda umuman ko'rinmaydi.
+```
+ls backend/data/accounts/          # qaysi akkauntlar bor
+# backend/.env ga yozing:
+DEFAULT_ACCOUNT=<ishlatilayotgan akkaunt nomi>
+```
+Server ishga tushganda nomni tekshiradi va nomuvofiqlikda ogohlantiradi
+(bir nechta akkaunt bo'lsa — umuman ishga tushmaydi).
+
+**2. Zaxira ishlayaptimi?**
+```
+ls backend/data/accounts/<nom>/backups/
+# db-YYYY-MM-DD-HH.json   — soatlik (72 ta = 3 kun)
+# db-kunlik-YYYY-MM-DD.json — kunlik (120 ta ≈ 4 oy)
+```
+Bular server diskida. **Disk yo'qolsa hammasi ketadi** — tashqi nusxa shart
+(quyida).
+
 ## Xavfsizlik eslatmalari (internet uchun)
 - ✅ Parollar bcrypt bilan hash; tokenlar imzolangan; tashkilotlar ajratilgan.
 - ⚠️ `JWT_SECRET` ni albatta kuchli qo'ying (yoki avtomatik yaratilganini saqlang).
 - ⚠️ `CORS_ORIGINS` ni faqat o'z domeningizga cheklang (`*` qo'ymang).
 - ⚠️ Server `backend/data/` papkasini muntazam zaxiralang (cron + tashqi disk/bulut).
+  Masalan kunlik cron:
+  ```
+  0 2 * * * tar czf /root/zaxira/sement-$(date +\%F).tgz /root/Sementdsu/backend/data \
+            && find /root/zaxira -name 'sement-*.tgz' -mtime +60 -delete
+  ```
 - ℹ️ **Telegram bot** hozir bitta tokenga (bitta tashkilotga) bog'langan. Har
   tashkilotga alohida bot kerak bo'lsa — har akkauntga token biriktirish kerak
   (kelajakdagi takomil).

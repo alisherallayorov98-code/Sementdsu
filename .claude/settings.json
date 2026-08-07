@@ -86,7 +86,8 @@
       "Bash(sed -n '/const deleteRecvRow/,/^  };/p' dashboard/src/context/DataContext.jsx)",
       "Bash(sed -n '/const deleteSkladSotuv/,/^  };/p' dashboard/src/context/DataContext.jsx)",
       "Bash(node -e \"require\\('./src/controllers/state.controller.js'\\); console.log\\('✅ state.controller xatosiz'\\);\")",
-      "Bash(node -e \"require\\('./src/controllers/state.controller.js'\\); require\\('./src/controllers/superadmin.controller.js'\\); console.log\\('✅ backend modullar xatosiz'\\);\")"
+      "Bash(node -e \"require\\('./src/controllers/state.controller.js'\\); require\\('./src/controllers/superadmin.controller.js'\\); console.log\\('✅ backend modullar xatosiz'\\);\")",
+      "PowerShell(cd c:\\\\SEMENT\\\\backend; $env:PORT=\"5099\"; $p = Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -PassThru -NoNewWindow -RedirectStandardOutput \"$env:TEMP\\\\sement-out.txt\" -RedirectStandardError \"$env:TEMP\\\\sement-err.txt\"; Start-Sleep -Seconds 4; try { $r = Invoke-RestMethod -Uri \"http://localhost:5099/api/health\" -TimeoutSec 5; $r | ConvertTo-Json -Compress } catch { \"HEALTH XATO: $_\" }; Stop-Process -Id $p.Id -Force; \"--- stdout ---\"; Get-Content \"$env:TEMP\\\\sement-out.txt\" -Tail 15)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"
