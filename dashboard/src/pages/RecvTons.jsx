@@ -378,7 +378,15 @@ export default function RecvTons({ lang }) {
   // ── Modal: manbaa tarixi + Akt Sverka ────────────────────────────────────
   const renderModal = () => {
     if (!modalSource) return null;
-    const srcRows   = recvRows.filter(r => sameName(r.source, modalSource));
+    // Akt sverkaga FAQAT tasdiqlangan yuklar kiradi. Zavod qarzi
+    // (supplierDebtOf) ham aynan shunday hisoblanadi — ilgari bu yerda
+    // tasdiqlanmagan (pending) yuklar ham qo'shilib, aktdagi "JAMI"
+    // "Zavod qarzlari" bo'limidagi summadan farq qilardi. Akt zavodga
+    // beriladigan hujjat, ikki xil raqam chiqishi mumkin emas.
+    const srcRows   = recvRows.filter(r => sameName(r.source, modalSource) && !r.pending);
+    const srcPending = recvRows.filter(r => sameName(r.source, modalSource) && r.pending);
+    const pendTons  = srcPending.reduce((s,r) => s+Number(r.tons||0), 0);
+    const pendSum   = srcPending.reduce((s,r) => s+Number(r.tons||0)*Number(r.pricePerTon||0), 0);
     const totTons   = srcRows.reduce((s,r) => s+Number(r.tons||0), 0);
     const totSum    = srcRows.reduce((s,r) => s+Number(r.tons||0)*Number(r.pricePerTon||0), 0);
 
@@ -461,6 +469,18 @@ export default function RecvTons({ lang }) {
                   <td style={{ ...tdS, textAlign:'right', color:'#006699', fontFamily:'monospace' }}>{fmt(totSum)}</td>
                   <td colSpan={3} style={tdS}></td>
                 </tr>
+                {/* Tasdiqlanmagan yuklar aktdan tashqarida — lekin yashirilmaydi */}
+                {pendTons > 0 && (
+                  <tr style={{ background:'#fffde7', color:'#e65100' }}>
+                    <td colSpan={5} style={{ ...tdS, textAlign:'right' }}>
+                      🟡 Tasdiqlanmagan (aktga kirmagan):
+                    </td>
+                    <td style={{ ...tdS, textAlign:'right', fontFamily:'monospace' }}>{fmtT(pendTons)} tn</td>
+                    <td style={tdS}></td>
+                    <td style={{ ...tdS, textAlign:'right', fontFamily:'monospace' }}>{fmt(pendSum)}</td>
+                    <td colSpan={3} style={tdS}></td>
+                  </tr>
+                )}
               </tbody>
             </table>
 

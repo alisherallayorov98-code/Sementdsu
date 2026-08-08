@@ -247,11 +247,22 @@ export function DataProvider({ children }) {
   useEffect(() => save('cash_opening', cashOpening), [cashOpening]);
   useEffect(() => save('cash_rows',    cashRows),    [cashRows]);
   const _cashRowsSum = cashRows.reduce((s, r) => s + Number(r.amount), 0);
+  // NaN qalqoni: bitta yaroqsiz summa butun kanal qoldig'ini "NaN" ga
+  // aylantiradi va sahifadagi HAMMA raqam yo'qoladi. Chaqiruvchilar odatda
+  // parseNum bilan tozalaydi, bu esa oxirgi to'siq.
+  const safeAmount = (amount, where) => {
+    const v = Number(amount);
+    if (!isFinite(v)) { alert(`Summa noto'g'ri kiritilgan (${where}). Yozuv qo'shilmadi.`); return null; }
+    return v;
+  };
+
   // extra — qo'shimcha maydonlar (masalan { expenseType: '571 moshin moykasi' }).
   // Guruhlangan xarajat hisoboti shu maydon orqali ishlaydi.
   const addCashRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
+    const amt = safeAmount(amount, 'naqd');
+    if (amt === null) return;
     const ts = uid();
-    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer), ...extra }]);
+    setCashRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: amt, desc, ...custFields(customers, customer), ...extra }]);
   };
   const deleteCashRow    = (id) => setCashRows(p => guardAutoDelete(p, id));
   const updateCashRow    = (id, fields) => setCashRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -263,8 +274,10 @@ export function DataProvider({ children }) {
   useEffect(() => save('bank_rows',    bankRows),    [bankRows]);
   const _bankRowsSum = bankRows.reduce((s, r) => s + Number(r.amount), 0);
   const addBankRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
+    const amt = safeAmount(amount, 'bank');
+    if (amt === null) return;
     const ts = uid();
-    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer), ...extra }]);
+    setBankRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: amt, desc, ...custFields(customers, customer), ...extra }]);
   };
   const deleteBankRow    = (id) => setBankRows(p => guardAutoDelete(p, id));
   const updateBankRow    = (id, fields) => setBankRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -276,8 +289,10 @@ export function DataProvider({ children }) {
   useEffect(() => save('click_rows',    clickRows),    [clickRows]);
   const _clickRowsSum = clickRows.reduce((s, r) => s + Number(r.amount), 0);
   const addClickRow   = (amount, desc, date = new Date().toLocaleDateString('ru-RU'), customer = '', extra = {}) => {
+    const amt = safeAmount(amount, 'click');
+    if (amt === null) return;
     const ts = uid();
-    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: Number(amount), desc, ...custFields(customers, customer), ...extra }]);
+    setClickRows(p => [...p, { id: ts, createdAt: ts, worker: currentWorker, date, amount: amt, desc, ...custFields(customers, customer), ...extra }]);
   };
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
   const updateClickRow    = (id, fields) => setClickRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
@@ -506,7 +521,15 @@ export function DataProvider({ children }) {
     setRecvRows(p => p.map(r => r.id === id ? m : r));
     return true;
   };
-  const totalRecvTons = recvRows.reduce((s, r) => s + Number(r.tons || 0), 0);
+  // TASDIQLANMAGAN (pending) yuk qoldiqqa KIRMAYDI. Ilgari kirardi, lekin
+  // zavod qarzi (supplierReceivedOf) pending'ni chiqarib tashlardi — natijada
+  // Excel'dan import qilingan yuk sementni darhol oshirib, qarzni esa
+  // oshirmasdi: "tekin sement" paydo bo'lardi. Tasdiqlash ayni tonnani
+  // tekshirish bosqichi (verifyRecvRow), shuning uchun undan oldin qoldiqqa
+  // qo'shish noto'g'ri.
+  const _recvOk = recvRows.filter(r => !r.pending);
+  const totalRecvTons = _recvOk.reduce((s, r) => s + Number(r.tons || 0), 0);
+  const pendingRecvTons = recvRows.filter(r => r.pending).reduce((s, r) => s + Number(r.tons || 0), 0);
   const pendingRecvCount = recvRows.filter(r => r.pending).length;
 
   // ── 10b. Yetkazib beruvchilar (manbaa) bazasi ─────────────────────────────
@@ -557,8 +580,13 @@ export function DataProvider({ children }) {
   const [supplierPayments, setSupplierPayments] = useState(() => load('supplier_payments', []));
   useEffect(() => save('supplier_payments', supplierPayments), [supplierPayments]);
   const paySupplier = (supplier, amount, channel = 'naqd', note = '') => {
-    const amt = Number(amount);
-    if (!supplier || amt <= 0) return false;
+    // parseNum + `!(amt > 0)` — ikkalasi ham SHART:
+    //   · Number("1 000 000") → NaN, va `NaN <= 0` FALSE bo'lgani uchun eski
+    //     tekshiruv uni o'tkazib yuborardi. Kassaga `amount: -NaN` yozilib,
+    //     butun naqd/bank/click qoldig'i "NaN" bo'lib qolardi;
+    //   · manfiy summa esa kassaga KIRIM sifatida tushardi (-(-N) = +N).
+    const amt = parseNum(amount);
+    if (!supplier || !(amt > 0)) { alert("To'lov summasi 0 dan katta bo'lishi kerak."); return false; }
     // Qarzdan ortiq to'lov — supplierDebtOf() Math.max(0,...) qilgani uchun
     // ortiqcha summa hisobotda umuman ko'rinmay yo'qolardi. Ogohlantiramiz.
     const owed = supplierDebtOf(supplier);
@@ -1095,7 +1123,7 @@ export function DataProvider({ children }) {
   const _skladSourceIds = new Set(Object.keys(_skladKgByRecvId).map(Number));
 
   // ULGURJI qoldig'i (tonnada) — har bir recvRowdan skladga ketgan tonnani ayiramiz
-  const _ulgurjiRecvTons = recvRows.reduce((s, r) => {
+  const _ulgurjiRecvTons = _recvOk.reduce((s, r) => {
     const skladTons = (_skladKgByRecvId[r.id] || 0) / 1000;
     return s + Math.max(0, Number(r.tons || 0) - skladTons);
   }, 0);
@@ -1208,7 +1236,7 @@ export function DataProvider({ children }) {
   // Chakana skladga (kg) o'tkazilgan recvRow'lar CHIQARIB TASHLANADI
   // chunki ularning hisobi totalSkladKg orqali alohida yuritiladi.
   const cementByWarehouse = warehouses.map(w => {
-    const recv  = recvRows.filter(r => whOf(r) === w.id).reduce((s, r) => {
+    const recv  = _recvOk.filter(r => whOf(r) === w.id).reduce((s, r) => {
       const skladTons = (_skladKgByRecvId[r.id] || 0) / 1000;
       return s + Math.max(0, Number(r.tons || 0) - skladTons);
     }, 0);
@@ -2060,6 +2088,7 @@ export function DataProvider({ children }) {
     soldRows, addSoldRow, deleteSoldRow,
     // 10. Olingan tonna
     recvRows, addRecvRow, updateRecvRow, deleteRecvRow, importRecvRows, verifyRecvRow, pendingRecvCount,
+    pendingRecvTons,
     // 10b/10c. Yetkazib beruvchilar va ularga qarz/to'lovlar
     suppliers, addSupplier, updateSupplier, deleteSupplier,
     supplierPayments, paySupplier, deleteSupplierPayment,

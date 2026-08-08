@@ -18,6 +18,7 @@ export default function SupplierDebts() {
     supplierList, supplierReceivedOf, supplierPaidOf, supplierDebtOf,
     totalSupplierReceived, totalSupplierPaid, totalSupplierDebt,
     supplierPayments, paySupplier, deleteSupplierPayment,
+    totalCashBalance, totalBankBalance, totalClickBalance,
   } = useData();
 
   const [pay, setPay] = useState({ supplier: '', amount: '', channel: 'naqd', note: '' });
@@ -34,10 +35,19 @@ export default function SupplierDebts() {
     if (!pay.supplier || !pay.amount) return;
     const amt = parseNum(pay.amount);
     if (!(amt > 0)) { alert("To'lov summasi 0 dan katta bo'lishi kerak."); return; }
-    const rem = debtOf(pay.supplier);
-    if (amt > rem && !window.confirm(`Diqqat! "${pay.supplier}" ga qarzimiz ${fmt(rem)} so'm. Baribir ${fmt(amt)} so'm to'lansinmi? (Ortiqcha to'lov bo'ladi)`)) return;
-    // paySupplier o'zi ham ortiqcha to'lovda tasdiq so'raydi va rad etilsa
-    // false qaytaradi — o'sha holatda forma tozalanmasligi kerak.
+    // Ortiqcha to'lov ogohlantirishini paySupplier o'zi beradi — bu yerda
+    // takrorlansa xodimdan bitta amal uchun ikki marta tasdiq so'ralardi.
+    // Bu yerda esa KASSA QOLDIG'I tekshiriladi (ilgari umuman yo'q edi:
+    // kassada 2 mln turganda zavodga 20 mln "to'lash" mumkin edi va qoldiq
+    // jimgina manfiyga tushardi).
+    const have = { naqd: totalCashBalance, bank: totalBankBalance, click: totalClickBalance }[pay.channel] || 0;
+    if (amt > Number(have) + 0.001 && !window.confirm(
+      `Diqqat: ${pay.channel} qoldig'idan ko'p to'lov.\n\n` +
+      `Qoldiq: ${fmt(have)} so'm\nTo'lov: ${fmt(amt)} so'm\n` +
+      `Qoldiq ${fmt(Number(have) - amt)} so'm (manfiy) bo'ladi.\n\nDavom etamizmi?`
+    )) return;
+    // paySupplier rad etilsa false qaytaradi — o'sha holatda forma
+    // tozalanmasligi kerak.
     if (!paySupplier(pay.supplier, amt, pay.channel, pay.note || "Zavodga to'lov")) return;
     setPay({ supplier: '', amount: '', channel: 'naqd', note: '' });
   };

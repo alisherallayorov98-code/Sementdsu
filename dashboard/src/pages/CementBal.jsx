@@ -13,7 +13,7 @@ const L = {
 
 function CementBal({ lang }) {
   const { cementOpening, totalCementBalance, totalRecvTons, totalSoldTons, totalSalesTons,
-          warehouses, cementByWarehouse, skladRows, totalSkladKg } = useData();
+          warehouses, cementByWarehouse, skladRows, totalSkladKg, pendingRecvTons } = useData();
 
   // Sotilgan jami = eski "Sotilgan tonna" + yangi "Sotish" bo'limi
   const sotilganJami = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
@@ -28,6 +28,13 @@ function CementBal({ lang }) {
   const rows = [
     { label: L.ochilish, val: fmt(cementOpening.tons) + ' tn', bg: '#fff' },
     { label: L.olingan,  val: '+' + fmt(totalRecvTons) + ' tn', bg: '#e8ffe8' },
+    // Tasdiqlanmagan yuk qoldiqqa kirmaydi — lekin uni yashirmaslik kerak,
+    // aks holda "Olingan tonna" bo'limidagi ro'yxat bilan farq tushunarsiz
+    // bo'lardi.
+    ...(Number(pendingRecvTons || 0) > 0.0001 ? [{
+      label: { latn: '🟡 Tasdiqlanmagan yuk (qoldiqqa kirmagan)', cyrl: '🟡 Тасдиқланмаган юк (қолдиққа кирмаган)' },
+      val: fmt(pendingRecvTons) + ' tn', bg: '#fffde7',
+    }] : []),
     { label: L.sotilgan, val: '-' + fmt(sotilganJami) + ' tn', bg: '#ffe8e8' },
     ...(skladgaOtkazilgan > 0.0001 ? [{
       label: { latn: '🏗 Chakana skladga o\'tkazilgan', cyrl: '🏗 Чакана складга ўтказилган' },
