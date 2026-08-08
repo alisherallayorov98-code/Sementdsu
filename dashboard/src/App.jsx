@@ -39,6 +39,11 @@ const FULL_MENU = [
   { path: '/gen_info',       latn: "📊 Umumiy ma'lumot",     cyrl: "📊 Умумий маълумот",    roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",        roles: ['admin', 'omborchi'] },
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
+  // Avanslar ilgari menyudan olib tashlangan edi (Kassir uni almashtirgan,
+  // Bosh sahifada faqat ko'rish uchun qolgan). Endi avanslar Excel'dan
+  // import qilinadi — import qilinganlarni ko'rish, tekshirish va kerak
+  // bo'lsa ishlatish uchun bo'limning o'zi kerak bo'lib qoldi.
+  { path: '/advances',       latn: "Avanslar",              cyrl: "Аванслар",             roles: ['admin', 'sotuvchi'] },
   { path: '/kassir',         latn: "💼 Kassir",             cyrl: "💼 Кассир",             roles: ['admin', 'sotuvchi', 'kassir'] },
   { path: '/tiketlar',       latn: "🎫 Tiketlar",             cyrl: "🎫 Тикетлар",            roles: ['admin', 'sotuvchi'] },
   { path: '/drivers',        latn: "🚚 Haydovchilar",         cyrl: "🚚 Ҳайдовчилар",         roles: ['admin'] },
