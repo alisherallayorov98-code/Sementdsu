@@ -106,7 +106,11 @@
       "Bash(grep -v \"CONFIG\\\\|At line\\\\|Category\\\\|Fully\\\\|^ *+\\\\|^ *~\\\\|^$\")",
       "Bash(node -e \"require\\('./src/db'\\); console.log\\('db.js OK'\\);\")",
       "Bash(npm test *)",
-      "PowerShell(cd c:\\\\SEMENT\\\\backend; $env:PORT=\"5096\"; $p = Start-Process node -ArgumentList \"server.js\" -PassThru -NoNewWindow -RedirectStandardOutput \"$env:TEMP\\\\s4.txt\" -RedirectStandardError \"$env:TEMP\\\\s4e.txt\"; Start-Sleep 4; try { \\(Invoke-RestMethod \"http://localhost:5096/api/health\" -TimeoutSec 5\\).ok } catch { \"XATO: $_\" }; Stop-Process -Id $p.Id -Force; Get-Content \"$env:TEMP\\\\s4.txt\" -Tail 3)"
+      "PowerShell(cd c:\\\\SEMENT\\\\backend; $env:PORT=\"5096\"; $p = Start-Process node -ArgumentList \"server.js\" -PassThru -NoNewWindow -RedirectStandardOutput \"$env:TEMP\\\\s4.txt\" -RedirectStandardError \"$env:TEMP\\\\s4e.txt\"; Start-Sleep 4; try { \\(Invoke-RestMethod \"http://localhost:5096/api/health\" -TimeoutSec 5\\).ok } catch { \"XATO: $_\" }; Stop-Process -Id $p.Id -Force; Get-Content \"$env:TEMP\\\\s4.txt\" -Tail 3)",
+      "Bash(git fetch *)",
+      "Bash(xargs echo \"Push qilinmagan commit:\")",
+      "Bash(xargs echo \"O'zgargan fayl:\")",
+      "Bash(xargs echo \"Push qilinmagan:\")"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

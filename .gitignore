@@ -17,3 +17,7 @@ dashboard/dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# Claude Code vaqtinchalik fayllari
+.claude/settings.json.tmp.*
+.claude/settings.local.json
