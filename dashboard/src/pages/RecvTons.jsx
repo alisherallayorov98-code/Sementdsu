@@ -5,6 +5,7 @@ import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import { sameName, uniqueNames } from '../lib/customerRef';
+import { excelDateToStr } from '../lib/excelDate';
 import SupplierSelect from '../components/SupplierSelect';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -161,7 +162,11 @@ export default function RecvTons({ lang }) {
     reader.onload = (ev) => {
       let data;
       try {
-        const wb   = XLSX.read(ev.target.result, { type: 'binary', cellDates: true });
+        // cellDates: false — sana/vaqt xom seriya raqami bo'lib keladi.
+        // cellDates:true bilan Date obyekti kelardi va u String(...) qilinganda
+        // "Mon Jul 06 2026 …" ko'rinishiga aylanib, keyingi sana ajratish
+        // butunlay ishlamasdi: har bir yuk BUGUNGI sana bilan yozilardi.
+        const wb   = XLSX.read(ev.target.result, { type: 'binary', cellDates: false });
         const ws   = wb.Sheets[wb.SheetNames[0]];
         if (!ws) { alert("Faylda varaq topilmadi."); return; }
         data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
@@ -195,6 +200,9 @@ export default function RecvTons({ lang }) {
           pricePerTon: p,
           summa:      isFinite(summa) && summa > 0 ? summa : tons * p,
           factoryTime: row[6] ? String(row[6]).trim() : '',
+          // Yuk sanasi shu yerda aniqlanadi: G ustun Excel seriya raqami
+          // bo'lsa ham, matn bo'lsa ham "kk.oo.yyyy" ga keltiriladi.
+          date: excelDateToStr(row[6]) || '',
           cardName:   String(row[7] || '').trim(),
           paymentChannel: 'naqd',
           izoh: '',

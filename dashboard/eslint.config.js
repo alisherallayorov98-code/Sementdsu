@@ -18,4 +18,10 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Test fayllari brauzerda emas, Node ostida ishlaydi (node --test):
+    // process, Buffer va boshqa Node globallari o'sha yerda mavjud.
+    files: ['**/*.test.{js,jsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
+  },
 ])

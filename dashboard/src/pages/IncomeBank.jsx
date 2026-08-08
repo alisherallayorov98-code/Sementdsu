@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import { custRows } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
+import { excelDateToStr } from '../lib/excelDate';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -148,16 +149,9 @@ export default function IncomeBank({ lang }) {
           const orgName = parts.length >= 3 ? parts.slice(2).join('/').trim() : orgFull;
           const naznachenie = iNazn >= 0 ? String(row[iNazn] ?? '').trim() : '';
 
-          // Sanani formatlash
-          let dateStr = '';
-          if (typeof rawDate === 'number' && rawDate > 1000) {
-            // Excel serial sana
-            const info = XLSX.SSF.parse_date_code(rawDate);
-            dateStr = `${String(info.d).padStart(2,'0')}.${String(info.m).padStart(2,'0')}.${info.y}`;
-          } else {
-            // "01.06.2026 9:07" → "01.06.2026"
-            dateStr = String(rawDate).trim().slice(0, 10).replace(/\s.*/,'');
-          }
+          // Sanani formatlash — barcha importlar bilan bir xil funksiya orqali
+          // (seriya raqami, matn, ISO — hammasi "kk.oo.yyyy" ga keladi).
+          const dateStr = excelDateToStr(rawDate);
 
           // Bizning oborotkada: Kredit = kirim, Debet = chiqim
           if (kredit > 0) rows.push({ date: dateStr, orgName, amount: kredit, type: 'kirim',  naznachenie });

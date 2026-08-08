@@ -13,24 +13,9 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
 
-const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/[ʻʼ'`]/g, "'");
+import { excelDateToStr } from '../lib/excelDate';
 
-// Excel sanasi → "dd.mm.yyyy".
-// Excel katakda sanani seriya raqami sifatida saqlaydi (masalan 46209 = 06.07.2026).
-// cellDates:true bilan o'qiganda Date keladi, lekin ba'zi fayllarda baribir
-// raqam bo'lib qoladi — shuning uchun ikkala holat ham qo'lda qayta ishlanadi.
-const pad2 = (n) => String(n).padStart(2, '0');
-const fmtDate = (d) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
-const toDateStr = (v) => {
-  if (v === '' || v == null) return '';
-  if (v instanceof Date && !isNaN(v)) return fmtDate(v);
-  if (typeof v === 'number' && isFinite(v)) {
-    // Excel epoxasi: 1899-12-30 (1900 kabisa xatosi hisobga olingan)
-    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-    return isNaN(d) ? String(v) : fmtDate(d);
-  }
-  return String(v).trim();
-};
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/[ʻʼ'`]/g, "'");
 
 export default function ExcelImport({ title, color = '#003366', sheetName, templateName, columns, onImport, hint }) {
   const [preview, setPreview] = useState(null); // { rows, total, invalid }
@@ -52,7 +37,11 @@ export default function ExcelImport({ title, color = '#003366', sheetName, templ
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+        // cellDates: false — sana XOM SERIYA RAQAMI bo'lib keladi va
+        // lib/excelDate.js da o'zimiz aylantiramiz. cellDates:true bilan xlsx
+        // Date ni vaqt zonasi bilan buzib qaytaradi (46209 → 05.07.2026 18:59Z),
+        // ya'ni butun fayldagi sanalar bir kunga surilib ketardi.
+        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
@@ -67,7 +56,7 @@ export default function ExcelImport({ title, color = '#003366', sheetName, templ
               const v = lk[norm(alias)];
               if (v !== undefined && v !== '') { val = v; break; }
             }
-            if (col.type === 'date')      obj[col.key] = toDateStr(val);
+            if (col.type === 'date')      obj[col.key] = excelDateToStr(val);
             else if (col.type === 'text') obj[col.key] = String(val ?? '').trim();
             else obj[col.key] = typeof val === 'string' ? val.trim() : val;
           });
