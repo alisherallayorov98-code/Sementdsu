@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
-import { parseNum } from '../lib/parseNum';
 import { nameKey } from '../lib/customerRef';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -55,13 +53,16 @@ const STATUS_STYLE = {
 
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function Advances({ lang }) {
+  // Bu sahifa FAQAT KO'RISH uchun (hisobot + tarix), xuddi Qarzlar kabi.
+  // Avans qabul qilish — Kassir → Kirim; sarflash — Sotishda "avans" turi.
+  // Shu sababli addAdvanceRow va spendAdvance bu yerdan olib tashlangan:
+  // ular kassaga to'g'ridan-to'g'ri yozardi va pul ikkita turli joydan
+  // kirib, hisobni kuzatish qiyinlashardi.
   const {
-    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow,
+    advanceRows, deleteAdvanceRow,
     totalAdvances, totalAdvancesUsed, totalAdvancesAll,
   } = useData();
 
-  const [form, setForm]       = useState({ customer: '', amount: '', note: '', channel: 'naqd' });
-  const [useForm, setUseForm] = useState({ id: null, amount: '', note: '' });
   const [search, setSearch]   = useState('');
   const [range,  setRange]    = useState({ from: '', to: '' });
   const [filter, setFilter]   = useState('all'); // 'all' | 'none' | 'partial' | 'full'
@@ -70,38 +71,11 @@ export default function Advances({ lang }) {
   const [history, setHistory] = useState(null);
   const [card, setCard]       = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
-  // ── Forma submit ────────────────────────────────────────────────────────────
-  const handleAdd = (e) => {
-    e.preventDefault();
-    if (!form.customer || !form.amount) return;
-    const amt = parseNum(form.amount);
-    if (!(amt > 0)) { alert("Avans summasi 0 dan katta bo'lishi kerak."); return; }
-    // Natija tekshiriladi: addAdvanceRow rad etsa (alert bilan) forma
-    // tozalanmasligi kerak — aks holda kiritilgan ma'lumot sababsiz yo'qolib,
-    // xodim avans qabul qilindi deb o'ylardi.
-    if (!addAdvanceRow(form.customer, amt, form.note, form.channel)) return;
-    setForm({ customer: '', amount: '', note: '', channel: 'naqd' });
-  };
-
-  // ── Ishlatish ───────────────────────────────────────────────────────────────
-  const handleUseOpen = (id) => {
-    setUseForm({ id, amount: '', note: '' });
-  };
-  const handleUseConfirm = () => {
-    const amt = parseNum(useForm.amount);
-    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
-    // spendAdvance avansda boridan ko'p ishlatishni rad etadi — o'sha holatda
-    // oyna yopilmasligi kerak (ilgari yopilardi va rad etilgani bilinmasdi).
-    if (!spendAdvance(useForm.id, amt, useForm.note)) {
-      alert("Ishlatib bo'lmadi — avansda yetarli qoldiq yo'q.");
-      return;
-    }
-    setUseForm({ id: null, amount: '', note: '' });
-  };
-
-  // ── O'chirish ───────────────────────────────────────────────────────────────
+  // O'chirish qoladi: xato kiritilgan avansni tuzatish uchun yagona yo'l.
+  // deleteAdvanceRow ishlatilgan avansni bloklaydi va bog'langan kassa
+  // yozuvini ham birga o'chiradi.
   const handleDelete = (id) => {
-    if (window.confirm("Ushbu avans yozuvini o'chirasizmi?")) {
+    if (window.confirm("Ushbu avans yozuvini o'chirasizmi?\n\nBog'langan kassa kirimi ham o'chadi.")) {
       deleteAdvanceRow(id);
     }
   };
@@ -136,45 +110,20 @@ export default function Advances({ lang }) {
         <StatCard label={L.jamiLeft[lang]} value={fmt(totalAdvances)}     color="#2e7d32" bg="#e8f5e9" />
       </div>
 
-      {/* ── AVANS QO'SHISH FORMASI ───────────────────────────────────────── */}
-      <form onSubmit={handleAdd} style={{
-        display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap',
-        padding: '8px 10px', background: '#f9f9f9', border: '1px solid #ddd',
+      {/* Bu bo'lim — FAQAT KO'RISH (hisobot va tarix), xuddi Qarzlar kabi.
+          Pul harakati bitta joydan boshqariladi: Kassir. Ilgari bu yerda
+          avans qo'shish formasi va "ishlatish" tugmasi bor edi — ular
+          kassaga to'g'ridan-to'g'ri yozardi, ya'ni pul ikkita turli
+          joydan kirib, hisobni kuzatish qiyinlashardi. */}
+      <div style={{
+        background: '#e0f2f1', border: '1px solid #80cbc4', borderRadius: 6,
+        padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: '#00695c', lineHeight: 1.7,
       }}>
-        <CustomerSelect
-          value={form.customer}
-          onChange={name => setForm({ ...form, customer: name })}
-          placeholder={L.mijoz[lang]}
-          accentColor="#e65100"
-          required
-        />
-        <input
-          type="number"
-          placeholder={L.avans[lang]}
-          value={form.amount}
-          onChange={e => setForm({ ...form, amount: e.target.value })}
-          style={{ ...inp, width: 150 }}
-        />
-        <input
-          placeholder={L.izoh[lang]}
-          value={form.note}
-          onChange={e => setForm({ ...form, note: e.target.value })}
-          style={{ ...inp, width: 150 }}
-        />
-        {[
-          { v: 'naqd', label: '💵 Naqd', color: '#1565c0' },
-          { v: 'bank', label: '🏦 Bank', color: '#2e7d32' },
-          { v: 'click',label: '📱 Click',color: '#6a1b9a' },
-        ].map(ch => (
-          <button key={ch.v} type="button" onClick={() => setForm({ ...form, channel: ch.v })} style={{
-            padding: '3px 10px', fontSize: 12, cursor: 'pointer',
-            border: `2px solid ${form.channel === ch.v ? ch.color : '#ddd'}`,
-            background: form.channel === ch.v ? ch.color : '#f9f9f9',
-            color: form.channel === ch.v ? '#fff' : '#333', borderRadius: 3,
-          }}>{ch.label}</button>
-        ))}
-        <button type="submit" style={addBtn}>{L.qoshish[lang]}</button>
-      </form>
+        ℹ️ Bu bo'lim <b>faqat ko'rish uchun</b>. Avans <b>Kassir → Kirim</b> orqali qabul qilinadi
+        (mijoz tanlanadi: qarzi bo'lsa avval qarz yopiladi, ortig'i avansga yoziladi).
+        Avans <b>Sotish</b>da "avans" to'lov turi tanlanganda avtomatik ishlatiladi —
+        eng eski avansdan boshlab.
+      </div>
 
       {/* ── SANA ORALIG'I FILTRI ──────────────────────────────────────────── */}
       <DateRangeFilter value={range} onChange={setRange} color="#e65100" />
@@ -215,64 +164,6 @@ export default function Advances({ lang }) {
         />
       </div>
 
-      {/* ── ISHLATISH MODAL ──────────────────────────────────────────────── */}
-      {useForm.id !== null && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.35)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-          onClick={() => setUseForm({ id: null, amount: '', note: '' })}
-        >
-          <div
-            style={{
-              background: '#fff', padding: 24, borderRadius: 6,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.3)', minWidth: 320,
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {(() => {
-              const row = advanceRows.find(r => r.id === useForm.id);
-              const rem = row ? Math.max(0, Number(row.amount) - Number(row.used)) : 0;
-              return (
-                <>
-                  <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 12, color: '#003366' }}>
-                    {L.ishlatish[lang]}: <span style={{ color: '#e65100' }}>{row?.customer}</span>
-                  </div>
-                  <div style={{ marginBottom: 8, fontSize: 12, color: '#555' }}>
-                    Qolgan avans: <b style={{ color: '#2e7d32' }}>{fmt(rem)} so'm</b>
-                  </div>
-                  <input
-                    type="number"
-                    placeholder={L.miqdor[lang]}
-                    value={useForm.amount}
-                    onChange={e => setUseForm({ ...useForm, amount: e.target.value })}
-                    style={{ ...inp, width: '100%', marginBottom: 8, boxSizing: 'border-box' }}
-                    autoFocus
-                  />
-                  <input
-                    placeholder={L.ishlatishIzoh[lang]}
-                    value={useForm.note}
-                    onChange={e => setUseForm({ ...useForm, note: e.target.value })}
-                    style={{ ...inp, width: '100%', marginBottom: 14, boxSizing: 'border-box' }}
-                  />
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handleUseConfirm} style={{ ...addBtn, flex: 1, background: '#e65100' }}>
-                      ✓ {L.ishlatish[lang]}
-                    </button>
-                    <button
-                      onClick={() => setUseForm({ id: null, amount: '', note: '' })}
-                      style={{ flex: 1, padding: '5px 14px', cursor: 'pointer', background: '#ffcccc', border: '1px solid #c00', borderRadius: 3 }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* ── TARIX MODAL ─────────────────────────────────────────────────── */}
       {history !== null && (
@@ -389,14 +280,9 @@ export default function Advances({ lang }) {
                   <td style={{ fontSize: 12, color: '#555' }}>{r.note || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {remaining > 0 && (
-                        <button
-                          onClick={() => handleUseOpen(r.id)}
-                          style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#fff3e0', border: '1px solid #ff9800', borderRadius: 3 }}
-                        >
-                          📤 {L.ishlatish[lang]}
-                        </button>
-                      )}
+                      {/* "Ishlatish" tugmasi olib tashlandi: avans Sotishda
+                          "avans" to'lov turi tanlanganda avtomatik yechiladi.
+                          Qo'lda ishlatish hisobni ikkiga bo'lardi. */}
                       {(r.usages || []).length > 0 && (
                         <button
                           onClick={() => setHistory(r.id)}
@@ -455,13 +341,6 @@ const inp = {
   border: '1px solid #ccc', borderRadius: 3, width: 160,
 };
 
-const addBtn = {
-  padding: '5px 16px', cursor: 'pointer',
-  background: '#003366', color: '#fff',
-  border: 'none', borderRadius: 3,
-  fontFamily: 'Tahoma, sans-serif',
-  fontSize: 13, fontWeight: 'bold',
-};
 
 const filterBtn = (active) => ({
   padding: '3px 10px', cursor: 'pointer',

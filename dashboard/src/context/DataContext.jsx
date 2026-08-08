@@ -818,41 +818,6 @@ export function DataProvider({ children }) {
     return { added: prepared.length, newCustomers: fresh.length };
   };
 
-  // Nomi ataylab "use..." emas: ESLint "use" bilan boshlanadigan funksiyani
-  // React Hook deb hisoblab, shartli chaqiruvda xato beradi — bu esa oddiy
-  // ma'lumot funksiyasi. (Eski nomi useAdvance edi.)
-  const spendAdvance = (id, useAmount, useNote = '') => {
-    const amt = Number(useAmount);
-    if (!(amt > 0)) return false;
-    // Avansda boridan ko'proq ishlatishni bloklaymiz. Ilgari cheklov yo'q edi:
-    // used > amount bo'lib qolar, qoldiq esa Math.max(0,...) tufayli 0 ko'rinib,
-    // ortiqcha yozilgan summa hech qayerda bilinmasdi.
-    const adv = advanceRef.current.find(r => r.id === id);
-    if (!adv) return false;
-    const rem = Math.max(0, Number(adv.amount || 0) - Number(adv.used || 0));
-    if (amt > rem + 0.001) {
-      alert(`Avansda buncha mablag' yo'q.\n\nQoldiq: ${rem.toLocaleString('ru-RU')} so'm\nSo'ralgan: ${amt.toLocaleString('ru-RU')} so'm`);
-      return false;
-    }
-    const apply = (rows) => rows.map(r => {
-      if (r.id !== id) return r;
-      const newUsage = {
-        id: uid(),
-        date: new Date().toLocaleDateString('ru-RU'),
-        amount: amt,
-        note: useNote,
-        worker: currentWorker,
-      };
-      return {
-        ...r,
-        used: Number(r.used) + amt,
-        usages: [...(r.usages || []), newUsage],
-      };
-    });
-    advanceRef.current = apply(advanceRef.current);
-    setAdvanceRows(apply);
-    return true;
-  };
   const deleteAdvanceRow = (id) => {
     // Sotuvga ishlatilgan avansni o'chirib bo'lmaydi — aks holda sotuv
     // "to'langan" bo'lib qoladi-yu, puli hech qayerda ko'rinmaydi.
@@ -2050,7 +2015,7 @@ export function DataProvider({ children }) {
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
-    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow, importAdvances, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
+    advanceRows, addAdvanceRow, deleteAdvanceRow, importAdvances, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     // 13. Sotish
     salesRows, addSaleRow, updateSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank
