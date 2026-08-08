@@ -27,6 +27,7 @@ export default function Customers() {
   const PAGE_SIZE = 100;
   const [botUsername, setBotUsername] = useState('');
   const [copiedId,    setCopiedId]    = useState(null);
+  const [menuId,      setMenuId]      = useState(null); // "⋮" menyusi ochiq mijoz
 
   useEffect(() => { api.getBotInfo().then(r => setBotUsername(r.botUsername)).catch(() => {}); }, []);
 
@@ -88,7 +89,15 @@ export default function Customers() {
   // updateCustomer nom to'qnashuvida false qaytaradi — bunda tahrir oynasi
   // ochiq qolishi kerak, aks holda o'zgarish saqlanmagani bilinmay qolardi.
   const saveEdit  = (id) => { if (!editData.name) return; if (updateCustomer(id, editData) !== false) setEditId(null); };
-  const handleDelete = (id, name) => { if (window.confirm(`"${name}" o'chirilsinmi?`)) deleteCustomer(id); };
+  // O'chirish ikki qadamli: ✕ tugmasi juda "oson" edi — qo'l tegib ketsa
+  // mijoz o'chib ketardi. Endi "⋮" bosiladi, ochilgan menyudan "O'chirish"
+  // tanlanadi va shundan keyingina tasdiq so'raladi.
+  const handleDelete = (id, name) => {
+    setMenuId(null);
+    if (window.confirm(
+      `"${name}" mijozini o'chirasizmi?\n\nBu amalni qaytarib bo'lmaydi.`
+    )) deleteCustomer(id);
+  };
 
   // ── Filter + saralash ─────────────────────────────────────────────────────
   let filtered = customers
@@ -329,7 +338,41 @@ export default function Customers() {
                             title={c.monitored ? 'Nazoratdan olib tashlash' : "Nazoratga qo'shish"}
                             style={c.monitored ? monBtnOn : monBtnOff}>🔔</button>
                           <button onClick={() => startEdit(c)} style={editBtn}>✎</button>
-                          <button onClick={() => handleDelete(c.id, c.name)} style={redBtn}>✕</button>
+                          {/* Uch nuqta → menyu → "O'chirish" → tasdiq.
+                              Bitta ✕ tugmasi juda oson edi: tasodifiy
+                              bosilsa mijoz o'chib ketardi. */}
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              onClick={() => setMenuId(menuId === c.id ? null : c.id)}
+                              title="Yana"
+                              style={{ ...moreBtn, background: menuId === c.id ? '#e0e0e0' : '#f5f5f5' }}
+                            >⋮</button>
+                            {menuId === c.id && (
+                              <>
+                                {/* Tashqariga bosilsa menyu yopiladi */}
+                                <div onClick={() => setMenuId(null)}
+                                  style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                                <div style={{
+                                  position: 'absolute', right: 0, top: '100%', marginTop: 3, zIndex: 41,
+                                  background: '#fff', border: '1px solid #ccc', borderRadius: 4,
+                                  boxShadow: '0 3px 10px rgba(0,0,0,0.18)', minWidth: 130, overflow: 'hidden',
+                                }}>
+                                  <button
+                                    onClick={() => handleDelete(c.id, c.name)}
+                                    style={{
+                                      display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
+                                      padding: '8px 12px', fontSize: 12.5, border: 'none',
+                                      background: '#fff', color: '#c62828', fontFamily: 'Tahoma, sans-serif',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = '#ffebee'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                                  >
+                                    🗑 O'chirish
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </>
@@ -369,5 +412,8 @@ const infoBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#e8eaf6',
 const editBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', borderRadius: 3, color: '#1565c0', fontSize: 12 };
 const greenBtn = { padding: '2px 7px', cursor: 'pointer', background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: 3, color: '#2e7d32', fontSize: 12, fontWeight: 'bold' };
 const redBtn   = { padding: '2px 7px', cursor: 'pointer', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828', fontSize: 12 };
+// "⋮" — neytral ko'rinish: bu tugma o'zi hech narsa o'chirmaydi, faqat
+// menyu ochadi. Qizil rang bermaymiz, aks holda yana "xavfli" tuyulardi.
+const moreBtn  = { padding: '2px 7px', cursor: 'pointer', background: '#f5f5f5', border: '1px solid #bbb', borderRadius: 3, color: '#555', fontSize: 14, lineHeight: 1, fontWeight: 'bold' };
 const monBtnOn  = { padding: '2px 7px', cursor: 'pointer', background: '#fff3e0', border: '1px solid #ef6c00', borderRadius: 3, fontSize: 12 };
 const monBtnOff = { padding: '2px 7px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: 3, fontSize: 12, filter: 'grayscale(1)', opacity: 0.6 };

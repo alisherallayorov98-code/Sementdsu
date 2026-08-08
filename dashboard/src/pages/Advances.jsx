@@ -59,7 +59,7 @@ export default function Advances({ lang }) {
   // ular kassaga to'g'ridan-to'g'ri yozardi va pul ikkita turli joydan
   // kirib, hisobni kuzatish qiyinlashardi.
   const {
-    advanceRows, deleteAdvanceRow,
+    advanceRows,
     totalAdvances, totalAdvancesUsed, totalAdvancesAll,
   } = useData();
 
@@ -70,15 +70,6 @@ export default function Advances({ lang }) {
   const PAGE_SIZE = 100;
   const [history, setHistory] = useState(null);
   const [card, setCard]       = useState(null); // ochilgan mijoz kartochkasi (ismi)
-
-  // O'chirish qoladi: xato kiritilgan avansni tuzatish uchun yagona yo'l.
-  // deleteAdvanceRow ishlatilgan avansni bloklaydi va bog'langan kassa
-  // yozuvini ham birga o'chiradi.
-  const handleDelete = (id) => {
-    if (window.confirm("Ushbu avans yozuvini o'chirasizmi?\n\nBog'langan kassa kirimi ham o'chadi.")) {
-      deleteAdvanceRow(id);
-    }
-  };
 
   // ── Filtrlash ───────────────────────────────────────────────────────────────
   // Qidiruv normallashtirilgan ism bo'yicha: "ali" yozilganda apostrof yoki
@@ -291,12 +282,11 @@ export default function Advances({ lang }) {
                           📋 {L.tarix[lang]}
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        style={{ fontSize: 11, cursor: 'pointer', padding: '2px 7px', background: '#ffebee', border: '1px solid #e53935', borderRadius: 3, color: '#c62828' }}
-                      >
-                        ✕
-                      </button>
+                      {/* O'chirish tugmasi OLIB TASHLANDI: bu bo'lim faqat
+                          ko'rish uchun (Qarzlar kabi). Avans Kassir → Kirim
+                          orqali paydo bo'ladi — xato yozuvni ham o'sha
+                          yerdan tuzatish kerak, aks holda avans o'chib,
+                          kassadagi puli qayerdan kelgani noaniq qolardi. */}
                     </div>
                   </td>
                 </tr>
