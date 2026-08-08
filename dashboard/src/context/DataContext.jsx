@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { sameCust, custRows, custFields, findCust, custKey, sameName, uniqueNames } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
+import { planDebtPayment } from '../lib/debtAllocation';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
@@ -646,25 +647,14 @@ export function DataProvider({ children }) {
   // Summa mijozning qarzlariga ESKISIDAN boshlab taqsimlanadi, kassaga kirim
   // yoziladi. Natija: { applied (qarzga ketgan), leftover (ortiqcha) }.
   const payCustomerDebt = (customer, amount, channel = 'naqd', note = '') => {
+    const amt = parseNum(amount);
+    if (!(amt > 0)) return { applied: 0, leftover: 0 };
     const base = uid();
     const today = new Date().toLocaleDateString('ru-RU');
-    let left = Number(amount) || 0;
-    if (left <= 0) return { applied: 0, leftover: 0 };
 
-    // Eng eski qarzdan boshlab to'lash rejasi
-    const plan = {};
-    let applied = 0;
-    custRows(debtRows, custRef(customer))
-      .filter(r => Math.max(0, Number(r.amount) - Number(r.paid)) > 0)
-      .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
-      .forEach(r => {
-        if (left <= 0) return;
-        const rem = Math.max(0, Number(r.amount) - Number(r.paid));
-        const pay = Math.min(rem, left);
-        plan[r.id] = pay; left -= pay; applied += pay;
-      });
-
-    if (applied <= 0) return { applied: 0, leftover: Number(amount) || 0 };
+    // Taqsimlash mantiqi lib/debtAllocation.js da (sof funksiya, testlar bilan)
+    const { plan, applied, leftover } = planDebtPayment(custRows(debtRows, custRef(customer)), amt);
+    if (applied <= 0) return { applied: 0, leftover: amt };
 
     // Qarzlarni yangilash (har biriga to'lov yozuvi, kanal bilan)
     setDebtRows(p => p.map(r => {
@@ -682,12 +672,14 @@ export function DataProvider({ children }) {
 
     // Kassaga bitta umumiy kirim (sotuvdan farqlash uchun sourceType: debt_payment)
     const tag  = `🔗 Qarz to'lovi: ${customer}`;
-    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${[customer]}_pc${base}`, createdAt: base, worker: currentWorker, date: today, customer };
-    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
-    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
-    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: base + 1, amount: applied, desc: tag }]);
+    const link = { auto: true, sourceType: 'debt_payment', sourceId: `${customer}_pc${base}`, createdAt: base, worker: currentWorker, date: today, customer };
+    // id uid() dan: "base + 1" generator hisoblagichini surmaydi va o'sha
+    // qiymatni keyingi yozuv qayta band qilib, ikkalasi bir id bilan qolardi.
+    if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount: applied, desc: tag }]);
+    else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount: applied, desc: tag }]);
+    else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount: applied, desc: tag }]);
 
-    return { applied, leftover: Math.max(0, (Number(amount) || 0) - applied) };
+    return { applied, leftover };
   };
 
   // Excel'dan ko'plab qarz import qilish (unikal id bilan).
@@ -746,21 +738,26 @@ export function DataProvider({ children }) {
   const advanceRef = useRef(advanceRows);
   useEffect(() => { advanceRef.current = advanceRows; }, [advanceRows]);
   const addAdvanceRow = (customer, amount, note = '', channel = 'naqd') => {
+    const sum = parseNum(amount);
+    // Manfiy/nol avansda quyidagi `if (sum > 0)` sharti ishlamay, kassaga
+    // kirim YOZILMASDI — lekin avans qatori baribir qo'shilardi. Mijozning
+    // avans qoldig'i manfiyga tushib, keyingi sotuvda hisob buzilardi.
+    if (!(sum > 0)) { alert("Avans summasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     setAdvanceRows(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker, date: today,
-      ...custFields(customers, customer), amount: Number(amount), used: 0, note, usages: [],
+      ...custFields(customers, customer), amount: sum, used: 0, note, usages: [],
     }]);
     // ── INTEGRATSIYA: avans → tegishli kassaga kirim ─────────────────────────
-    const sum = Number(amount);
-    if (sum > 0) {
+    {
       const tag  = `🔗 Avans: ${customer}`;
       const link = { auto: true, sourceType: 'advance', sourceId: ts, createdAt: ts, worker: currentWorker, date: today, customer };
       if      (channel === 'naqd')  setCashRows(p  => [...p, { ...link, id: uid(), amount:  sum, desc: tag }]);
       else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount:  sum, desc: tag }]);
       else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  sum, desc: tag }]);
     }
+    return true;
   };
   const useAdvance = (id, useAmount, useNote = '') => {
     const amt = Number(useAmount);

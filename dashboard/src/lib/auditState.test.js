@@ -100,6 +100,35 @@ test('yetkazib beruvchiga ortiqcha to\'lov ogohlantirish beradi', () => {
   assert.ok(codes(st).includes('supplier-overpaid'));
 });
 
+test("o'tkazma juftligi muvozanatda bo'lsa xato yo'q", () => {
+  const st = {
+    bankRows:  [{ id: 1, transferId: 'tr1', amount: -1000000, desc: '↔️ Bank→Naqd' }],
+    cashRows:  [{ id: 2, transferId: 'tr1', amount:  1000000, desc: '↔️ Bank→Naqd' }],
+    totalCashBalance: 1000000,
+  };
+  assert.ok(!codes(st).includes('transfer-unbalanced'));
+});
+
+test("o'tkazmaning bir tomoni o'zgartirilsa topiladi", () => {
+  // Naqddagi kirim 2 mln ga oshirilgan — 1 mln yo'qdan paydo bo'ldi
+  const st = {
+    bankRows: [{ id: 1, transferId: 'tr1', amount: -1000000, desc: '↔️ Bank→Naqd' }],
+    cashRows: [{ id: 2, transferId: 'tr1', amount:  2000000, desc: '↔️ Bank→Naqd' }],
+    totalCashBalance: 2000000,
+  };
+  const f = auditState(st).find(x => x.code === 'transfer-unbalanced');
+  assert.ok(f, 'muvozanat buzilishi topilishi kerak');
+  assert.strictEqual(f.level, 'xato');
+});
+
+test("o'tkazmaning bir tomoni o'chirilsa topiladi", () => {
+  const st = {
+    cashRows: [{ id: 2, transferId: 'tr1', amount: 1000000, desc: '↔️ Bank→Naqd' }],
+    totalCashBalance: 1000000,
+  };
+  assert.ok(codes(st).includes('transfer-unbalanced'));
+});
+
 test('buzuq sana topiladi (Excel seriya raqami va 2 xonali yil)', () => {
   const st = {
     cashRows: [

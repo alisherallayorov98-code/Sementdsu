@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
-import { custRows } from '../lib/customerRef';
+import { custRows, sameName, findCust } from '../lib/customerRef';
+import { parseNum } from '../lib/parseNum';
 import ExpenseTypeSelect from '../components/ExpenseTypeSelect';
 import ExpenseReport from '../components/ExpenseReport';
 import { printSaleReceipt } from '../lib/receipt';
@@ -153,8 +154,12 @@ export default function Kassir() {
   // ── KIRIM ────────────────────────────────────────────────────────────────────
   const submitKirim = (e) => {
     e.preventDefault();
-    const amt = Number(kirim.amount);
-    if (!amt) return;
+    // parseNum: "12 500" kabi probelli yozuv Number() da NaN berardi va
+    // `if (!amt) return` tufayli forma JIMGINA hech narsa qilmasdi.
+    // Musbat tekshiruvi: manfiy summa `!amt` dan o'tib ketib, qarz to'lovi
+    // yoki avans sifatida teskari yozilardi.
+    const amt = parseNum(kirim.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
     if (kirim.customer) {
       const res = payCustomerDebt(kirim.customer, amt, kirim.channel, kirim.note);
       if (res.applied === 0) {
@@ -181,14 +186,34 @@ export default function Kassir() {
   // ── CHIQIM ───────────────────────────────────────────────────────────────────
   const submitChiqim = (e) => {
     e.preventDefault();
-    const amt = Number(chiqim.amount);
-    if (!amt) return;
+    // Manfiy summa bu yerda ayniqsa xavfli edi: `addRow(channel, -amt)` da
+    // -(-5000) = +5000 bo'lib, CHIQIM o'rniga KIRIM yozilardi.
+    const amt = parseNum(chiqim.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
     if (chiqim.isTransfer) {
       const opt = TRANSFERS.find(o => o.v === chiqim.tDir);
       if (!opt) return;
+      // Manbadagi qoldiqni tekshiramiz: ilgari cheklov yo'q edi va bankda
+      // 1 mln turganda 10 mln "o'tkazish" mumkin edi — natijada bank qoldig'i
+      // manfiyga tushib, kassa hisoboti haqiqatga mos kelmay qolardi.
+      const balOf = { naqd: totalCashBalance, bank: totalBankBalance, click: totalClickBalance };
+      const from = Number(balOf[opt.from] || 0);
+      if (amt > from + 0.001) {
+        alert(`O'tkazish uchun mablag' yetarli emas.\n\n${opt.label}\nQoldiq: ${fmt(from)} so'm\nO'tkazmoqchisiz: ${fmt(amt)} so'm`);
+        return;
+      }
       const tag = `↔️ ${opt.label}${chiqim.note ? ': ' + chiqim.note : ''}`;
-      addRow(opt.from, -amt, tag);
-      addRow(opt.to,   +amt, tag);
+      // Juftlik bitta transferId bilan bog'lanadi:
+      //   · kunlik kirim/chiqim yig'indisi o'tkazmani chetlab o'tishi kerak,
+      //     buni izoh matniga qarab aniqlash mo'rt edi (izohni "↔️" bilan
+      //     boshlagan oddiy yozuv ham o'tkazma sanalardi);
+      //   · juftlikning BIR tomonini tahrirlash mumkin edi — masalan naqddagi
+      //     +1 mln ni 2 mln qilsa, bankdan 1 mln chiqib naqdga 2 mln kirardi
+      //     va 1 mln yo'qdan paydo bo'lardi. Endi bunday yozuvda summa
+      //     tahrirlanmaydi (EditModal).
+      const tid = `tr${Date.now()}`;
+      addRow(opt.from, -amt, tag, '', { transfer: true, transferId: tid });
+      addRow(opt.to,   +amt, tag, '', { transfer: true, transferId: tid });
       showToast(`${fmt(amt)} so'm o'tkazildi`);
     } else {
       // Xarajat turi kiritilgan bo'lsa — izohning oldiga qo'shamiz (jurnalda
@@ -200,7 +225,7 @@ export default function Kassir() {
       // Haydovchiga Telegram xabari (agar mijoz haydovchi bo'lsa)
       if (chiqim.customer) {
         const { drivers = [] } = data;
-        const isDriver = drivers.some(d => d.name.trim().toLowerCase() === chiqim.customer.trim().toLowerCase());
+        const isDriver = drivers.some(d => sameName(d.name, chiqim.customer));
         if (isDriver) {
           api.notifyDriverPayment(chiqim.customer, amt, chiqim.channel)
             .then(r => { if (!r.ok) showToast(`⚠️ Bot xabari: ${r.error || 'Yuborilmadi'}`); })
@@ -215,8 +240,10 @@ export default function Kassir() {
   const submitSklad = (e) => {
     e.preventDefault();
     if (!sklad.customer || !sklad.kg || !sklad.pricePerKg) return;
-    const kgWant = Number(sklad.kg);
-    if (kgWant <= 0) { alert("Kilogramm 0 dan katta bo'lishi kerak."); return; }
+    const kgWant = parseNum(sklad.kg);
+    const prcWant = parseNum(sklad.pricePerKg);
+    if (!(kgWant > 0)) { alert("Kilogramm 0 dan katta bo'lishi kerak."); return; }
+    if (!(prcWant > 0)) { alert("Narx 0 dan katta bo'lishi kerak."); return; }
     // Tur tanlangan bo'lsa — AYNAN SHU TURNING qoldig'i tekshiriladi.
     // Ilgari faqat umumiy qoldiq tekshirilardi: 450 markadan 1000 kg bo'lsa,
     // 550 markadan hech narsa bo'lmasa ham 550 ni sotish mumkin edi.
@@ -229,24 +256,29 @@ export default function Kassir() {
     } else if (totalSkladKg < kgWant) {
       alert(`Sklad qoldig'i yetarli emas. Qoldiq: ${fmt(totalSkladKg)} kg`); return;
     }
-    const created = addSkladSotuv({ customer: sklad.customer, kg: sklad.kg, pricePerKg: sklad.pricePerKg, channel: sklad.channel, note: sklad.note, cementType: sklad.cementType });
-    showToast(`${sklad.kg} kg sotildi — ${fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm`);
-    if (created) {
-      const kgAbs = Math.abs(Number(sklad.kg));
+    const created = addSkladSotuv({ customer: sklad.customer, kg: kgWant, pricePerKg: prcWant, channel: sklad.channel, note: sklad.note, cementType: sklad.cementType });
+    // DIQQAT: toast FAQAT sotuv haqiqatan yaratilgandan keyin. Ilgari u
+    // shartdan oldin turardi — addSkladSotuv ichki tekshiruvda rad etsa ham
+    // (alert chiqib) ustidan "sotildi" xabari ko'rinib, xodim sotuv bo'ldi
+    // deb o'ylardi.
+    if (!created) return;
+    showToast(`${kgWant} kg sotildi — ${fmt(kgWant * prcWant)} so'm`);
+    {
+      const kgAbs = Math.abs(kgWant);
       const q = customerSummary(created.customer, data).qolganQarz;
       // Chek (naqd/bank/click uchun)
       if (sklad.channel !== 'nasiya') {
         printSaleReceipt({
           customer: created.customer, tons: (kgAbs / 1000).toFixed(3),
-          pricePerTon: Number(sklad.pricePerKg) * 1000,
+          pricePerTon: prcWant * 1000,
           paymentChannel: created.channel,
           note: `${created.note || ''} (${kgAbs} kg)`,
           date: created.date, worker: currentWorker,
         }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
       }
       // Mijozga Telegram xabari (nasiya bo'lsa yangi qarzni ham qo'shamiz — state hali yangilanmagan)
-      const extraDebt = sklad.channel === 'nasiya' ? kgAbs * Number(sklad.pricePerKg) : 0;
-      api.notifyCustomerSale(created.customer, kgAbs, sklad.cementType, sklad.pricePerKg, sklad.channel, Math.max(0, q + extraDebt)).catch(() => {});
+      const extraDebt = sklad.channel === 'nasiya' ? kgAbs * prcWant : 0;
+      api.notifyCustomerSale(created.customer, kgAbs, sklad.cementType, prcWant, sklad.channel, Math.max(0, q + extraDebt)).catch(() => {});
     }
     setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
   };
@@ -275,7 +307,7 @@ export default function Kassir() {
     // Mijozga xabar yuborish so'rash — FAQAT Telegram ulangan bo'lsa
     if (row.customer && fields.amount !== undefined) {
       const { customers = [] } = data;
-      const cust = customers.find(c => c.name.trim().toLowerCase() === row.customer.trim().toLowerCase());
+      const cust = findCust(customers, row.customer);
       if (cust?.telegramChatId) {
         setNotifyConfirm({ customer: row.customer, amount: Math.abs(Number(fields.amount)), channel });
       }
@@ -323,7 +355,9 @@ export default function Kassir() {
 
   // Kanallararo o'tkazma (↔️) kunlik kirim/chiqim summasiga sanalmaydi
   // (jurnal ro'yxatida ko'rinaveradi).
-  const _isTransferRow = (r) => String(r.desc || '').trim().startsWith('↔️');
+  // O'tkazma yozuvi: yangi yozuvlarda `transfer: true` bayrog'i bor, eskilarida
+  // faqat izoh boshidagi belgi (shuning uchun ikkalasi ham tekshiriladi).
+  const _isTransferRow = (r) => r.transfer === true || String(r.desc || '').trim().startsWith('↔️');
   const todayIn  = journalRows.filter(r => !_isTransferRow(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
   const todayOut = journalRows.filter(r => !_isTransferRow(r) && Number(r.amount) < 0).reduce((s, r) => s + Number(r.amount), 0);
 
@@ -816,7 +850,11 @@ export default function Kassir() {
 
 // ── EditModal (kassa yozuvi) ──────────────────────────────────────────────────
 function EditModal({ row, channel, onSave, onClose }) {
-  const isAuto = row.auto === true;
+  // O'tkazma ikkita yozuvdan iborat (manbadan chiqim + maqsadga kirim).
+  // Bittasining summasini o'zgartirish muvozanatni buzadi, shuning uchun
+  // ular ham avtomatik yozuvlar kabi faqat izoh darajasida tahrirlanadi.
+  const isTransfer = row.transfer === true || String(row.desc || '').trim().startsWith('↔️');
+  const isAuto = row.auto === true || isTransfer;
   const [desc,   setDesc]   = useState(row.desc || row.note || '');
   const [amount, setAmount] = useState(String(Math.abs(Number(row.amount || 0))));
 
@@ -824,8 +862,13 @@ function EditModal({ row, channel, onSave, onClose }) {
     e.preventDefault();
     const fields = { desc };
     if (!isAuto) {
+      // Maydonga manfiy son yozilsa `sign * (-500)` ishorani TESKARI qilardi:
+      // chiqim kirimga aylanib, kassa qoldig'i ikki barobar xato bo'lardi.
+      // Yaroqsiz qiymat esa NaN berib, butun balansni "NaN" ga aylantirardi.
+      const abs = parseNum(amount);
+      if (!(abs > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
       const sign = Number(row.amount) >= 0 ? 1 : -1;
-      fields.amount = sign * Number(amount);
+      fields.amount = sign * abs;
     }
     onSave(fields);
   };
@@ -843,7 +886,13 @@ function EditModal({ row, channel, onSave, onClose }) {
         <form onSubmit={handleSave} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ fontSize: 12, color: '#888' }}>
             {row.date} · {isOut ? 'Chiqim' : 'Kirim'}
-            {isAuto && <span style={{ marginLeft: 8, background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: 10, fontSize: 11 }}>avtomatik yozuv — faqat izoh tahrir qilinadi</span>}
+            {isAuto && (
+              <span style={{ marginLeft: 8, background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: 10, fontSize: 11 }}>
+                {isTransfer
+                  ? "o'tkazma — juftlik muvozanati buzilmasligi uchun faqat izoh tahrir qilinadi"
+                  : 'avtomatik yozuv — faqat izoh tahrir qilinadi'}
+              </span>
+            )}
           </div>
           <div>
             <label style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'block', marginBottom: 4 }}>Izoh *</label>
@@ -854,7 +903,7 @@ function EditModal({ row, channel, onSave, onClose }) {
           {!isAuto && (
             <div>
               <label style={{ fontSize: 11, fontWeight: 'bold', color: '#555', display: 'block', marginBottom: 4 }}>Summa (mutlaq qiymat) *</label>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              <input type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)}
                 style={{ ...inpS, width: 180 }} required />
               <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>Manfiy/musbat belgi avtomatik saqlanadi</div>
             </div>

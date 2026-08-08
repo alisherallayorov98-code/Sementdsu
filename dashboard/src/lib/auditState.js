@@ -203,7 +203,30 @@ export function auditState(state = {}) {
       supOver.slice(0, 5)));
   }
 
-  // ── 11. Buzuq sana ───────────────────────────────────────────────────────
+  // ── 11. Kanallararo o'tkazma muvozanati ──────────────────────────────────
+  // O'tkazma ikkita yozuv yaratadi: manbadan chiqim (−X) va maqsadga kirim
+  // (+X). Ikkalasi bitta transferId bilan bog'lanadi va yig'indisi 0 bo'lishi
+  // shart. Nolga teng bo'lmasa — bir tomoni tahrirlangan yoki o'chirilgan,
+  // ya'ni umumiy kassada pul yo'qdan paydo bo'lgan yoki yo'qolgan.
+  const trById = new Map();
+  [...cashRows, ...bankRows, ...clickRows].forEach(r => {
+    if (!r || !r.transferId) return;
+    const g = trById.get(r.transferId) || { sum: 0, n: 0, desc: r.desc };
+    g.sum += num(r.amount); g.n += 1;
+    trById.set(r.transferId, g);
+  });
+  const trBad = [...trById.entries()]
+    .filter(([, g]) => g.n !== 2 || Math.abs(g.sum) > EPS)
+    .map(([id, g]) => g.n !== 2
+      ? `${g.desc || id}: juftlikning ${g.n} tomoni bor (2 bo'lishi kerak)`
+      : `${g.desc || id}: farq ${money(g.sum)} so'm`);
+  if (trBad.length) {
+    out.push(F('xato', 'transfer-unbalanced',
+      "Kanallararo o'tkazmada muvozanat buzilgan (pul yo'qdan paydo bo'lgan yoki yo'qolgan)",
+      trBad.slice(0, 5)));
+  }
+
+  // ── 12. Buzuq sana ───────────────────────────────────────────────────────
   // Sana "kk.oo.yyyy" satri sifatida saqlanadi va filtr shu formatga tayanadi.
   // Format buzilgan yozuv HECH QAYSI kunlik/oylik hisobotga to'g'ri tushmaydi,
   // lekin ro'yxatda ko'rinib turadi — ya'ni jami summalar mos kelmay qoladi.
@@ -232,7 +255,7 @@ export function auditState(state = {}) {
       'Sanasi noto\'g\'ri yozuvlar — ular kunlik/oylik hisobotlarga tushmaydi', badDate));
   }
 
-  // ── 12. Bank/Click sahifasidagi qoldiq to'liq balansga mos keladimi ──────
+  // ── 13. Bank/Click sahifasidagi qoldiq to'liq balansga mos keladimi ──────
   // bankNetBalance faqat Kirim/Chiqim Bank sahifasi yozuvlarini oladi,
   // totalBankBalance esa avtomatik yozuvlarni ham. Farq bo'lishi normal —
   // bu tekshiruv emas, ma'lumot uchun quyida "xulosa" da beriladi.
