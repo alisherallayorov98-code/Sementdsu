@@ -14,6 +14,7 @@ import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import Paginator from '../components/Paginator';
 import { filterByRange } from '../lib/dateRange';
+import { isTransferRow } from '../lib/transferRow';
 
 const fmt   = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const toDay = () => new Date().toLocaleDateString('ru-RU');
@@ -104,9 +105,10 @@ const inp = { padding: '7px 10px', fontSize: 13, border: '1px solid #ccc', borde
 export default function Kassir() {
   const data = useData();
   const {
-    cashRows, addCashRow, updateCashRow,
-    bankRows, addBankRow, updateBankRow,
-    clickRows, addClickRow, updateClickRow,
+    cashRows, addCashRow, updateCashRow, deleteCashRow,
+    bankRows, addBankRow, updateBankRow, deleteBankRow,
+    clickRows, addClickRow, updateClickRow, deleteClickRow,
+    deleteTransfer,
     totalCashBalance, totalBankBalance, totalClickBalance,
     payCustomerDebt, addAdvanceRow,
     advanceBalanceOf, debtRows,
@@ -218,6 +220,21 @@ export default function Kassir() {
     } else {
       // Xarajat turi kiritilgan bo'lsa — izohning oldiga qo'shamiz (jurnalda
       // ko'rinishi uchun) va alohida maydon sifatida ham saqlaymiz (hisobot uchun).
+      // Qoldiq tekshiruvi — o'tkazmada bor edi, oddiy chiqimda YO'Q edi:
+      // kassada 1 mln turganda 5 mln chiqim yozish mumkin edi va qoldiq
+      // jimgina manfiyga tushardi. Bloklamaymiz (eski sanadagi yozuvni
+      // kiritayotganda qoldiq vaqtincha manfiy bo'lishi mumkin), lekin
+      // xodim buni bilib turib tasdiqlasin.
+      const balOf = { naqd: totalCashBalance, bank: totalBankBalance, click: totalClickBalance };
+      const have  = Number(balOf[chiqim.channel] || 0);
+      if (amt > have + 0.001) {
+        const chLabel = (CH.find(c => c.v === chiqim.channel) || {}).label || chiqim.channel;
+        if (!window.confirm(
+          `Diqqat: ${chLabel} qoldig'idan ko'p chiqim.\n\n` +
+          `Qoldiq: ${fmt(have)} so'm\nChiqim: ${fmt(amt)} so'm\n` +
+          `Yozilsa qoldiq ${fmt(have - amt)} so'm (manfiy) bo'ladi.\n\nDavom etamizmi?`
+        )) return;
+      }
       const xt = (chiqim.expenseType || '').trim();
       const fullDesc = xt ? (chiqim.note ? `${xt} — ${chiqim.note}` : xt) : chiqim.note;
       addRow(chiqim.channel, -amt, fullDesc, chiqim.customer, xt ? { expenseType: xt } : {});
@@ -314,6 +331,24 @@ export default function Kassir() {
     }
   };
 
+  // ── Jurnal yozuvini o'chirish ────────────────────────────────────────────────
+  const handleDelTransfer = (r) => {
+    if (!window.confirm(
+      `O'tkazma bekor qilinsinmi?\n\n${r.desc || ''}\n\n` +
+      `Juftligi (chiqim + kirim) birga o'chadi, qoldiqlar tiklanadi.`
+    )) return;
+    if (deleteTransfer(r.transferId)) showToast("O'tkazma bekor qilindi");
+  };
+
+  const handleDelRow = (r) => {
+    const amt = Math.abs(Number(r.amount || 0));
+    if (!window.confirm(
+      `Yozuv o'chirilsinmi?\n\n${r.desc || ''}\n${fmt(amt)} so'm\n\nBu amalni qaytarib bo'lmaydi.`
+    )) return;
+    const fn = { naqd: deleteCashRow, bank: deleteBankRow, click: deleteClickRow }[r._ch];
+    if (fn) { fn(r.id); showToast("O'chirildi"); }
+  };
+
   // ── Sklad tarixi ─────────────────────────────────────────────────────────────
   const SK_PAGE = 50;
   const sortedSklad = [...(skladRows || []).filter(r => r.type === 'chiqim')]
@@ -357,7 +392,7 @@ export default function Kassir() {
   // (jurnal ro'yxatida ko'rinaveradi).
   // O'tkazma yozuvi: yangi yozuvlarda `transfer: true` bayrog'i bor, eskilarida
   // faqat izoh boshidagi belgi (shuning uchun ikkalasi ham tekshiriladi).
-  const _isTransferRow = (r) => r.transfer === true || String(r.desc || '').trim().startsWith('↔️');
+  const _isTransferRow = isTransferRow;
   const todayIn  = journalRows.filter(r => !_isTransferRow(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
   const todayOut = journalRows.filter(r => !_isTransferRow(r) && Number(r.amount) < 0).reduce((s, r) => s + Number(r.amount), 0);
 
@@ -790,12 +825,31 @@ export default function Kassir() {
                           ✏️
                         </button>
                       )}
+                      {/* O'chirish: o'tkazma bo'lsa JUFTLIGI bilan (aks holda
+                          pul yo'qdan paydo bo'ladi), qo'lda yozuv bo'lsa
+                          o'zi. Avtomatik yozuvlar manba bo'limidan o'chadi. */}
+                      {!isNasiyaSklad && r.transferId && (
+                        <button type="button" onClick={() => handleDelTransfer(r)}
+                          title="O'tkazmani bekor qilish (juftligi bilan)"
+                          style={{ padding: '2px 6px', background: '#ffebee', border: '1px solid #ef9a9a', color: '#c62828', borderRadius: 3, cursor: 'pointer', fontSize: 11, marginLeft: 3 }}>
+                          🗑
+                        </button>
+                      )}
+                      {!isNasiyaSklad && !r.transferId && !r.auto && (
+                        <button type="button" onClick={() => handleDelRow(r)}
+                          title="O'chirish"
+                          style={{ padding: '2px 6px', background: '#ffebee', border: '1px solid #ef9a9a', color: '#c62828', borderRadius: 3, cursor: 'pointer', fontSize: 11, marginLeft: 3 }}>
+                          🗑
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
               })}
               <tr style={{ background: '#fffde7', fontWeight: 'bold', borderTop: '2px solid #fbc02d' }}>
-                <td colSpan={5} style={{ textAlign: 'right', padding: '6px 8px' }}>BUGUNGI JAMI (naqd):</td>
+                {/* Jurnal naqd + bank + click hammasini ko'rsatadi — yorliq
+                    "(naqd)" degani xato edi, xodim faqat naqd deb o'ylardi. */}
+                <td colSpan={5} style={{ textAlign: 'right', padding: '6px 8px' }}>BUGUNGI JAMI (naqd+bank+click):</td>
                 <td style={{ textAlign: 'right', fontFamily: 'monospace', color: (todayIn + todayOut) >= 0 ? '#2e7d32' : '#c62828', fontSize: 14 }}>
                   {(todayIn + todayOut) >= 0 ? '+' : ''}{fmt(todayIn + todayOut)}
                 </td>
@@ -853,7 +907,7 @@ function EditModal({ row, channel, onSave, onClose }) {
   // O'tkazma ikkita yozuvdan iborat (manbadan chiqim + maqsadga kirim).
   // Bittasining summasini o'zgartirish muvozanatni buzadi, shuning uchun
   // ular ham avtomatik yozuvlar kabi faqat izoh darajasida tahrirlanadi.
-  const isTransfer = row.transfer === true || String(row.desc || '').trim().startsWith('↔️');
+  const isTransfer = isTransferRow(row);
   const isAuto = row.auto === true || isTransfer;
   const [desc,   setDesc]   = useState(row.desc || row.note || '');
   const [amount, setAmount] = useState(String(Math.abs(Number(row.amount || 0))));

@@ -1,6 +1,7 @@
 import { useData } from '../context/DataContext';
 import { totalDriverDebt as driverDebtTotal } from '../lib/driverBalance';
 import ExcelExport from '../components/ExcelExport';
+import { isTransferRow } from '../lib/transferRow';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -30,9 +31,14 @@ export default function OverallReport() {
 
   // ── Hisob-kitoblar ────────────────────────────────────────────────────────
   // Kanallararo o'tkazma (↔️) kirim ham, chiqim ham emas — chiqarib tashlanadi.
-  const isTransfer = (r) => String(r.desc || '').trim().startsWith('↔️');
-  const kassirKirim  = (arr) => arr.filter(r => !r.auto && !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
-  const kassirChiqim = (arr) => arr.filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+  const isTransfer = isTransferRow;
+  // `auto` yozuvlar ham hisobga olinadi — ular haqiqiy pul harakati (sotuv,
+  // qarz to'lovi, avans, oylik, zavodga to'lov, haydovchi to'lovi). Ilgari
+  // `!r.auto` filtri turgani uchun bu hisobotda sotuvdan tushgan pul kirimga,
+  // oylik va zavodga to'lov esa chiqimga umuman qo'shilmasdi — "Jami kirim"
+  // va "Jami chiqim" haqiqatdan ancha kichik chiqardi.
+  const kassirKirim  = (arr) => (arr || []).filter(r => !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const kassirChiqim = (arr) => (arr || []).filter(r => !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
   const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0) + kassirKirim(cashRows);
   const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0) + kassirChiqim(cashRows);
   const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows);

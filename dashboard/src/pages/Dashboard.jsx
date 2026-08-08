@@ -11,13 +11,18 @@ import BalanceBreakdown from '../components/BalanceBreakdown';
 import { customerSummaryAll } from '../lib/customerSummary';
 import { custKey } from '../lib/customerRef';
 import { activityStatus } from '../lib/monitoring';
+import { isTransferRow } from '../lib/transferRow';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 // Kanallararo o'tkazma (naqd↔bank↔click) — bu KIRIM ham, CHIQIM ham emas,
 // shunchaki o'z pulingni ko'chirish. Yalpi kirim/chiqim hisobidan chiqarib
 // tashlanadi, aks holda ikkala raqam ham sun'iy shishardi.
-const isTransfer = (r) => String(r.desc || '').trim().startsWith('↔️');
+// O'tkazma belgisi: yangi yozuvlarda `transfer: true` bayrog'i bor, eskilarida
+// faqat izoh boshidagi "↔️". Ilgari bu yerda faqat izoh tekshirilardi — izohi
+// tahrirlangan o'tkazma kirim/chiqim sifatida qo'shilib ketardi (Kassir
+// jurnalida esa qo'shilmasdi, ikki sahifa har xil raqam ko'rsatardi).
+const isTransfer = isTransferRow;
 
 // Kanal ro'yxatlaridan kirim / chiqim yig'indisi.
 //   · o'tkazma (↔️) hisobga olinmaydi — u kirim ham, chiqim ham emas;

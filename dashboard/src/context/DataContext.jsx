@@ -282,6 +282,22 @@ export function DataProvider({ children }) {
   const deleteClickRow    = (id) => setClickRows(p => guardAutoDelete(p, id));
   const updateClickRow    = (id, fields) => setClickRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
 
+  // ── Kanallararo o'tkazmani bekor qilish ───────────────────────────────────
+  // O'tkazma IKKI yozuvdan iborat (manbadan chiqim + maqsadga kirim), ular
+  // bitta `transferId` bilan bog'langan. Bittasini o'chirish pulni yo'qdan
+  // paydo qilardi yoki yo'q qilardi, shuning uchun EditModal summani
+  // qulflab qo'ygan edi — natijada NOTO'G'RI o'tkazmani umuman tuzatib
+  // bo'lmasdi. Bu funksiya juftlikni birga o'chiradi.
+  const deleteTransfer = (transferId) => {
+    if (!transferId) return false;
+    const match = (r) => r.transferId === transferId;
+    const count = [...cashRows, ...bankRows, ...clickRows].filter(match).length;
+    if (!count) return false;
+    const drop = (p) => p.filter(r => !match(r));
+    setCashRows(drop); setBankRows(drop); setClickRows(drop);
+    return true;
+  };
+
   // ── 5. Sement qoldig'i ────────────────────────────────────────────────────
   const [cementOpening, setCementOpening] = useState(() => load('cement_opening', { date: '25.04.2025', tons: 0 }));
   useEffect(() => save('cement_opening', cementOpening), [cementOpening]);
@@ -2030,6 +2046,7 @@ export function DataProvider({ children }) {
     bankOpening, setBankOpening, bankRows, totalBankBalance, addBankRow, deleteBankRow, updateBankRow,
     // 4. Click
     clickOpening, setClickOpening, clickRows, totalClickBalance, addClickRow, deleteClickRow, updateClickRow,
+    deleteTransfer,
     // 5. Sement
     cementOpening, setCementOpening, totalCementBalance, totalSoldTons, totalRecvTons, totalSalesTons,
     // Skladlar (omborlar)

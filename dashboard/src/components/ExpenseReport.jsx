@@ -17,6 +17,7 @@ import { useState, useMemo } from 'react';
 import DateRangeFilter from './DateRangeFilter';
 import ExcelExport from './ExcelExport';
 import { filterByRange } from '../lib/dateRange';
+import { isTransferRow } from '../lib/transferRow';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -25,7 +26,7 @@ const UNTYPED   = '(tur ko\'rsatilmagan)';
 
 // Transfer (kanallararo o'tkazma) yozuvini chiqimdan ajratamiz — bu haqiqiy
 // xarajat emas, pul shunchaki bir kanaldan ikkinchisiga ko'chgan.
-const isTransfer = (r) => String(r.desc || '').trim().startsWith('↔️');
+const isTransfer = isTransferRow;
 
 export default function ExpenseReport({ cashRows = [], bankRows = [], clickRows = [] }) {
   const [range, setRange]   = useState({ from: '', to: '' });

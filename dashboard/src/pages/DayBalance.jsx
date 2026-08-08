@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
+import { isTransferRow } from '../lib/transferRow';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtS = (n) => (n >= 0 ? '+' : '') + fmt(n);
@@ -125,7 +126,7 @@ export default function DayBalance({ lang }) {
     // Kanallararo o'tkazma (↔️) kunlik kirim/chiqim SUMMASIGA sanalmaydi —
     // u o'z pulingni ko'chirish, ikkala oyog'i qo'shilib raqamni shishirardi.
     // (Jurnal ro'yxatida esa ko'rinaveradi.)
-    const isTransfer = (t) => String(t.desc || '').trim().startsWith('↔️');
+    const isTransfer = isTransferRow;
     const dayIn  = dayTx.filter(t => t.sign > 0 && !isTransfer(t)).reduce((s, t) => s + Number(t.amount), 0);
     const dayOut = dayTx.filter(t => t.sign < 0 && !isTransfer(t)).reduce((s, t) => s + Number(t.amount), 0);
 
