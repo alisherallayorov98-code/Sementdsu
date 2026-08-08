@@ -38,10 +38,25 @@ const COLLECTIONS = {
   workers:            'Xodim',
   drivers:            'Haydovchi',
   driver_trips:       'Haydovchi qatnovi',
+  // Bular kuzatilmasdi — ikkalasi ham to'g'ridan-to'g'ri PUL harakati:
+  // zavodga to'lov kassadan chiqadi, chakana sklad sotuvi kassaga kiradi.
+  // Jurnalda ko'rinmagani uchun ular orqali qilingan o'zgarish nazoratdan
+  // butunlay chetda qolardi.
+  supplier_payments:  "Zavodga to'lov",
+  sklad_rows:         'Chakana sklad (kg)',
+  tickets:            'Tiket',
 };
 
-// Pul chiqishi bilan bog'liq (yuqori xavf) to'plamlar
-const MONEY_OUT = new Set(['expense_rows', 'bank_expense_rows', 'click_expense_rows', 'recv_rows', 'salary_payments']);
+// Pul chiqishi bilan bog'liq (yuqori xavf) to'plamlar.
+// DIQQAT: pul kiritish/chiqarish Kassirga birlashtirilgandan keyin chiqim
+// asosan cash_rows/bank_rows/click_rows ichida MANFIY summa ko'rinishida
+// keladi — eski ro'yxatga qarab baholash bu chiqimlarni "past xavf" deb
+// belgilab qo'yardi. Shuning uchun tur emas, YOZUV bo'yicha baholaymiz.
+const MONEY_OUT = new Set(['expense_rows', 'bank_expense_rows', 'click_expense_rows', 'recv_rows', 'salary_payments', 'supplier_payments']);
+const CHANNEL_ROWS = new Set(['cash_rows', 'bank_rows', 'click_rows']);
+const isMoneyOut = (e) =>
+  MONEY_OUT.has(e.coll) ||
+  (CHANNEL_ROWS.has(e.coll) && Number(e.amount || 0) < 0);
 
 // Ochilish qoldig'i (obyekt) — to'g'ridan-to'g'ri qoldiqqa ta'sir qiladi, firibgarlik vektori
 const OPENINGS = {
@@ -164,7 +179,7 @@ function analyze(e) {
   if (e.action === 'create' && recDay && gapDays > 1) {
     flags.push({
       type: 'backdate',
-      severity: MONEY_OUT.has(e.coll) ? 'high' : (gapDays > 7 ? 'high' : 'medium'),
+      severity: isMoneyOut(e) ? 'high' : (gapDays > 7 ? 'high' : 'medium'),
       text: `Orqaga sana: ${gapDays} kun oldingi sana bilan kiritildi`,
     });
   }
@@ -172,14 +187,19 @@ function analyze(e) {
   if ((e.action === 'update' || e.action === 'delete') && recDay && gapDays > 2) {
     flags.push({
       type: e.action === 'delete' ? 'old-delete' : 'old-edit',
-      severity: MONEY_OUT.has(e.coll) ? 'high' : 'medium',
+      severity: isMoneyOut(e) ? 'high' : 'medium',
       text: e.action === 'delete'
         ? `Eski yozuv o'chirildi (${gapDays} kun oldingi)`
         : `Eski yozuv o'zgartirildi (${gapDays} kun oldingi)`,
     });
   }
   // 3) Pul kirimi yoki sotuvni o'chirish (yashirish vektori)
-  if (e.action === 'delete' && ['income_rows', 'bank_income_rows', 'click_income_rows', 'sales_rows', 'sold_rows'].includes(e.coll)) {
+  if (e.action === 'delete' && (
+        ['income_rows', 'bank_income_rows', 'click_income_rows', 'sales_rows', 'sold_rows', 'sklad_rows'].includes(e.coll) ||
+        // Kassir kirimi ham shu yerga kiradi (musbat summali kanal yozuvi) —
+        // ilgari faqat eski kirim ro'yxatlari tekshirilardi.
+        (CHANNEL_ROWS.has(e.coll) && Number(e.amount || 0) > 0)
+      )) {
     flags.push({ type: 'income-delete', severity: 'high', text: 'Pul kirimi / sotuv o\'chirildi' });
   }
   // 4) Summani kamaytirish tomon tahrirlash

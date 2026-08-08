@@ -34,7 +34,7 @@ export function auditState(state = {}) {
     bankIncomeRows = [], bankExpenseRows = [],
     clickIncomeRows = [], clickExpenseRows = [],
     workers = [], salaryPayments = [], customers = [],
-    skladRows = [], recvRows = [], supplierPayments = [],
+    skladRows = [], recvRows = [], supplierPayments = [], driverTrips = [],
     totalCashBalance = 0, totalBankBalance = 0, totalClickBalance = 0,
     totalSkladKg = 0, cementBalanceByType = {},
   } = state;
@@ -138,12 +138,27 @@ export function auditState(state = {}) {
   const saleIds  = new Set(salesRows.map(r => r.id));
   const soldIds  = new Set(soldRows.map(r => r.id));
   const skladIds = new Set(skladRows.map(r => r.id));
+  // Qolgan turlar ham tekshiriladi. Ilgari ular `return false` bilan
+  // o'tkazib yuborilardi — ya'ni o'chirilgan oylik/zavod to'lovi/haydovchi
+  // avansi/avansdan qolgan kassa yozuvi kassada egasiz turib, qoldiqni
+  // buzsa ham tekshiruv "toza" deb ko'rsatardi.
+  const salaryIds = new Set(salaryPayments.map(p => `${p.workerId}_s${p.id}`));
+  const supIds    = new Set(supplierPayments.map(p => p.id));
+  const driverIds = new Set(driverTrips.filter(t => t.isPayment).map(t => t.id));
+  const advIds    = new Set(advanceRows.map(r => r.id));
   const orphan = [...cashRows, ...bankRows, ...clickRows, ...debtRows].filter(r => {
     if (!r || !r.auto) return false;
-    if (r.sourceType === 'sale')       return !saleIds.has(r.sourceId);
-    if (r.sourceType === 'sold')       return !soldIds.has(r.sourceId);
-    if (r.sourceType === 'sklad_sale') return !skladIds.has(r.sourceId);
-    return false; // qolgan turlar boshqacha bog'lanadi
+    if (r.sourceType === 'sale')             return !saleIds.has(r.sourceId);
+    if (r.sourceType === 'sold')             return !soldIds.has(r.sourceId);
+    if (r.sourceType === 'sklad_sale')       return !skladIds.has(r.sourceId);
+    if (r.sourceType === 'salary')           return !salaryIds.has(r.sourceId);
+    if (r.sourceType === 'supplier_payment') return !supIds.has(r.sourceId);
+    if (r.sourceType === 'driver')           return !driverIds.has(r.sourceId);
+    if (r.sourceType === 'advance')          return !advIds.has(r.sourceId);
+    // debt_payment sourceId ikki xil formatda ("<qarzId>_p<ts>" va
+    // "<mijoz>_pc<ts>") — u 1-tekshiruv (paid = to'lovlar yig'indisi)
+    // orqali allaqachon nazorat qilinadi.
+    return false;
   });
   if (orphan.length) {
     out.push(F('xato', 'orphan-auto-row',

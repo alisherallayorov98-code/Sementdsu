@@ -225,3 +225,36 @@ test('1 so\'mgacha yaxlitlash farqi xato deb hisoblanmaydi', () => {
   };
   assert.ok(!codes(st).includes('debt-paid-mismatch'));
 });
+
+test("o‘chirilgan oylik to‘lovidan qolgan kassa yozuvi topiladi", () => {
+  // deleteWorker/deleteSalaryPayment ularni tozalaydi, lekin birlashtirish
+  // yoki qo'lda tahrir natijasida yetim qolishi mumkin. Ilgari bu tur
+  // umuman tekshirilmasdi va kassada egasiz pul sezilmay yotardi.
+  const f = auditState({
+    salaryPayments: [],
+    cashRows: [{ id: 1, auto: true, sourceType: 'salary', sourceId: '7_s99', amount: -500000, desc: 'Oylik' }],
+  });
+  assert.ok(f.find(x => x.code === 'orphan-auto-row'), 'yetim oylik yozuvi topilmadi');
+});
+
+test("mavjud oylik to‘lovi yetim deb belgilanmaydi", () => {
+  const f = auditState({
+    salaryPayments: [{ id: 99, workerId: 7, amount: 500000 }],
+    cashRows: [{ id: 1, auto: true, sourceType: 'salary', sourceId: '7_s99', amount: -500000 }],
+  });
+  assert.equal(f.find(x => x.code === 'orphan-auto-row'), undefined);
+});
+
+test("o‘chirilgan zavod to‘lovi va haydovchi avansi ham topiladi", () => {
+  const f = auditState({
+    supplierPayments: [],
+    driverTrips: [],
+    cashRows: [
+      { id: 1, auto: true, sourceType: 'supplier_payment', sourceId: 11, amount: -1000 },
+      { id: 2, auto: true, sourceType: 'driver', sourceId: 22, amount: -2000 },
+    ],
+  });
+  const hit = f.find(x => x.code === 'orphan-auto-row');
+  assert.ok(hit);
+  assert.ok(hit.title.startsWith('2 '), hit.title);
+});

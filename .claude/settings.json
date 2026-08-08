@@ -139,7 +139,9 @@
       "Bash(node -e 'const fs=require\\('\\\\''fs'\\\\''\\);const p='\\\\''src/pages/IncomeBank.jsx'\\\\'';let s=fs.readFileSync\\(p,'\\\\''utf8'\\\\''\\);const L=s.split\\('\\\\''\\\\n'\\\\''\\); *)",
       "Bash(grep -n \"setCashRows\\(p => \\\\[...p, {\" src/context/DataContext.jsx)",
       "Bash(sed -i -e \"10d\" src/pages/Settings.jsx)",
-      "Bash(sed -i \"s/^    customers, importCustomers, importDebts, importAdvances,$/    importCustomers, importDebts, importAdvances,/\" src/pages/Settings.jsx)"
+      "Bash(sed -i \"s/^    customers, importCustomers, importDebts, importAdvances,$/    importCustomers, importDebts, importAdvances,/\" src/pages/Settings.jsx)",
+      "Bash(node --test src/lib/auditState.test.js)",
+      "Bash(node src/lib/auditState.test.js)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
