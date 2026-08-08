@@ -39,11 +39,18 @@ export default function OverallReport() {
   // va "Jami chiqim" haqiqatdan ancha kichik chiqardi.
   const kassirKirim  = (arr) => (arr || []).filter(r => !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
   const kassirChiqim = (arr) => (arr || []).filter(r => !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
-  const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0) + kassirKirim(cashRows);
+  // Eski "Sotilgan tonna" bo'limi kassa yozuvi yaratmaydi — puli qoldiq
+  // formulasiga to'g'ridan-to'g'ri qo'shiladi. Kirim ro'yxatiga ham qo'shmasak,
+  // "ochilish + kirim − chiqim" qoldiqqa teng chiqmaydi.
+  const soldIn = (ch) => (soldRows || [])
+    .filter(r => (r.paymentChannel || 'naqd') === ch)
+    .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+
+  const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0) + kassirKirim(cashRows) + soldIn('naqd');
   const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0) + kassirChiqim(cashRows);
-  const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows);
+  const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows) + soldIn('bank');
   const totalBankExpenseAll = Number(totalBankExpense) + kassirChiqim(bankRows);
-  const totalClickIncomeAll  = Number(totalClickIncome)  + kassirKirim(clickRows);
+  const totalClickIncomeAll  = Number(totalClickIncome)  + kassirKirim(clickRows) + soldIn('click');
   const totalClickExpenseAll = Number(totalClickExpense) + kassirChiqim(clickRows);
   const totalSalesSum = [...salesRows, ...soldRows].reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
   const totalSoldAll  = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);

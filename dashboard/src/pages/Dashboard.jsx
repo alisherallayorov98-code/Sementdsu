@@ -78,6 +78,15 @@ export default function Dashboard() {
   const todaySales = allSales.filter(r => r.date === today);
   const monthSales = allSales.filter(r => (r.date || '').endsWith(monthKey));
 
+  // Eski "Sotilgan tonna" bo'limi kassa yozuvi YARATMAYDI — uning puli
+  // qoldiq formulasiga to'g'ridan-to'g'ri qo'shiladi (_soldNaqd/_soldBank/
+  // _soldClick). Shu sababli u kirim ro'yxatida umuman ko'rinmasdi va
+  // "ochilish + kirim − chiqim" hech qachon qoldiqqa teng chiqmasdi.
+  const soldIn = (ch, rows = soldRows) => rows
+    .filter(r => (r.paymentChannel || 'naqd') === ch)
+    .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+  const soldInAll = (rows) => soldIn('naqd', rows) + soldIn('bank', rows) + soldIn('click', rows);
+
   // Bugungi kirim/chiqim — pastdagi "Jami" bilan BIR XIL qoida bo'yicha
   // (barcha kanallar, auto yozuvlar bilan). Ilgari bugungi hisob `!r.auto`
   // filtrlagani uchun bugun sotilgan sement puli "Bugun / kirim"da
@@ -85,7 +94,8 @@ export default function Dashboard() {
   // mos kelmasdi.
   const todayIncome =
       inSum(onDay(incomeRows, today)) + inSum(onDay(bankIncomeRows, today)) + inSum(onDay(clickIncomeRows, today))
-    + inSum(onDay(cashRows, today))   + inSum(onDay(bankRows, today))       + inSum(onDay(clickRows, today));
+    + inSum(onDay(cashRows, today))   + inSum(onDay(bankRows, today))       + inSum(onDay(clickRows, today))
+    + soldInAll(onDay(soldRows, today));
   const todayExpense =
       inSum(onDay(expenseRows, today)) + inSum(onDay(bankExpenseRows, today)) + inSum(onDay(clickExpenseRows, today))
     + outSum(onDay(cashRows, today))   + outSum(onDay(bankRows, today))       + outSum(onDay(clickRows, today));
@@ -104,6 +114,7 @@ export default function Dashboard() {
     ['Kassir — naqd',     inSum(cashRows)],
     ['Kassir — bank',     inSum(bankRows)],
     ['Kassir — click',    inSum(clickRows)],
+    ...(soldInAll(soldRows) > 0 ? [['Sotilgan tonna (eski)', soldInAll(soldRows)]] : []),
   ];
   const expParts = [
     ['Naqd chiqim',       inSum(expenseRows)],

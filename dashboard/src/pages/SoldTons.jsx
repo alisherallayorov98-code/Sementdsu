@@ -77,7 +77,11 @@ export default function SoldTons({ lang }) {
     soldRows, addSoldRow, deleteSoldRow,
     debtRows, addDebtRow, payDebt, deleteDebtRow,
     currentWorker, setCurrentWorker, appSettings, custRef,
+    totalCementBalance,
   } = data;
+
+  // Tonna ko'rsatish: butun bo'lsa kasrsiz, aks holda 2 xona
+  const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
   const [form, setForm]               = useState({ mijoz:'', tonna:'', narx:'', tolov:'naqd', izoh:'' });
   const [range, setRange]             = useState({ from: '', to: '' });
@@ -108,6 +112,16 @@ export default function SoldTons({ lang }) {
     const priceN = parseNum(form.narx);
     if (!(tonsN > 0))  { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
     if (!(priceN > 0)) { alert("Narx 0 dan katta bo'lishi kerak."); return; }
+    // Qoldiq tekshiruvi — "Sotish" bo'limida bor edi, bu yerda YO'Q edi:
+    // omborda yo'q sementni sotish mumkin bo'lib, qoldiq jimgina manfiyga
+    // tushardi. Bloklamaymiz (eski yozuvni kiritish holati bor), lekin
+    // xodim ko'rib turib tasdiqlasin.
+    if (tonsN > Number(totalCementBalance || 0)) {
+      if (!window.confirm(
+        `Diqqat! Omborda ${fmtTons(totalCementBalance)} tn sement bor.\n` +
+        `Sotmoqchi: ${fmtTons(tonsN)} tn.\n\nBaribir sotasizmi?`
+      )) return;
+    }
     const created = addSoldRow({
       customer: form.mijoz, tons: tonsN,
       pricePerTon: priceN, paymentChannel: form.tolov,

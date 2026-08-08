@@ -51,6 +51,15 @@ export default function Distribution() {
     const priceN = parseNum(row.price !== '' ? row.price : defPrice);
     if (!(tonsN > 0))  { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
     if (!(priceN > 0)) { alert("Narx 0 dan katta bo'lishi kerak."); return; }
+    // Sklad qoldig'i tekshiruvi — "Sotish" bo'limida bor edi, taqsimlashda
+    // YO'Q edi. Aynan bu yerda xato ehtimoli eng katta: yozuvlar ketma-ket
+    // tez kiritiladi va omborda yo'q tonna sassiz "sotilib" ketardi.
+    if (tonsN > Number(whQoldiq || 0)) {
+      if (!window.confirm(
+        `Diqqat! "${whName(wh)}" skladida ${fmtT(whQoldiq)} tn sement bor.\n` +
+        `Taqsimlanmoqchi: ${fmtT(tonsN)} tn.\n\nBaribir davom etamizmi?`
+      )) return;
+    }
     // Natija tekshiriladi: rad etilsa forma tozalanmasin (taqsimlashda
     // ketma-ket tez kiritiladi — yo'qolgan qator sezilmay qolardi).
     if (!addSaleRow({
