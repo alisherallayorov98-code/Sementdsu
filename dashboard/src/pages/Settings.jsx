@@ -7,7 +7,6 @@ import ExcelImport from '../components/ExcelImport';
 // ya'ni "1 378 756,50" → 137875650 bo'lib summa 100 barobar oshardi.
 import { parseNum } from '../lib/parseNum';
 import { cleanImportRows } from '../lib/importRows';
-import { nameKey as normName } from '../lib/customerRef';
 
 // Parol yacheykasi: yangi parolni kiriting, eski hashni ko'rsatmaydi
 function PasswordCell({ workerId, onSave }) {
@@ -528,7 +527,7 @@ function CementTypeAdder({ addCementType, cementTypes, themeColor }) {
 export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
-    customers, importCustomers, importDebts, importAdvances,
+    importCustomers, importDebts, importAdvances,
     warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
     cementTypes, addCementType, removeCementType,
     driverTariffs, addDriverTariff, removeDriverTariff, renameDriverTariff, addPriceToTariff, removePriceFromTariff,
@@ -545,19 +544,12 @@ export default function Settings({ lang }) {
   const [newWh, setNewWh] = useState('');
 
   // ── Excel import: Mijozlar ────────────────────────────────────────────────
-  const importCustomersHandler = (rows) => {
-    const existing = new Set(customers.map(c => normName(c.name)));
-    const clean = [];
-    let skipped = 0;
-    rows.forEach(r => {
-      const name = String(r.name || '').trim();
-      if (!name || existing.has(normName(name))) { skipped++; return; }
-      existing.add(normName(name));
-      clean.push({ name, phone: r.phone, address: r.address, note: r.note });
-    });
-    importCustomers(clean);
-    return { added: clean.length, skipped };
-  };
+  // Dublikat tekshiruvi endi importCustomers ichida (bir joyda) — bu yerda
+  // faqat maydonlarni tozalab uzatamiz va natijani qaytaramiz.
+  const importCustomersHandler = (rows) =>
+    importCustomers((rows || []).map(r => ({
+      name: r.name, phone: r.phone, address: r.address, note: r.note,
+    })));
 
   // ── Excel import: Qarzlar va Avanslar ─────────────────────────────────────
   // 1C oborotkasida summa manfiy ishora bilan chiqadi (-1378756000) — moduli

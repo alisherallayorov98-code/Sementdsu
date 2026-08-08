@@ -169,6 +169,11 @@ export default function CustomerCard({ name, onClose }) {
             )}
             {box("Qoldiq qarz (bizga)", fmt(s.qolganQarz) + " so'm", '#c62828', '#ffebee')}
             {box("Qoldiq avans",        fmt(s.qolganAvans) + " so'm", '#1565c0', '#e3f2fd')}
+            {/* Ortiqcha to'lov: payDebt qarzdan ko'p to'lashga tasdiq bilan
+                ruxsat beradi. Bu summa qarz qoldig'ida ko'rinmaydi, avans ham
+                emas — ko'rsatilmasa mijoz "pulim qayerda?" deb so'raydi. */}
+            {s.ortiqchaTolov > 0 &&
+              box("⚠️ Ortiqcha to'lov", fmt(s.ortiqchaTolov) + " so'm", '#e65100', '#fff3e0')}
             {box("Jami xarid",          fmt(s.totalXarid) + " so'm", '#2e7d32', '#e8f5e9')}
             {box("Jami tonna",          fmtT(s.totalTon) + " tn",    '#5d4037', '#efebe9')}
           </div>

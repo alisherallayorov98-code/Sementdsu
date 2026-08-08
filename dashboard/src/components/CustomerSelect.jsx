@@ -83,8 +83,15 @@ export default function CustomerSelect({
     if (!newCust.name) return;
     // Faqat "+998" qolgan bo'lsa (raqam kiritilmagan) — bo'sh deb saqlaymiz
     const phone = newCust.phone.trim() === '+998' ? '' : newCust.phone.trim();
-    addCustomer({ ...newCust, phone });
-    onChange(newCust.name);
+    // addCustomer bir xil nomli mijoz bo'lsa YANGI yaratmaydi, mavjudini
+    // qaytaradi. Uni tanlab davom etamiz — ilgari bu yerda dublikat paydo
+    // bo'lishi mumkin edi va nom bo'yicha bog'lanish buzilardi.
+    const c = addCustomer({ ...newCust, phone });
+    if (!c) return;
+    if (c.name !== newCust.name.trim()) {
+      alert(`"${newCust.name.trim()}" bazada "${c.name}" nomi bilan bor — o'sha tanlandi.`);
+    }
+    onChange(c.name);
     setNewCust({ name: '', phone: '+998 ', address: '', note: '' });
     setModal(false);
   };

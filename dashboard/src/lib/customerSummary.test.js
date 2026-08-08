@@ -11,7 +11,7 @@ import { customerSummary, customerSummaryAll } from './customerSummary.js';
 const NUM_KEYS = [
   'totalTon', 'totalXarid', 'totalQarz', 'totalTolandi', 'qolganQarz',
   'totalAvans', 'qolganAvans', 'balans', 'lastSaleAt', 'salesCount',
-  'unlinkedIn', 'unlinkedOut',
+  'unlinkedIn', 'unlinkedOut', 'ortiqchaTolov',
 ];
 
 // Ikkala yo'l bir xil natija beradimi?
@@ -154,4 +154,35 @@ test('katta hajmda ikkala yo\'l bir xil natija beradi', () => {
     tgOrders:    mk(40,  i => ({ id: i, customerId: pickId(i), customer: pickNm(i), tons: 3 })),
   };
   assertSame(data, 'katta hajm');
+});
+
+test("ortiqcha to'langan qarz boshqa qarzni YASHIRMAYDI", () => {
+  // payDebt ortiqcha to'lovga tasdiq bilan ruxsat beradi, ya'ni paid > amount
+  // real holat. Ilgari qoldiq jami bo'yicha hisoblanardi:
+  //   max(0, (100+50) - (120+0)) = 30 - ikkinchi qarzning 50 si 20 ga "erib"
+  // ketardi va mijoz kartochkasi Kassirdagidan kam qarz ko'rsatardi.
+  const data = {
+    customers: [{ id: 1, name: 'Ali' }],
+    debtRows: [
+      { id: 10, customerId: 1, amount: 100, paid: 120, payments: [] }, // ortiqcha
+      { id: 11, customerId: 1, amount: 50,  paid: 0,   payments: [] },
+    ],
+  };
+  assertSame(data, 'ortiqcha tolov');
+  const s = customerSummaryAll(data).get(1);
+  assert.strictEqual(s.qolganQarz, 50);      // Kassir/Bosh sahifa bilan bir xil
+  assert.strictEqual(s.ortiqchaTolov, 20);   // yo'qolmaydi, alohida ko'rinadi
+});
+
+test('ortiqcha ishlatilgan avans boshqa avansni yashirmaydi', () => {
+  const data = {
+    customers: [{ id: 1, name: 'Ali' }],
+    advanceRows: [
+      { id: 20, customerId: 1, amount: 100, used: 130, usages: [] },
+      { id: 21, customerId: 1, amount: 80,  used: 0,   usages: [] },
+    ],
+  };
+  assertSame(data, 'ortiqcha avans');
+  // advanceBalanceOf (DataContext) ham aynan shunday hisoblaydi
+  assert.strictEqual(customerSummaryAll(data).get(1).qolganAvans, 80);
 });

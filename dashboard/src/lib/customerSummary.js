@@ -48,10 +48,16 @@ export function customerSummary(arg, data) {
   const totalXarid   = sales.reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
   const totalQarz    = debts.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalTolandi = debts.reduce((s, r) => s + Number(r.paid || 0), 0);
-  const qolganQarz   = Math.max(0, totalQarz - totalTolandi);
+  // Qoldiq HAR QATOR bo'yicha hisoblanadi — dasturning qolgan hamma joyi
+  // (totalDebts, advanceBalanceOf, Kassir, Bosh sahifa) aynan shunday qiladi.
+  // Ilgari bu yerda jami bo'yicha `max(0, jamiQarz - jamiTo'lov)` edi: bitta
+  // qarz ORTIQCHA to'langan bo'lsa (payDebt buni tasdiq bilan ruxsat beradi),
+  // ortiqcha summa boshqa qarzni yashirib, mijoz kartochkasi va akt sverka
+  // Kassirdagidan KAM qarz ko'rsatardi.
+  const qolganQarz   = debts.reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+  const ortiqchaTolov = debts.reduce((s, r) => s + Math.max(0, Number(r.paid || 0) - Number(r.amount || 0)), 0);
   const totalAvans   = advs.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const usedAvans    = advs.reduce((s, r) => s + Number(r.used || 0), 0);
-  const qolganAvans  = Math.max(0, totalAvans - usedAvans);
+  const qolganAvans  = advs.reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.used || 0)), 0);
 
   // Sof balans — bitta raqamda mijozning holati (MoySklad uslubida):
   //   manfiy  = mijoz bizga qarzdor
@@ -83,7 +89,7 @@ export function customerSummary(arg, data) {
   return {
     sales, debts, advs, orders,
     totalTon, totalXarid,
-    totalQarz, totalTolandi, qolganQarz,
+    totalQarz, totalTolandi, qolganQarz, ortiqchaTolov,
     totalAvans, qolganAvans, balans,
     lastSaleAt,
     salesCount: sales.length,
@@ -170,10 +176,11 @@ export function customerSummaryAll(data) {
     const totalXarid   = sales.reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
     const totalQarz    = debts.reduce((s, r) => s + Number(r.amount || 0), 0);
     const totalTolandi = debts.reduce((s, r) => s + Number(r.paid || 0), 0);
-    const qolganQarz   = Math.max(0, totalQarz - totalTolandi);
+    // customerSummary bilan bir xil qoida (yuqoridagi izohga qarang)
+    const qolganQarz   = debts.reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
+    const ortiqchaTolov = debts.reduce((s, r) => s + Math.max(0, Number(r.paid || 0) - Number(r.amount || 0)), 0);
     const totalAvans   = advs.reduce((s, r) => s + Number(r.amount || 0), 0);
-    const usedAvans    = advs.reduce((s, r) => s + Number(r.used || 0), 0);
-    const qolganAvans  = Math.max(0, totalAvans - usedAvans);
+    const qolganAvans  = advs.reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.used || 0)), 0);
     const unlinkedIn   = unlinked.reduce((s, r) => Number(r.amount) > 0 ? s + Number(r.amount) : s, 0);
     const unlinkedOut  = unlinked.reduce((s, r) => Number(r.amount) < 0 ? s - Number(r.amount) : s, 0);
     const lastSaleAt   = sales.reduce((mx, r) => Math.max(mx, Number(r.createdAt || r.id || 0)), 0);
@@ -181,7 +188,7 @@ export function customerSummaryAll(data) {
     out.set(c.id, {
       sales, debts, advs, orders,
       totalTon, totalXarid,
-      totalQarz, totalTolandi, qolganQarz,
+      totalQarz, totalTolandi, qolganQarz, ortiqchaTolov,
       totalAvans, qolganAvans, balans: qolganAvans - qolganQarz,
       lastSaleAt,
       salesCount: sales.length,

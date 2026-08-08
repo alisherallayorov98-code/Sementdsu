@@ -1474,13 +1474,24 @@ export function DataProvider({ children }) {
   // avval customerId, keyin ism bo'yicha topiladi — ya'ni ismi qo'lda o'zgartirib
   // yuborilgan eski yozuv ham mijozdan uzilib qolmaydi.
   const custRef = (name) => findCust(customers, name) || name;
-  const addCustomer = ({ name, address, phone, note = '' }) => {
+  // Takroriy nom BLOKLANADI. updateCustomer'da bu tekshiruv bor edi, qo'shishda
+  // esa yo'q — natijada bir xil nomli ikki mijoz paydo bo'lishi mumkin edi va
+  // nom bo'yicha bog'lanadigan eski yozuvlar (customerId'siz) qaysi biriga
+  // tegishli ekani noaniq bo'lib qolardi. Mavjud bo'lsa, o'shani qaytaramiz —
+  // chaqiruvchi (CustomerSelect) uni tanlab davom etaveradi.
+  const addCustomer = ({ name, address = '', phone = '', note = '' }) => {
+    const nm = String(name || '').trim();
+    if (!nm) return null;
+    const exists = findCust(customers, nm);
+    if (exists) return exists;
     const ts = uid();
-    setCustomers(p => [...p, {
+    const row = {
       id: ts, createdAt: ts, worker: currentWorker,
-      name: name.trim(), address: address.trim(), phone: phone.trim(), note,
+      name: nm, address: String(address || '').trim(), phone: String(phone || '').trim(), note,
       linkCode: genLinkCode(),
-    }]);
+    };
+    setCustomers(p => [...p, row]);
+    return row;
   };
   // Yozuvlar mijozga customerId bilan bog'lanadi, lekin ism ham har yozuvda
   // saqlanadi (ro'yxatlarda shu ko'rsatiladi, eski yozuvlarda esa bog'lanishning
@@ -1559,16 +1570,31 @@ export function DataProvider({ children }) {
   const setMonitor = (id, monitored, monitorDays = null) =>
     setCustomers(p => p.map(c => c.id === id ? { ...c, monitored, monitorDays: monitorDays || null } : c));
   // Excel'dan ko'plab mijoz import qilish (unikal id bilan)
+  // Import DUBLIKAT YARATMAYDI. Ilgari hech qanday tekshiruv yo'q edi: bir
+  // faylni ikki marta yuklash (yoki qisman to'ldirilgan ro'yxatni qayta
+  // yuklash) butun bazani ikkilantirardi, keyin nom bo'yicha bog'lanish
+  // buzilib, qarz/avans qaysi nusxaga tegishli ekani noaniq bo'lardi.
+  // Fayl ichidagi takrorlar ham bir marta olinadi.
   const importCustomers = (rows) => {
-    setCustomers(p => [...p, ...rows.map(r => {
+    const seen = new Set(customers.map(c => custKey(c.name)));
+    const fresh = [];
+    let skipped = 0;
+    for (const r of (rows || [])) {
+      const nm = String(r?.name || '').trim();
+      if (!nm) { skipped++; continue; }
+      const k = custKey(nm);
+      if (seen.has(k)) { skipped++; continue; }
+      seen.add(k);
       const id = uid();
-      return {
+      fresh.push({
         id, createdAt: id, worker: currentWorker,
-        name: (r.name || '').trim(), address: (r.address || '').trim(),
-        phone: (r.phone || '').trim(), note: r.note || '',
+        name: nm, address: String(r.address || '').trim(),
+        phone: String(r.phone || '').trim(), note: r.note || '',
         linkCode: genLinkCode(),
-      };
-    })]);
+      });
+    }
+    if (fresh.length) setCustomers(p => [...p, ...fresh]);
+    return { added: fresh.length, skipped };
   };
 
   // ── 18. Haydovchilar va Qatnovlar ─────────────────────────────────────────
