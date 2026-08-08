@@ -99,6 +99,10 @@ export default function ExpenseReport({ cashRows = [], bankRows = [], clickRows 
         Bu yerda chiqimlar <b>guruh</b> (masalan "Ishxona xarajatlari") va uning
         ichida <b>xarajat turi</b> (moyka, taksi, remont...) bo'yicha jamlanadi.
         Turlar chiqim yozganda kiritiladi — bu yerda faqat natija ko'rinadi.
+        <br />
+        <b>Diqqat:</b> bu yerda faqat <b>qo'lda kiritilgan</b> chiqimlar bor.
+        Oylik, zavodga to'lov va haydovchi to'lovlari o'z bo'limlarida
+        (ular Bosh sahifadagi "Jami chiqim"ga kiradi, bu ro'yxatga emas).
       </div>
 
       {/* Filtrlar */}

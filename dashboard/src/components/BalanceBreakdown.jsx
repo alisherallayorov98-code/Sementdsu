@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import { custKey } from '../lib/customerRef';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -94,9 +95,14 @@ function buildParts(type, d) {
     const skladKgByRecv = {};
     (d.skladRows || []).filter(r => r.type === 'kirim' && r.sourceId)
       .forEach(r => { skladKgByRecv[r.sourceId] = (skladKgByRecv[r.sourceId] || 0) + Number(r.kg || 0); });
-    const recvNet = (d.recvRows || []).reduce((s, r) =>
+    // TASDIQLANMAGAN (pending) yuk qoldiqqa kirmaydi — DataContext'dagi
+    // formula bilan aynan bir xil bo'lishi shart, aks holda pastdagi
+    // o'z-o'zini tekshirish farq ko'rsatib qizarardi.
+    const recvOk = (d.recvRows || []).filter(r => !r.pending);
+    const recvNet = recvOk.reduce((s, r) =>
       s + Math.max(0, Number(r.tons || 0) - (skladKgByRecv[r.id] || 0) / 1000), 0);
     const toSkladTons = Object.values(skladKgByRecv).reduce((s, kg) => s + kg, 0) / 1000;
+    const pendTons = (d.recvRows || []).filter(r => r.pending).reduce((s, r) => s + Number(r.tons || 0), 0);
 
     return {
       total: d.totalCementBalance,
@@ -106,8 +112,11 @@ function buildParts(type, d) {
         { label: "Boshlang'ich qoldiq", value: Number(d.cementOpening?.tons || 0),
           note: d.cementOpening?.date ? `${d.cementOpening.date} holatiga` : 'sana ko\'rsatilmagan',
           opening: 'cement' },
-        { label: 'Qabul qilingan (ulgurji)', value: recvNet, count: (d.recvRows || []).length,
-          note: toSkladTons > 0 ? `${fmtT(toSkladTons)} tn chakana skladga o'tkazilgan — bu yerdan chiqarilgan` : '',
+        { label: 'Qabul qilingan (ulgurji)', value: recvNet, count: recvOk.length,
+          note: [
+            toSkladTons > 0 ? `${fmtT(toSkladTons)} tn chakana skladga o'tkazilgan — bu yerdan chiqarilgan` : '',
+            pendTons > 0 ? `🟡 ${fmtT(pendTons)} tn tasdiqlanmagan — qoldiqqa kirmagan` : '',
+          ].filter(Boolean).join(' · '),
           to: '/recv_tons' },
         { label: 'Sotilgan (yangi)', value: -(d.salesRows || []).reduce((s, r) => s + Number(r.tons || 0), 0),
           count: (d.salesRows || []).length, to: '/recv_tons' },
@@ -118,12 +127,18 @@ function buildParts(type, d) {
   }
 
   if (type === 'debt') {
-    const byCust = {};
+    // customerId bo'yicha guruhlash — xom nom ishlatilsa bitta mijoz
+    // ("Ali aka" / "ali  aka") ro'yxatda ikki qator bo'lib chiqardi.
+    const byCust = new Map();
     (d.debtRows || []).forEach(r => {
       const q = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
-      if (q > 0) byCust[r.customer] = (byCust[r.customer] || 0) + q;
+      if (q <= 0) return;
+      const key = r.customerId != null ? `#${r.customerId}` : custKey(r.customer);
+      if (!key) return;
+      const prev = byCust.get(key);
+      if (prev) prev[1] += q; else byCust.set(key, [r.customer, q]);
     });
-    const list = Object.entries(byCust).sort((a, b) => b[1] - a[1]);
+    const list = [...byCust.values()].sort((a, b) => b[1] - a[1]);
     return {
       total: d.totalDebts,
       unit: "so'm",

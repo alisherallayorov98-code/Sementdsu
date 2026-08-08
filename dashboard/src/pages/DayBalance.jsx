@@ -107,20 +107,26 @@ export default function DayBalance({ lang }) {
     const sgn = (a) => (Number(a) >= 0 ? +1 : -1);
     const onDate = (rows) => rows.filter(r => r.date === date);
     const dayTx = [
-      ...onDate(cashRows).map(r  => ({ cat: '💵 Naqd',        sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker })),
+      ...onDate(cashRows).map(r  => ({ cat: '💵 Naqd',        sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker, transfer: r.transfer, transferId: r.transferId })),
       ...onDate(incomeRows).map(r  => ({ cat: '💚 Naqd kirim',  sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
       ...onDate(expenseRows).map(r => ({ cat: '🔴 Naqd chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...onDate(bankRows).map(r  => ({ cat: '🏦 Bank',        sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker })),
+      ...onDate(bankRows).map(r  => ({ cat: '🏦 Bank',        sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker, transfer: r.transfer, transferId: r.transferId })),
       ...onDate(bankIncomeRows).map(r  => ({ cat: '🏦 Bank kirim',  sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
       ...onDate(bankExpenseRows).map(r => ({ cat: '🏦 Bank chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...onDate(clickRows).map(r => ({ cat: '💜 Click',       sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker })),
+      ...onDate(clickRows).map(r => ({ cat: '💜 Click',       sign: sgn(r.amount), amount: Math.abs(Number(r.amount || 0)), desc: r.desc, worker: r.worker, transfer: r.transfer, transferId: r.transferId })),
       ...onDate(clickIncomeRows).map(r  => ({ cat: '💜 Click kirim',  sign: +1, amount: r.amount, desc: r.desc, worker: r.worker })),
       ...onDate(clickExpenseRows).map(r => ({ cat: '💜 Click chiqim', sign: -1, amount: r.amount, desc: r.desc, worker: r.worker })),
-      ...onDate(soldRows).map(r => ({
-        cat: `🏭 Eski savdo (${r.paymentChannel || 'naqd'})`, sign: +1,
-        amount: Number(r.tons || 0) * Number(r.pricePerTon || 0),
-        desc: `${r.customer} · ${r.tons} tn`, worker: r.worker,
-      })),
+      // NASIYA sotuv PUL KIRIMI EMAS — qarz yaratadi. Ilgari u ham `sign: +1`
+      // bilan qo'shilib, "kunlik kirim" haqiqatda kelmagan pulni ko'rsatardi
+      // (qoldiq formulasida esa nasiya to'g'ri chiqarib tashlangan edi, ya'ni
+      // kirim raqami qoldiq o'zgarishiga mos kelmasdi).
+      ...onDate(soldRows)
+        .filter(r => (r.paymentChannel || 'naqd') !== 'nasiya')
+        .map(r => ({
+          cat: `🏭 Eski savdo (${r.paymentChannel || 'naqd'})`, sign: +1,
+          amount: Number(r.tons || 0) * Number(r.pricePerTon || 0),
+          desc: `${r.customer} · ${r.tons} tn`, worker: r.worker,
+        })),
     ];
 
     // Kanallararo o'tkazma (↔️) kunlik kirim/chiqim SUMMASIGA sanalmaydi —
