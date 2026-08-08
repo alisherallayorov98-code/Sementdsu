@@ -94,7 +94,8 @@
       "Bash(cp __TRACKED_VAR__/lintcmp/Kassir.old.jsx src/__lintcmp/Kassir.jsx)",
       "Bash(cp __TRACKED_VAR__/lintcmp/DataContext.old.jsx src/__lintcmp/DataContext.jsx)",
       "Bash(git -C c:/SEMENT show HEAD:dashboard/src/pages/RecvTons.jsx)",
-      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/context/DataContext.jsx)"
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/context/DataContext.jsx)",
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/pages/Debts.jsx)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

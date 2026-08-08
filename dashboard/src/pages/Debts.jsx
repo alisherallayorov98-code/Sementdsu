@@ -3,9 +3,10 @@ import { useData } from '../context/DataContext';
 import NotifyModal from '../components/NotifyModal';
 import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
-import { filterByRange } from '../lib/dateRange';
+import { filterByRange, parseRu } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
 import { custKey, findCust } from '../lib/customerRef';
+import { groupDebts, statusOf } from '../lib/debtGrouping';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -36,48 +37,35 @@ export default function Debts({ lang }) {
   const [range,    setRange]    = useState({ from: '', to: '' });
   const [filter,   setFilter]   = useState('all');
   const [page,     setPage]     = useState(1);
-  const [history,  setHistory]  = useState(null); // customer nomi
+  // To'lov tarixi modali uchun GURUH KALITI saqlanadi (mijoz nomi emas).
+  // Guruhlash normallashtirilgan ism yoki customerId bo'yicha ketadi, ya'ni
+  // kalit "Ali aka" emas, "ali aka" yoki "#123". Nom saqlanganda groupMap[...]
+  // hech qachon topilmay, tarix oynasi bo'sh ochilardi.
+  const [historyKey, setHistoryKey] = useState(null);
   const [card,     setCard]     = useState(null);
   const PAGE_SIZE = 100;
 
   // ── Guruhlash ─────────────────────────────────────────────────────────────
+  // Qidiruv normallashtirilgan ism bo'yicha: "ali" yozilganda "Ali aka" ham,
+  // apostrof/probel farqi bilan yozilgan variant ham topiladi.
+  // String(...) — customer maydoni bo'sh qatorda .toLowerCase() xato berardi.
+  const searchKey = custKey(search);
   const allRows = filterByRange(debtRows, range)
-    .filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()))
+    .filter(r => !searchKey || custKey(r.customer).includes(searchKey))
     .slice().reverse();
 
   // Guruh kaliti — normallashtirilgan ism (yoki customerId): aks holda "Ali aka"
   // va "ali aka " bir mijozning qarzini ikki qatorga bo'lib ko'rsatardi.
-  const groupMap = {};
-  allRows.forEach(r => {
-    const key = r.customerId != null ? `#${r.customerId}` : custKey(r.customer);
-    if (!groupMap[key])
-      groupMap[key] = { customer: r.customer, rows: [], totalAmount: 0, totalPaid: 0, allPayments: [] };
-    const g = groupMap[key];
-    g.rows.push(r);
-    g.totalAmount += Number(r.amount || 0);
-    g.totalPaid   += Number(r.paid   || 0);
-    (r.payments || []).forEach(p => g.allPayments.push({ ...p, _debtNote: r.note || '' }));
+  // Guruhlash mantiqi lib/debtGrouping.js da (sof funksiya, testlar bilan)
+  const groups = groupDebts(allRows);
+  const groupMap = Object.fromEntries(groups.map(g => [g.key, g]));
+  groups.forEach(g => {
+    g.debtDays = g.remaining > 0 && g.oldestUnpaidAt ? daysSince(g.oldestUnpaidAt) : null;
+    g.level    = g.remaining > 0 ? ageLevel(g.debtDays) : 0;
   });
 
-  // Har guruh uchun qarz yoshi va oxirgi to'lov hisobi
-  Object.values(groupMap).forEach(g => {
-    const rem = g.totalAmount - g.totalPaid;
-    // Oxirgi to'lov (barcha to'lovlar ichidan eng yangi)
-    g.lastPaymentAt = g.allPayments.reduce((mx, p) => Math.max(mx, p.id || 0), 0) || null;
-    g.lastPaymentStr = g.lastPaymentAt
-      ? g.allPayments.find(p => p.id === g.lastPaymentAt)?.date || '—'
-      : '—';
-    // Eng eski to'lanmagan qarz sanasi
-    const unpaidRows = g.rows.filter(r => Math.max(0, Number(r.amount) - Number(r.paid)) > 0);
-    g.oldestUnpaidAt = unpaidRows.reduce((mn, r) => Math.min(mn, r.createdAt || r.id || Date.now()), Date.now());
-    g.debtDays = rem > 0 ? daysSince(g.oldestUnpaidAt) : null;
-    g.level    = rem > 0 ? ageLevel(g.debtDays) : 0;
-    g.remaining = rem;
-  });
-
-  const groupList = Object.values(groupMap).filter(g => {
-    const rem = g.totalAmount - g.totalPaid;
-    const st  = rem <= 0 ? 'full' : g.totalPaid > 0 ? 'partial' : 'none';
+  const groupList = groups.filter(g => {
+    const st = statusOf(g);
     return filter === 'all' || filter === st ||
       (filter === 'alert30' && g.debtDays >= 30) ||
       (filter === 'alert60' && g.debtDays >= 60) ||
@@ -88,7 +76,7 @@ export default function Debts({ lang }) {
   const pagedGroups = groupList.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Statistika ─────────────────────────────────────────────────────────────
-  const allGroups = Object.values(groupMap);
+  const allGroups = groups;
   const cnt30  = allGroups.filter(g => g.debtDays >= 30).length;
   const cnt60  = allGroups.filter(g => g.debtDays >= 60).length;
   const cnt90  = allGroups.filter(g => g.debtDays >= 90).length;
@@ -169,16 +157,21 @@ export default function Debts({ lang }) {
       </div>
 
       {/* ── TO'LOV TARIXI MODAL (mijoz bo'yicha) ─────────────────────────── */}
-      {history && (() => {
-        const g = groupMap[history];
-        const payments = (g?.allPayments || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0));
+      {historyKey && (() => {
+        const g = groupMap[historyKey];
+        // Saralash sana bo'yicha (jadvaldagi "Oxirgi to'lov" bilan bir xil
+        // qoida), teng bo'lsa id bo'yicha — eski yozuvlarda id vaqt belgisi
+        // bo'lmagani uchun faqat id bilan saralash tartibni buzardi.
+        const rank = (p) => { const t = parseRu(p.date); return Number.isNaN(t) ? (Number(p.id) || 0) : t; };
+        const payments = (g?.allPayments || []).slice()
+          .sort((a, b) => (rank(b) - rank(a)) || ((Number(b.id) || 0) - (Number(a.id) || 0)));
         return (
           <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
-            onClick={() => setHistory(null)}>
+            onClick={() => setHistoryKey(null)}>
             <div style={{ background:'#fff', padding:24, borderRadius:8, boxShadow:'0 4px 24px rgba(0,0,0,0.3)', minWidth:480, maxWidth:640, maxHeight:'80vh', overflowY:'auto' }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontWeight:'bold', fontSize:15, marginBottom:4, color:'#003366' }}>
-                To'lov tarixi: <span style={{ color:'#c62828' }}>{history}</span>
+                To'lov tarixi: <span style={{ color:'#c62828' }}>{g?.customer || '—'}</span>
               </div>
               <div style={{ fontSize:12, color:'#888', marginBottom:14 }}>
                 Jami qarz: <b>{fmt(g?.totalAmount)}</b> · To'landi: <b style={{ color:'#2e7d32' }}>{fmt(g?.totalPaid)}</b> · Qolgan: <b style={{ color:'#c62828' }}>{fmt(g?.remaining)}</b>
@@ -217,7 +210,7 @@ export default function Debts({ lang }) {
                 </table>
               )}
               <div style={{ marginTop:16, textAlign:'right' }}>
-                <button onClick={() => setHistory(null)}
+                <button onClick={() => setHistoryKey(null)}
                   style={{ padding:'5px 20px', cursor:'pointer', background:'#003366', color:'#fff', border:'none', borderRadius:3 }}>
                   Yopish
                 </button>
@@ -255,7 +248,7 @@ export default function Debts({ lang }) {
               const ageBadge = g.remaining > 0 ? AGE_BADGE[lvl] : null;
               const phone = findCust(customers, g.customer)?.phone || '';
               return (
-                <tr key={g.customer} style={{ background: rowBg }}>
+                <tr key={g.key} style={{ background: rowBg }}>
                   <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{(page-1)*PAGE_SIZE+i+1}</td>
                   <td>
                     <button onClick={() => setCard(g.customer)}
@@ -288,7 +281,7 @@ export default function Debts({ lang }) {
                   </td>
                   <td>
                     <div style={{ display:'flex', gap:4 }}>
-                      <button onClick={() => setHistory(g.customer)}
+                      <button onClick={() => setHistoryKey(g.key)}
                         title="To'lov tarixi"
                         style={actionBtn('#1565c0', '#e3f2fd')}>📋</button>
                       {phone && (
