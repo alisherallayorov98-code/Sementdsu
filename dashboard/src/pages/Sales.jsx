@@ -10,7 +10,7 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
 import { api } from '../api';
-import { findCust } from '../lib/customerRef';
+import { findCust, nameKey } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -122,8 +122,12 @@ export default function Sales({ lang }) {
 
   // Filter
   const sorted = [...salesRows].sort((a,b) => b.createdAt - a.createdAt);
+  // Mijoz qidiruvi normallashtirilgan ism bo'yicha (apostrof/probel farqi
+  // bilan yozilgan variant ham topilsin), izoh esa oddiy matn bo'yicha.
+  const searchKey = nameKey(search);
+  const searchLc  = String(search || '').toLowerCase();
   const filtered = filterByRange(
-    sorted.filter(r => !search || r.customer.toLowerCase().includes(search.toLowerCase()) || (r.note||'').toLowerCase().includes(search.toLowerCase())),
+    sorted.filter(r => !searchKey || nameKey(r.customer).includes(searchKey) || (r.note || '').toLowerCase().includes(searchLc)),
     range
   );
   useEffect(() => { setPage(1); }, [search, range.from, range.to]);

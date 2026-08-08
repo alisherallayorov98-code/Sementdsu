@@ -7,6 +7,7 @@ import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import { parseNum } from '../lib/parseNum';
+import { nameKey } from '../lib/customerRef';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -106,11 +107,16 @@ export default function Advances({ lang }) {
   };
 
   // ── Filtrlash ───────────────────────────────────────────────────────────────
+  // Qidiruv normallashtirilgan ism bo'yicha: "ali" yozilganda apostrof yoki
+  // probel farqi bilan yozilgan variant ham topiladi.
+  // (nameKey String() qiladi — customer maydoni bo'sh qatorda .toLowerCase()
+  // to'g'ridan-to'g'ri chaqirilsa xato berardi.)
+  const searchKey = nameKey(search);
   const filtered = filterByRange(advanceRows, range)
     .filter(r => {
       const st = getStatus(r.amount, r.used);
       if (filter !== 'all' && st !== filter) return false;
-      if (search && !r.customer.toLowerCase().includes(search.toLowerCase())) return false;
+      if (searchKey && !nameKey(r.customer).includes(searchKey)) return false;
       return true;
     })
     .slice()

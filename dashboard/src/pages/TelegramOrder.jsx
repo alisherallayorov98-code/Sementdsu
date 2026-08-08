@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { nameKey } from '../lib/customerRef';
+import { parseNum } from '../lib/parseNum';
 import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
@@ -37,7 +39,10 @@ export default function TelegramOrder({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.customer || !form.tons) return;
-    addTgOrder(form.customer, form.tons, form.note, worker);
+    const t = parseNum(form.tons);
+    if (!(t > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    // Rad etilsa forma tozalanmaydi (kiritilgan ma'lumot yo'qolmasin)
+    if (!addTgOrder(form.customer, t, form.note, worker)) return;
     setForm({ customer: '', tons: '', note: '' });
   };
 
@@ -70,11 +75,15 @@ export default function TelegramOrder({ lang }) {
 
   // ── Saralash va filterlash ────────────────────────────────────────────────
   const sorted = [...tgOrders].sort((a, b) => b.createdAt - a.createdAt);
+  // Mijoz qidiruvi normallashtirilgan ism bo'yicha; customer maydoni bo'sh
+  // zakazda .toLowerCase() to'g'ridan-to'g'ri chaqirilsa xato berardi.
+  const searchKey = nameKey(search);
+  const searchLc  = String(search || '').toLowerCase();
   const filtered = sorted.filter(o => {
     let match = true;
     if (filterStatus !== 'all' && o.status !== filterStatus) match = false;
     if (filterDate && o.date !== filterDate) match = false;
-    if (search && !o.customer.toLowerCase().includes(search.toLowerCase()) && !(o.note||'').toLowerCase().includes(search.toLowerCase())) match = false;
+    if (searchKey && !nameKey(o.customer).includes(searchKey) && !(o.note || '').toLowerCase().includes(searchLc)) match = false;
     return match;
   });
 
