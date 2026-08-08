@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
       "Bash(npm run build)",
       "Bash(npm run lint)",
@@ -134,7 +133,10 @@
       "Bash(node \"C:/Users/DELL/AppData/Local/Temp/claude/c--SEMENT/d1bbba4a-3447-4f8b-ad2d-5fc1c47aeba2/scratchpad/perm.js\")",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\); console.log\\('JSON to\\\\'g\\\\'ri'\\)\")",
       "Bash(awk '/const spendAdvance = /,/^  };/' src/context/DataContext.jsx)",
-      "Bash(xargs echo \"spendAdvance qatorlari:\")"
+      "Bash(xargs echo \"spendAdvance qatorlari:\")",
+      "Bash(sed -n '/const payCustomerDebt/,/^  };/p' src/context/DataContext.jsx)",
+      "Bash(sed -n '/const addAdvanceRow/,/^  };/p' src/context/DataContext.jsx)",
+      "Bash(node -e 'const fs=require\\('\\\\''fs'\\\\''\\);const p='\\\\''src/pages/IncomeBank.jsx'\\\\'';let s=fs.readFileSync\\(p,'\\\\''utf8'\\\\''\\);const L=s.split\\('\\\\''\\\\n'\\\\''\\); *)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

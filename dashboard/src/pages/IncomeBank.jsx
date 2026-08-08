@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
-import { custRows } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
 import { excelDateToStr } from '../lib/excelDate';
-import { api } from '../api';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
@@ -20,56 +17,20 @@ const todayStr = () => {
 
 
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
-export default function IncomeBank({ lang }) {
+export default function IncomeBank() {
   const {
     bankOpening, setBankOpening,
-    bankIncomeRows,  addBankIncomeRow,  deleteBankIncomeRow,  totalBankIncome,
-    bankExpenseRows, addBankExpenseRow, deleteBankExpenseRow, totalBankExpense,
-    totalBankBalance,
+    bankIncomeRows,  deleteBankIncomeRow,  totalBankIncome,
+    bankExpenseRows, deleteBankExpenseRow, totalBankExpense,
     bankPendingRows, importOborotka, confirmBankPendingRow, deleteBankPendingRow,
-    payCustomerDebt, addAdvanceRow, debtRows, custRef,
+    totalBankBalance,
   } = useData();
 
   // Kirim/chiqim natijasi haqida qisqa xabar
   const [msg, setMsg] = useState('');
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
-  // ── Bank KIRIM — Kassir bilan bir xil integratsiya ────────────────────────
-  // Mijoz tanlansa: pul avval QARZni yopadi (eng eskisidan), ortig'i AVANSga
-  // yoziladi. Mijoz tanlanmasa: oddiy bank kirim (bankIncomeRows).
-  // Shu tariqa mijoz puli hech qachon "osilib" qolmaydi.
-  const submitBankIncome = (e) => {
-    e.preventDefault();
-    // `!amt` manfiy summani o'tkazib yuborardi: payCustomerDebt va
-    // addAdvanceRow uni rad etardi, lekin quyidagi flash(...) baribir
-    // "qabul qilindi" deb yolg'on xabar ko'rsatardi. Mijozsiz holatda esa
-    // manfiy bank kirimi haqiqatan yozilardi.
-    const amt = parseNum(incForm.amount);
-    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
-    const customer = (incForm.customer || '').trim();
-    if (customer) {
-      const custDebt = custRows(debtRows, custRef(customer))
-        .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
-      const res = payCustomerDebt(customer, amt, 'bank', incForm.desc);
-      if (res.applied === 0) {
-        addAdvanceRow(customer, amt, incForm.desc, 'bank');
-        flash(`${fmt(amt)} so'm — qarzi yo'q, avans sifatida qabul qilindi`);
-      } else if (res.leftover > 0) {
-        addAdvanceRow(customer, res.leftover, `${incForm.desc} (ortiqcha)`, 'bank');
-        flash(`${fmt(res.applied)} so'm qarzga · ${fmt(res.leftover)} so'm avansga`);
-      } else {
-        flash(`${fmt(res.applied)} so'm qarz to'lovi qabul qilindi`);
-      }
-      if (res.applied > 0) {
-        const remainDebt = Math.max(0, custDebt - res.applied);
-        api.notifyCustomerPayment(customer, res.applied, 'bank', remainDebt).catch(() => {});
-      }
-    } else {
-      addBankIncomeRow(amt, incForm.desc, todayS, '');
-      flash(`+${fmt(amt)} so'm bank kirim`);
-    }
-    setIncForm({ amount: '', desc: '', customer: '' });
-  };
+  // Qo'lda bank kirimi olib tashlandi: pul faqat Kassir -> Kirim (bank kanali)
 
   const [activeTab,    setActiveTab]    = useState('pending'); // pending | kirim | chiqim
   const [range,        setRange]        = useState({ from: '', to: '' });
@@ -84,14 +45,9 @@ export default function IncomeBank({ lang }) {
   const getEdit = (id) => pendingEdits[id] || { customer: '', izoh: '' };
   const setEdit = (id, patch) => setPendingEdits(p => ({ ...p, [id]: { ...getEdit(id), ...patch } }));
 
-  // Qo'lda kiritish formalari
-  const [incForm, setIncForm] = useState({ amount: '', desc: '', customer: '' });
-  const [expForm, setExpForm] = useState({ amount: '', desc: '', customer: '' });
-
   // Filterlar
   const [incPage, setIncPage] = useState(1);
   const [expPage, setExpPage] = useState(1);
-  const PAGE = 100;
 
   // ── Oborotka Excel parser ─────────────────────────────────────────────────
   const handleOborotka = (e) => {
@@ -175,13 +131,18 @@ export default function IncomeBank({ lang }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // Hamma pendinglarni tasdiqlash (mijoz tanlanmaganlari ham)
+  // Hamma pendinglarni tasdiqlash (mijoz tanlanmaganlari ham).
+  // Mijoz tanlangan kirimlar qarzni yopadi — jami natijani ko'rsatamiz.
   const confirmAll = () => {
+    let applied = 0, advance = 0;
     bankPendingRows.forEach(r => {
       const e = getEdit(r.id);
-      confirmBankPendingRow(r.id, { customer: e.customer, izoh: e.izoh });
+      const res = confirmBankPendingRow(r.id, { customer: e.customer, izoh: e.izoh });
+      applied += res?.applied || 0;
+      advance += res?.advance || 0;
     });
     setPendingEdits({});
+    if (applied || advance) flash(`${fmt(applied)} so'm qarzga · ${fmt(advance)} so'm avansga yozildi`);
   };
 
   // ── Statistika ─────────────────────────────────────────────────────────────
@@ -189,8 +150,11 @@ export default function IncomeBank({ lang }) {
   const todayInc = bankIncomeRows.filter(r => r.date === todayS).reduce((s,r) => s + Number(r.amount||0), 0);
   const todayExp = bankExpenseRows.filter(r => r.date === todayS).reduce((s,r) => s + Number(r.amount||0), 0);
 
-  // Balans hisob
-  const computedBal = Number(bankOpening.amount) + totalBankIncome - totalBankExpense;
+  // Balans hisob — oborotka yopilish qoldig'i bilan TO'LIQ bank qoldig'ini
+  // solishtiramiz. Ilgari faqat (ochilish + shu sahifadagi kirim - chiqim)
+  // olinardi; Kassir orqali bankka tushgan pullar (qarz to'lovi, avans, bank
+  // kanalidagi sotuv) hisobga kirmay, farq doim noto'g'ri chiqardi.
+  const computedBal = totalBankBalance;
   const balDiff     = oborotBal ? computedBal - oborotBal.closing : null;
 
   // Pending jami
@@ -383,7 +347,12 @@ export default function IncomeBank({ lang }) {
                             style={{ ...inp, width:'100%', boxSizing:'border-box' }} />
                         </td>
                         <td style={{ whiteSpace:'nowrap' }}>
-                          <button onClick={() => { confirmBankPendingRow(r.id, { customer: ed.customer, izoh: ed.izoh }); setPendingEdits(p => { const n={...p}; delete n[r.id]; return n; }); }}
+                          <button onClick={() => {
+                              const res = confirmBankPendingRow(r.id, { customer: ed.customer, izoh: ed.izoh });
+                              if (res?.applied) flash(`${fmt(res.applied)} so'm qarzga${res.advance ? ` · ${fmt(res.advance)} so'm avansga` : ''}`);
+                              else if (res?.advance) flash(`${fmt(res.advance)} so'm avansga yozildi`);
+                              setPendingEdits(p => { const n={...p}; delete n[r.id]; return n; });
+                            }}
                             style={{ padding:'3px 10px', background:'#2e7d32', color:'#fff', border:'none', borderRadius:3, cursor:'pointer', fontSize:12, fontWeight:'bold', marginRight:4 }}>
                             ✓
                           </button>
@@ -412,30 +381,16 @@ export default function IncomeBank({ lang }) {
             </div>
           )}
 
-          {/* Qo'lda kiritish */}
-          <form onSubmit={submitBankIncome}
-            style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', padding:'8px 10px', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:4 }}>
-            <input type="number" placeholder="Summa" value={incForm.amount}
-              onChange={e => setIncForm(p => ({...p, amount:e.target.value}))}
-              style={{ ...inp, width:130 }} required />
-            <div style={{ width:180 }}>
-              <CustomerSelect value={incForm.customer} onChange={v => setIncForm(p=>({...p,customer:v}))}
-                placeholder="Mijoz (tanlansa — qarzga)" accentColor="#0d47a1" />
-            </div>
-            <input type="text" placeholder="Izoh (ixtiyoriy)" value={incForm.desc}
-              onChange={e => setIncForm(p => ({...p, desc:e.target.value}))}
-              style={{ ...inp, width:200 }} />
-            <button type="submit"
-              style={{ ...inp, background:'#0d47a1', color:'#fff', border:'none', cursor:'pointer', fontWeight:'bold', padding:'4px 16px' }}>
-              ↑ Qo'shish
-            </button>
-          </form>
-          {/* Mijoz tanlanganda pul qarzga/avansga ketishini tushuntirish */}
-          {incForm.customer.trim() && (
-            <div style={{ fontSize: 11, color: '#0d47a1', background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 4, padding: '6px 10px', marginTop: -6, marginBottom: 12 }}>
-              ℹ️ <b>{incForm.customer.trim()}</b> tanlangani uchun bu pul avval qarzini yopadi, ortig'i avansga yoziladi (Kassir bilan bir xil).
-            </div>
-          )}
+          {/* Qo'lda kiritish formasi OLIB TASHLANDI: pul bitta joydan —
+              Kassirdan kiradi (u yerda "bank" kanali bor va mijoz
+              tanlanganda qarz/avans mantiqи aynan shu). Ikki xil joydan
+              kiritish hisobni ikkiga bo'lib, izlashni qiyinlashtirardi. */}
+          <div style={{ background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:4, padding:'8px 12px', marginBottom:12, fontSize:12.5, color:'#0d47a1', lineHeight:1.6 }}>
+            ℹ️ Bank kirimi <b>Kassir → Kirim</b> bo'limidan kiritiladi — u yerda
+            <b> 🏦 Bank</b> kanalini tanlang. Mijoz tanlansa, pul avval qarzini
+            yopadi, ortig'i avansga yoziladi. Bu bo'lim <b>ko'rish va oborotka
+            tekshiruvi</b> uchun.
+          </div>
 
           {/* Excel hisobot */}
           <div style={{ marginBottom:10 }}>
@@ -458,30 +413,12 @@ export default function IncomeBank({ lang }) {
       {activeTab === 'chiqim' && (
         <div style={{ border:'1px solid #ccc', borderTop:'none', padding:14 }}>
 
-          {/* Qo'lda kiritish */}
-          <form onSubmit={e => {
-            e.preventDefault();
-            const amt = parseNum(expForm.amount);
-            if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
-            addBankExpenseRow(amt, expForm.desc, todayS, expForm.customer);
-            setExpForm({ amount:'', desc:'', customer:'' });
-          }}
-            style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', padding:'8px 10px', background:'#ffebee', border:'1px solid #ef9a9a', borderRadius:4 }}>
-            <input type="number" placeholder="Summa" value={expForm.amount}
-              onChange={e => setExpForm(p => ({...p, amount:e.target.value}))}
-              style={{ ...inp, width:130 }} required />
-            <div style={{ width:180 }}>
-              <CustomerSelect value={expForm.customer} onChange={v => setExpForm(p=>({...p,customer:v}))}
-                placeholder="Mijoz (ixtiyoriy)" accentColor="#b71c1c" />
-            </div>
-            <input type="text" placeholder="Izoh (ixtiyoriy)" value={expForm.desc}
-              onChange={e => setExpForm(p => ({...p, desc:e.target.value}))}
-              style={{ ...inp, width:200 }} />
-            <button type="submit"
-              style={{ ...inp, background:'#b71c1c', color:'#fff', border:'none', cursor:'pointer', fontWeight:'bold', padding:'4px 16px' }}>
-              ↓ Qo'shish
-            </button>
-          </form>
+          {/* Qo'lda kiritish formasi OLIB TASHLANDI — Kassir → Chiqim,
+              🏦 Bank kanali orqali kiritiladi. */}
+          <div style={{ background:'#ffebee', border:'1px solid #ef9a9a', borderRadius:4, padding:'8px 12px', marginBottom:12, fontSize:12.5, color:'#b71c1c', lineHeight:1.6 }}>
+            ℹ️ Bank chiqimi <b>Kassir → Chiqim</b> bo'limidan kiritiladi — u yerda
+            <b> 🏦 Bank</b> kanalini tanlang. Bu bo'lim <b>ko'rish</b> uchun.
+          </div>
 
           {/* Excel hisobot */}
           <div style={{ marginBottom:10 }}>

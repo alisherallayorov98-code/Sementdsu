@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { parseNum } from '../lib/parseNum';
-import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import Paginator from '../components/Paginator';
@@ -30,11 +28,6 @@ const EXPENSE_TYPES = [
 
 const typeInfo = (val) => EXPENSE_TYPES.find(t => t.value === val) || { color: '#333', bg: '#fff', latn: val, cyrl: val };
 
-const XODIMLAR = [
-  'Botir aka', 'Alisher aka', 'Ganisher aka', 'Sharofidin',
-  'Saloh', 'Qosim', 'Anvarjon',
-];
-
 const L = {
   tur:        { latn: 'Tur',            cyrl: 'Тур'           },
   summa:      { latn: 'Summa',          cyrl: 'Сумма'         },
@@ -53,29 +46,18 @@ const L = {
 
 export default function Expense({ lang }) {
   const {
-    expenseRows, addExpenseRow, deleteExpenseRow,
+    expenseRows, deleteExpenseRow,
     workers, supplierPayments, advanceRows,
     cashRows, bankRows, clickRows,
-    currentWorker, setCurrentWorker,
   } = useData();
 
-  const [form, setForm] = useState({ amount: '', desc: '' });
   const [filterType,   setFilterType]   = useState('');
   const [filterWorker, setFilterWorker] = useState('');
   const [range, setRange] = useState({ from: '', to: '' });
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
 
-  // ── Naqd chiqim qo'shish ─────────────────────────────────────────────────
-  const handleAdd = (e) => {
-    e.preventDefault();
-    if (!form.amount || !form.desc) return;
-    const amt = parseNum(form.amount);
-    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
-    // Rad etilsa forma tozalanmaydi (kiritilgan ma'lumot yo'qolmasin)
-    if (addExpenseRow(amt, form.desc) === false) return;
-    setForm({ amount: '', desc: '' });
-  };
+  // Chiqim qo'shish handleri olib tashlandi: pul faqat Kassir orqali chiqadi.
 
   // ── Barcha chiqimlarni yig'ish ───────────────────────────────────────────
   const allRows = [
@@ -180,45 +162,11 @@ export default function Expense({ lang }) {
   return (
     <div style={{ fontFamily: 'Tahoma, Verdana, Arial, sans-serif', fontSize: 13 }}>
 
-      {/* ── Naqd chiqim qo'shish formasi ──────────────────────────────── */}
-      <form onSubmit={handleAdd} style={{ display: 'flex', gap: 5, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Tur (faqat naqd qo'shish mumkin) */}
-        <span style={{
-          padding: '3px 12px', fontWeight: 'bold', fontSize: 12,
-          background: '#fff0f0', color: '#cc0000',
-          border: '2px inset #ffffff',
-        }}>
-          Naqd chiqim
-        </span>
-        {/* Summa */}
-        <input
-          type="number" placeholder="Summa" value={form.amount}
-          onChange={e => setForm({ ...form, amount: e.target.value })}
-          style={{ ...inp, width: 130 }} required
-        />
-        {/* Izoh — CustomerSelect */}
-        <CustomerSelect
-          value={form.desc}
-          onChange={val => setForm({ ...form, desc: val })}
-          placeholder={L.izoh[lang]}
-          width={220}
-          accentColor="#8b0000"
-          style={{ border: '2px inset #ffffff', fontFamily: 'Tahoma, sans-serif', fontSize: 12 }}
-          required
-        />
-        {/* Kim */}
-        <select
-          value={currentWorker}
-          onChange={e => setCurrentWorker(e.target.value)}
-          style={{ ...inp, color: currentWorker ? '#003366' : '#999', fontWeight: currentWorker ? 'bold' : 'normal' }}
-        >
-          <option value="">— xodim —</option>
-          {XODIMLAR.map(x => <option key={x} value={x}>{x}</option>)}
-        </select>
-        <button type="submit" style={{ ...inp, border: '2px outset #ffffff', cursor: 'pointer', background: '#8b0000', color: '#fff', fontWeight: 'bold', padding: '3px 16px' }}>
-          {L.qoshish[lang]}
-        </button>
-      </form>
+      {/* Qo'lda chiqim formasi OLIB TASHLANDI: pul faqat Kassir → Chiqim
+          bo'limidan chiqadi. Bu sahifa eski yozuvlarni ko'rish uchun. */}
+      <div style={{ background:'#ffebee', border:'1px solid #ef9a9a', borderRadius:4, padding:'8px 12px', marginBottom:12, fontSize:12.5, color:'#b71c1c', lineHeight:1.6 }}>
+        ℹ️ Chiqim <b>Kassir → Chiqim</b> bo'limidan kiritiladi. Bu sahifa <b>ko'rish</b> uchun.
+      </div>
 
       {/* ── Jami xulosasi (tur bo'yicha) ──────────────────────────────── */}
       <table style={{ borderCollapse: 'collapse', marginBottom: 10, width: '100%', maxWidth: 900 }}>

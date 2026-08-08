@@ -599,8 +599,19 @@ export function DataProvider({ children }) {
   // e'lon qilingach hisoblanadi.
 
   // ── 11. Qarzlar ───────────────────────────────────────────────────────────
-  const [debtRows, setDebtRows] = useState(() => load('debt_rows', []));
+  const [debtRows, _setDebtRows] = useState(() => load('debt_rows', []));
   useEffect(() => save('debt_rows', debtRows), [debtRows]);
+  // advanceRef bilan bir xil sabab: bitta render ichida qarzlar ketma-ket bir
+  // necha marta o'zgartirilsa (masalan oborotkani "Hammasini tasdiqlash" —
+  // payCustomerDebt sikl ichida), har bir chaqiruv ESKI debtRows'ni ko'rar va
+  // bitta qarzni bir necha marta "yopib", paid > amount holatiga olib kelardi.
+  // Shuning uchun setDebtRows o'ralgan: ref DARHOL yangilanadi, o'qish esa
+  // hisob-kitoblarda debtRef.current dan boradi.
+  const debtRef = useRef(debtRows);
+  const setDebtRows = (upd) => {
+    debtRef.current = typeof upd === 'function' ? upd(debtRef.current) : upd;
+    _setDebtRows(debtRef.current);
+  };
   const addDebtRow = (customer, amount, note = '') => {
     // Manfiy qarz umumiy qarz summasini kamaytirib, hisobotni buzardi.
     if (!(parseNum(amount) > 0)) { alert("Qarz summasi 0 dan katta bo'lishi kerak."); return false; }
@@ -682,23 +693,29 @@ export function DataProvider({ children }) {
     const base = uid();
     const today = new Date().toLocaleDateString('ru-RU');
 
-    // Taqsimlash mantiqi lib/debtAllocation.js da (sof funksiya, testlar bilan)
-    const { plan, applied, leftover } = planDebtPayment(custRows(debtRows, custRef(customer)), amt);
+    // Taqsimlash mantiqi lib/debtAllocation.js da (sof funksiya, testlar bilan).
+    // MUHIM: debtRows emas, debtRef.current — bitta render ichidagi ketma-ket
+    // chaqiruvlar bir-birining natijasini ko'rishi uchun (yuqoridagi izohga q.).
+    const { plan, applied, leftover } = planDebtPayment(custRows(debtRef.current, custRef(customer)), amt);
     if (applied <= 0) return { applied: 0, leftover: amt };
 
-    // Qarzlarni yangilash (har biriga to'lov yozuvi, kanal bilan)
-    setDebtRows(p => p.map(r => {
-      const pay = plan[r.id];
-      if (!pay) return r;
-      return {
-        ...r,
-        paid: Number(r.paid) + pay,
-        // id sifatida uid() — ilgari `base + (r.id % 100000)` ishlatilgan edi:
-        // u ham takrorlanishi, ham 100 soniyagacha "kelajakdagi" vaqt berishi
-        // mumkin edi (Qarzlar sahifasi bu id'ni to'lov vaqti sifatida o'qiydi).
-        payments: [...(r.payments || []), { id: uid(), date: today, amount: pay, note: note || 'Kassaga to\'lov', worker: currentWorker, channel }],
-      };
-    }));
+    // Qarzlarni yangilash (har biriga to'lov yozuvi, kanal bilan).
+    // To'lov obyektlari OLDINDAN yasaladi: `apply` ref va state uchun ikki
+    // marta chaqiriladi, ichida uid() bo'lsa ikkalasi har xil id olib,
+    // ref bilan state bir-biridan uzilib qolardi.
+    // id sifatida uid() — ilgari `base + (r.id % 100000)` ishlatilgan edi:
+    // u ham takrorlanishi, ham 100 soniyagacha "kelajakdagi" vaqt berishi
+    // mumkin edi (Qarzlar sahifasi bu id'ni to'lov vaqti sifatida o'qiydi).
+    const payRec = {};
+    for (const rid of Object.keys(plan)) {
+      payRec[rid] = { id: uid(), date: today, amount: plan[rid], note: note || 'Kassaga to\'lov', worker: currentWorker, channel };
+    }
+    const apply = (rows) => rows.map(r => {
+      const rec = payRec[r.id];
+      if (!rec) return r;
+      return { ...r, paid: Number(r.paid) + rec.amount, payments: [...(r.payments || []), rec] };
+    });
+    setDebtRows(apply); // o'ralgan setter debtRef.current ni ham darhol yangilaydi
 
     // Kassaga bitta umumiy kirim (sotuvdan farqlash uchun sourceType: debt_payment)
     const tag  = `🔗 Qarz to'lovi: ${customer}`;
@@ -1237,18 +1254,37 @@ export function DataProvider({ children }) {
     }))]);
   };
 
+  // Natija qaytaradi: { ok, applied, advance } — sahifa qarzning qancha qismi
+  // yopilganini foydalanuvchiga ko'rsata olishi uchun.
   const confirmBankPendingRow = (id, { customer = '', izoh = '' } = {}) => {
     const row = bankPendingRows.find(r => r.id === id);
-    if (!row) return;
+    if (!row) return { ok: false, applied: 0, advance: 0 };
     const ts = uid();
     const desc = izoh || row.naznachenie || '';
     const cf = custFields(customers, customer);
     if (row.type === 'kirim') {
+      // MIJOZ TANLANGAN BO'LSA — pul uning qarzini yopishi shart. Ilgari
+      // mijoz faqat YORLIQ sifatida yozilardi: bank kirimi ko'rinardi, lekin
+      // mijozning qarzi kamaymasdi va avansi paydo bo'lmasdi (oborotkadan
+      // kelgan har bir to'lov mijoz kartochkasidan tashqarida qolardi).
+      // payCustomerDebt/addAdvanceRow o'zi bankRows'ga kirim yozadi, shuning
+      // uchun bu holatda bankIncomeRows'ga QAYTA yozmaymiz — aks holda bank
+      // qoldig'i ikki barobar oshib ketardi.
+      const cust = String(customer || '').trim();
+      if (cust) {
+        const res = payCustomerDebt(cust, row.amount, 'bank', desc);
+        let advance = 0;
+        if (res.applied === 0)      { addAdvanceRow(cust, row.amount, desc, 'bank'); advance = Number(row.amount); }
+        else if (res.leftover > 0)  { addAdvanceRow(cust, res.leftover, `${desc} (ortiqcha)`, 'bank'); advance = res.leftover; }
+        setBankPendingRows(p => p.filter(r => r.id !== id));
+        return { ok: true, applied: res.applied, advance };
+      }
       setBankIncomeRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, ...cf, worker: currentWorker }]);
     } else {
       setBankExpenseRows(p => [...p, { id: ts, createdAt: ts, date: row.date, amount: row.amount, desc, ...cf, worker: currentWorker }]);
     }
     setBankPendingRows(p => p.filter(r => r.id !== id));
+    return { ok: true, applied: 0, advance: 0 };
   };
 
   const deleteBankPendingRow = (id) => setBankPendingRows(p => p.filter(r => r.id !== id));

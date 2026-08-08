@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { parseNum } from '../lib/parseNum';
-import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
@@ -15,16 +14,6 @@ const clickExportColumns = [
   { header: 'Izoh', value: (r) => r.desc || '' },
   { header: "Summa (so'm)", value: (r) => Number(r.amount || 0) },
 ];
-
-const fmtTime = (ts) => {
-  if (!ts || ts < 1e10) return '—';
-  const d = new Date(ts);
-  return [
-    String(d.getHours()).padStart(2, '0'),
-    String(d.getMinutes()).padStart(2, '0'),
-    String(d.getSeconds()).padStart(2, '0'),
-  ].join(':');
-};
 
 const todayStr = () => {
   const d = new Date();
@@ -40,19 +29,6 @@ const parseDate = (s) => {
   const [d, m, y] = String(s).split('.').map(Number);
   return new Date(y, m - 1, d).getTime();
 };
-
-const XODIMLAR = [
-  'Botir aka', 'Alisher aka', 'Ganisher aka', 'Sharofidin',
-  'Saloh', 'Qosim', 'Anvarjon',
-];
-
-// ─── Click turlari ────────────────────────────────────────────────────────────
-const CLICK_TYPES = [
-  { v: 'click',   label: 'Click',   color: '#6a1b9a' },
-  { v: 'payme',   label: 'Payme',   color: '#0070f3' },
-  { v: 'uzum',    label: 'Uzum',    color: '#e65100' },
-  { v: 'boshqa',  label: 'Boshqa',  color: '#555'    },
-];
 
 const ACCENT   = '#6a1b9a'; // deep purple
 const ACC_LITE = '#f3e5f5'; // purple light
@@ -84,15 +60,12 @@ const L = {
 export default function IncomeClick({ lang }) {
   const {
     clickOpening, setClickOpening,
-    clickIncomeRows,  addClickIncomeRow,  deleteClickIncomeRow,  totalClickIncome,
-    clickExpenseRows, addClickExpenseRow, deleteClickExpenseRow, totalClickExpense,
+    clickIncomeRows,  deleteClickIncomeRow,  totalClickIncome,
+    clickExpenseRows, deleteClickExpenseRow, totalClickExpense,
     totalClickBalance,
-    currentWorker, setCurrentWorker,
   } = useData();
 
   const [activeTab,     setActiveTab]     = useState('kirim');
-  const [incForm,       setIncForm]       = useState({ amount: '', desc: '', type: 'click' });
-  const [expForm,       setExpForm]       = useState({ amount: '', desc: '', type: 'click' });
 
   // Filterlar
   const [incFilterDate,   setIncFilterDate]   = useState('');
@@ -108,26 +81,8 @@ export default function IncomeClick({ lang }) {
   const [openingVal,  setOpeningVal]  = useState(String(clickOpening.amount));
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  // parseNum + musbat tekshiruvi: probelli/vergulli yozuv Number() da NaN
-  // berardi, manfiy summa esa kirimni chiqimga (va aksincha) aylantirardi.
-  const handleAddIncome = (e) => {
-    e.preventDefault();
-    if (!incForm.amount || !incForm.desc) return;
-    const amt = parseNum(incForm.amount);
-    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
-    addClickIncomeRow(amt, incForm.desc);
-    setIncForm({ ...incForm, amount: '', desc: '' });
-  };
-
-  const handleAddExpense = (e) => {
-    e.preventDefault();
-    if (!expForm.amount || !expForm.desc) return;
-    const amt = parseNum(expForm.amount);
-    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
-    addClickExpenseRow(amt, expForm.desc);
-    setExpForm({ ...expForm, amount: '', desc: '' });
-  };
-
+  // Qo'shish handlerlari olib tashlandi: pul faqat Kassir bo'limidan kiradi.
+  // O'chirish qoldirildi — noto'g'ri yozuvni tuzatish uchun kerak.
   const handleDelIncome  = (id) => { if (window.confirm("O'chirasizmi?")) deleteClickIncomeRow(id); };
   const handleDelExpense = (id) => { if (window.confirm("O'chirasizmi?")) deleteClickExpenseRow(id); };
 
@@ -233,52 +188,17 @@ export default function IncomeClick({ lang }) {
       {activeTab === 'kirim' && (
         <div style={{ border: '1px solid #ccc', borderTop: 'none', padding: 14 }}>
 
-          {/* Click turi */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 'bold', color: '#666' }}>To'lov tizimi:</span>
-            {CLICK_TYPES.map(t => (
-              <button key={t.v} type="button"
-                onClick={() => setIncForm({ ...incForm, type: t.v })}
-                style={{
-                  padding: '3px 12px', cursor: 'pointer', fontSize: 12,
-                  border: `2px solid ${t.color}`,
-                  background: incForm.type === t.v ? t.color : '#fff',
-                  color: incForm.type === t.v ? '#fff' : t.color,
-                  fontWeight: 'bold', borderRadius: 3,
-                }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {/* "To'lov tizimi" tugmalari ham olib tashlandi — ular faqat
+              kiritish formasining turini tanlar edi, forma esa yo'q. */}
 
-          {/* Forma */}
-          <form onSubmit={handleAddIncome} style={{
-            display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap',
-            padding: '8px 10px', background: ACC_LITE, border: `1px solid ${ACCENT}66`, borderRadius: 4,
-          }}>
-            <input type="number" placeholder="Summa" value={incForm.amount}
-              onChange={e => setIncForm({ ...incForm, amount: e.target.value })}
-              style={{ ...inp, width: 140 }} required />
-            <CustomerSelect
-              value={incForm.desc}
-              onChange={val => setIncForm({ ...incForm, desc: val })}
-              placeholder={L.izoh[lang]}
-              width={220}
-              accentColor={ACCENT}
-              style={{ border: '1px solid #ccc', borderRadius: 3 }}
-              required
-            />
-            <span style={{ fontSize: 12, fontWeight: 'bold', color: ACCENT, alignSelf: 'center' }}>{L.kim[lang]}</span>
-            <select value={currentWorker} onChange={e => setCurrentWorker(e.target.value)}
-              style={{ ...inp, color: currentWorker ? ACCENT : '#999', fontWeight: currentWorker ? 'bold' : 'normal' }}>
-              <option value="">— xodim —</option>
-              {XODIMLAR.map(x => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <button type="submit"
-              style={{ ...inp, background: ACCENT, color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', padding: '4px 18px' }}>
-              ↑ {L.qoshish[lang]}
-            </button>
-          </form>
+          {/* Qo'lda kiritish formasi OLIB TASHLANDI: pul bitta joydan —
+              Kassirdan kiradi (u yerda "Click" kanali bor). Ikki xil joydan
+              kiritish hisobni ikkiga bo'lib, izlashni qiyinlashtirardi. */}
+          <div style={{ background: ACC_LITE, border: '1px solid #ce93d8', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontSize: 12.5, color: ACCENT, lineHeight: 1.6 }}>
+            ℹ️ Click kirimi <b>Kassir → Kirim</b> bo'limidan kiritiladi — u yerda
+            <b> 📱 Click</b> kanalini tanlang. Mijoz tanlansa, pul avval qarzini
+            yopadi, ortig'i avansga yoziladi. Bu bo'lim <b>ko'rish</b> uchun.
+          </div>
 
           {/* Filter */}
           <FilterBar
@@ -305,33 +225,12 @@ export default function IncomeClick({ lang }) {
         <div style={{ border: '1px solid #ccc', borderTop: 'none', padding: 14 }}>
 
           {/* Forma */}
-          <form onSubmit={handleAddExpense} style={{
-            display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap',
-            padding: '8px 10px', background: '#ffebee', border: '1px solid #ef9a9a', borderRadius: 4,
-          }}>
-            <input type="number" placeholder="Summa" value={expForm.amount}
-              onChange={e => setExpForm({ ...expForm, amount: e.target.value })}
-              style={{ ...inp, width: 140 }} required />
-            <CustomerSelect
-              value={expForm.desc}
-              onChange={val => setExpForm({ ...expForm, desc: val })}
-              placeholder={L.izohCh[lang]}
-              width={220}
-              accentColor="#c62828"
-              style={{ border: '1px solid #ccc', borderRadius: 3 }}
-              required
-            />
-            <span style={{ fontSize: 12, fontWeight: 'bold', color: '#c62828', alignSelf: 'center' }}>{L.kim[lang]}</span>
-            <select value={currentWorker} onChange={e => setCurrentWorker(e.target.value)}
-              style={{ ...inp, color: currentWorker ? '#c62828' : '#999', fontWeight: currentWorker ? 'bold' : 'normal' }}>
-              <option value="">— xodim —</option>
-              {XODIMLAR.map(x => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <button type="submit"
-              style={{ ...inp, background: '#c62828', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', padding: '4px 18px' }}>
-              ↓ {L.qoshish[lang]}
-            </button>
-          </form>
+          {/* Qo'lda kiritish formasi OLIB TASHLANDI — Kassir → Chiqim,
+              📱 Click kanali orqali kiritiladi. */}
+          <div style={{ background: '#ffebee', border: '1px solid #ef9a9a', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontSize: 12.5, color: '#c62828', lineHeight: 1.6 }}>
+            ℹ️ Click chiqimi <b>Kassir → Chiqim</b> bo'limidan kiritiladi — u yerda
+            <b> 📱 Click</b> kanalini tanlang. Bu bo'lim <b>ko'rish</b> uchun.
+          </div>
 
           {/* Filter */}
           <FilterBar
