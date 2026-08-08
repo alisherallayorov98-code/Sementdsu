@@ -100,6 +100,58 @@ test('yetkazib beruvchiga ortiqcha to\'lov ogohlantirish beradi', () => {
   assert.ok(codes(st).includes('supplier-overpaid'));
 });
 
+// ── Olingan tonna (sement oqimi) ─────────────────────────────────────────────
+
+test('yukdan kelganidan ko\'p sement chiqarilsa topiladi', () => {
+  const st = {
+    recvRows:  [{ id: 1, source: 'Zavod', vehicleNo: '01A', tons: 50 }],
+    salesRows: [{ id: 10, recvId: 1, tons: 30 }, { id: 11, recvId: 1, tons: 25 }], // 55 > 50
+  };
+  const f = auditState(st).find(x => x.code === 'recv-over-used');
+  assert.ok(f, 'ortiqcha sarf topilishi kerak');
+  assert.strictEqual(f.level, 'xato');
+});
+
+test('sotuv + sklad birgalikda yukdan oshsa topiladi', () => {
+  const st = {
+    recvRows:  [{ id: 1, source: 'Zavod', tons: 50 }],
+    salesRows: [{ id: 10, recvId: 1, tons: 30 }],
+    skladRows: [{ id: 20, type: 'kirim', sourceId: 1, kg: 25000 }],  // 25 tn
+  };
+  assert.ok(codes(st).includes('recv-over-used'));
+});
+
+test('yuk to\'liq taqsimlansa xato yo\'q', () => {
+  const st = {
+    recvRows:  [{ id: 1, source: 'Zavod', tons: 50 }],
+    salesRows: [{ id: 10, recvId: 1, tons: 30 }],
+    skladRows: [{ id: 20, type: 'kirim', sourceId: 1, kg: 20000 }],  // 30 + 20 = 50
+  };
+  assert.ok(!codes(st).includes('recv-over-used'));
+});
+
+test('sklad CHIQIMI yuk sarfiga qo\'shilmaydi', () => {
+  // Skladdan sotuv (type: 'chiqim') yukka emas, sklad qoldig'iga tegishli
+  const st = {
+    recvRows:  [{ id: 1, source: 'Zavod', tons: 50 }],
+    skladRows: [
+      { id: 20, type: 'kirim',  sourceId: 1, kg: 50000 },
+      { id: 21, type: 'chiqim', customer: 'Ali', kg: -10000 },
+    ],
+  };
+  assert.ok(!codes(st).includes('recv-over-used'));
+});
+
+test('tasdiqlanmagan yukdan sotuv ogohlantirish beradi', () => {
+  const st = {
+    recvRows:  [{ id: 1, source: 'Zavod', tons: 50, pending: true }],
+    salesRows: [{ id: 10, recvId: 1, tons: 10 }],
+  };
+  const f = auditState(st).find(x => x.code === 'pending-recv-sold');
+  assert.ok(f);
+  assert.strictEqual(f.level, 'ogoh');
+});
+
 test("o'tkazma juftligi muvozanatda bo'lsa xato yo'q", () => {
   const st = {
     bankRows:  [{ id: 1, transferId: 'tr1', amount: -1000000, desc: '↔️ Bank→Naqd' }],

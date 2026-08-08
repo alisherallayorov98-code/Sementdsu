@@ -81,6 +81,10 @@ export default function SelfAudit() {
           <li>Kassa/bank/click/sklad qoldig'i manfiy emasmi</li>
           <li>Qarzi bor mijozlar mijozlar bazasida bormi</li>
           <li>Yetkazib beruvchiga olingan yukdan ortiq to'lanmaganmi</li>
+          <li>Yukdan kelganidan ko'p sement chiqarilmaganmi (sotuv + sklad)</li>
+          <li>Tasdiqlanmagan yukdan sotuv qilinmaganmi</li>
+          <li>Kanallararo o'tkazma juftligi muvozanatdami</li>
+          <li>Sanalar to'g'ri formatdami (hisobotga tushishi uchun)</li>
         </ol>
       </details>
     </div>

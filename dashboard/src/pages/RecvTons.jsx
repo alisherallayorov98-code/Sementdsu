@@ -6,6 +6,7 @@ import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import { sameName, uniqueNames } from '../lib/customerRef';
 import { excelDateToStr } from '../lib/excelDate';
+import { parseNum } from '../lib/parseNum';
 import SupplierSelect from '../components/SupplierSelect';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -140,19 +141,10 @@ export default function RecvTons({ lang }) {
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
-  // Excel katakchasidagi sonni ishonchli o'qish.
-  // Number("12,5") = NaN — mahalliy (rus) Excel'da kasr VERGUL bilan yoziladi,
-  // minglar esa probel bilan ajratiladi. Ilgari bunday qatorlar `if (!tons)`
-  // sharti bilan JIMGINA tashlab ketilardi: 100 qator yuklab 60 tasi kelardi.
-  const xlNum = (v) => {
-    if (typeof v === 'number') return isFinite(v) ? v : NaN;
-    const s = String(v ?? '').trim()
-      .replace(/\s| /g, '')   // probel va uzilmas probel
-      .replace(',', '.');           // vergulli kasr
-    if (!s) return NaN;
-    const n = Number(s);
-    return isFinite(n) ? n : NaN;
-  };
+  // Sonlarni o'qish uchun umumiy parser ishlatiladi (lib/parseNum.js): bu
+  // yerda o'z nusxasi bor edi va ikkalasi vaqt o'tib bir-biridan uzoqlashishi
+  // mumkin edi. Farq: parseNum yaroqsiz qiymatga 0 qaytaradi — quyidagi
+  // `> 0` tekshiruvlari uchun bu NaN bilan bir xil natija beradi.
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -184,14 +176,14 @@ export default function RecvTons({ lang }) {
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         if (!row || row.every(c => String(c ?? '').trim() === '')) continue; // butunlay bo'sh qator
-        const tons  = xlNum(row[3]);          // D ustun (hajm)
-        const price = xlNum(row[4]);          // E ustun (narx)
-        if (!isFinite(tons) || tons <= 0) {
+        const tons  = parseNum(row[3]);       // D ustun (hajm)
+        const price = parseNum(row[4]);       // E ustun (narx)
+        if (!(tons > 0)) {
           skipped.push(`${i + 1}-qator: hajm "${row[3]}" o'qilmadi`);
           continue;
         }
-        const p = isFinite(price) && price > 0 ? price : 0;
-        const summa = xlNum(row[5]);
+        const p = price > 0 ? price : 0;
+        const summa = parseNum(row[5]);
         rows.push({
           source:     String(row[0] || '').trim(),
           brand:      String(row[1] || '').trim(),
@@ -243,34 +235,47 @@ export default function RecvTons({ lang }) {
 
   const confirmVerify = () => {
     if (!verifyRow.source) { alert('Zavod nomini kiriting'); return; }
-    const tons = Number(verifyRow.tons) || 0;
-    // Taqsimlash validatsiyasi
-    const splitTotal = splits.reduce((s, sp) => s + (Number(sp.tons) || 0), 0);
-    if (splitTotal > tons + 0.001) { alert(`Taqsimlangan tonna (${splitTotal}) umumiy tonnadan (${tons}) oshib ketdi!`); return; }
+    const tons = parseNum(verifyRow.tons);
+    if (!(tons > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    // ── Taqsimlash validatsiyasi ────────────────────────────────────────────
+    // Har bir qator MUSBAT bo'lishi shart. Ilgari `!Number(sp.tons)` faqat
+    // nol/bo'shni ushlardi: manfiy tonna o'tib ketib, quyida addSaleRow /
+    // addSkladKirim uni jimgina rad etardi — yuk esa allaqachon tasdiqlangan
+    // bo'lardi va xodim taqsimlash bo'ldi deb o'ylardi.
     for (const sp of splits) {
-      if (!Number(sp.tons)) { alert('Har bir taqsimlash qatorida tonna kiriting'); return; }
-      if (sp.type === 'mijoz' && (!sp.customer || !sp.pricePerTon)) { alert('Mijoz uchun mijoz ismi va narxini kiriting'); return; }
+      const t = parseNum(sp.tons);
+      if (!(t > 0)) { alert("Har bir taqsimlash qatorida tonna 0 dan katta bo'lishi kerak."); return; }
+      if (sp.type === 'mijoz') {
+        if (!sp.customer) { alert('Mijoz uchun ism kiriting'); return; }
+        if (!(parseNum(sp.pricePerTon) > 0)) { alert("Mijoz uchun narx 0 dan katta bo'lishi kerak."); return; }
+      }
     }
+    const splitTotal = splits.reduce((s, sp) => s + parseNum(sp.tons), 0);
+    if (splitTotal > tons + 0.001) { alert(`Taqsimlangan tonna (${fmtT(splitTotal)}) umumiy tonnadan (${fmtT(tons)}) oshib ketdi!`); return; }
     addSupplier({ name: verifyRow.source });
     // 1) Tasdiqlash → yetkazib beruvchiga qarz.
     // Natija TEKSHIRILADI: tasdiqlash rad etilsa (masalan tonna 0), quyidagi
     // taqsimlash baribir bajarilib, tasdiqlanmagan yukdan sotuv yaratilardi.
     if (!verifyRecvRow(verifyRow.id, {
       source: verifyRow.source, brand: verifyRow.brand,
-      tons, pricePerTon: Number(verifyRow.pricePerTon) || 0,
+      tons, pricePerTon: parseNum(verifyRow.pricePerTon),
       paymentChannel: verifyRow.paymentChannel,
       warehouseId: verifyRow.warehouseId || myWh,
     })) return;
-    // 2) Taqsimlash — har bir qator
+    // 2) Taqsimlash — har bir qator.
+    // Natijalar sanaladi: bir qator rad etilsa (masalan sklad sig'imi yetmasa)
+    // xodim buni bilishi kerak — yuk allaqachon tasdiqlangan bo'ladi va
+    // taqsimlanmagan qism ulgurji qoldiqda qolib ketadi.
     const vehicleNo = verifyRow.vehicleNo || '';
     const desc = `${verifyRow.source}${verifyRow.brand ? ' · ' + verifyRow.brand : ''}`;
+    const failed = [];
     for (const sp of splits) {
-      const spTons = Number(sp.tons) || 0;
+      const spTons = parseNum(sp.tons);
       if (sp.type === 'mijoz') {
-        addSaleRow({
+        const ok = addSaleRow({
           customer: sp.customer,
           tons: spTons,
-          pricePerTon: Number(sp.pricePerTon) || 0,
+          pricePerTon: parseNum(sp.pricePerTon),
           paymentChannel: sp.paymentChannel,
           warehouseId: verifyRow.warehouseId || myWh,
           vehicleNo,
@@ -280,9 +285,18 @@ export default function RecvTons({ lang }) {
           recvId: verifyRow.id,
           cementType: verifyRow.cementType || '',
         });
+        if (!ok) failed.push(`${sp.customer} — ${fmtT(spTons)} tn (sotuv)`);
       } else {
-        addSkladKirim(verifyRow.id, spTons * 1000, desc, verifyRow.cementType || '');
+        const ok = addSkladKirim(verifyRow.id, spTons * 1000, desc, verifyRow.cementType || '');
+        if (!ok) failed.push(`${fmtT(spTons)} tn (skladga)`);
       }
+    }
+    if (failed.length) {
+      alert(
+        `Yuk tasdiqlandi, lekin quyidagi taqsimlash bajarilmadi:\n\n` +
+        failed.map(f => `· ${f}`).join('\n') +
+        `\n\nBu miqdor ulgurji qoldiqda qoldi — kerak bo'lsa qo'lda taqsimlang.`
+      );
     }
     closeVerify();
   };
@@ -325,8 +339,19 @@ export default function RecvTons({ lang }) {
       `Qolgan ${free.length} ta yozuv o'chirilsinmi?`
     )) return;
     if (!blocked.length && !window.confirm(`${selected.size} ta yozuv o'chirilsinmi? Bu amalni qaytarib bo'lmaydi.`)) return;
-    free.forEach(id => deleteRecvRow(id));
-    setSelected(new Set());
+    // Natija SANALADI: deleteRecvRow sotuvdan tashqari sklad bo'yicha ham rad
+    // etishi mumkin (o'sha yukdan skladga o'tkazilgan qism sotilgan bo'lsa).
+    // Ilgari natija e'tiborsiz qolardi — xodim hammasi o'chdi deb o'ylardi.
+    let done = 0;
+    const kept = [];
+    free.forEach(id => {
+      if (deleteRecvRow(id)) { done++; }
+      else { kept.push(id); }
+    });
+    setSelected(new Set(kept));   // o'chmaganlar tanlangan holda qoladi
+    if (kept.length) {
+      alert(`${done} ta yozuv o'chirildi.\n${kept.length} tasi o'chirilmadi (yuqoridagi sabablarga ko'ra) — ular tanlangan holda qoldi.`);
+    }
   };
 
   // ── Akt Sverka chop etish ─────────────────────────────────────────────────

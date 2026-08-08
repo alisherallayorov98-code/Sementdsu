@@ -368,16 +368,18 @@ export function DataProvider({ children }) {
   });
   useEffect(() => save('recv_rows', recvRows), [recvRows]);
   const addRecvRow = (entry) => {
-    // Manfiy tonna qabul qilish qoldiqni yashirin kamaytirardi
-    if (!(Number(entry?.tons) > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return null; }
+    // parseNum: "12,5" kabi vergulli kasr Number() da NaN berib, to'g'ri
+    // kiritilgan yuk ham rad etilardi.
+    const tonsN = parseNum(entry?.tons);
+    if (!(tonsN > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return null; }
     const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
     const ftDate = (() => { const d = new Date((entry.factoryTime || '').replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('ru-RU'); })();
     const row = {
       id: ts, createdAt: ts, worker: currentWorker, date: ftDate || today,
       source: entry.source || '', brand: entry.brand || '',
-      vehicleNo: entry.vehicleNo || '', tons: entry.tons || 0,
-      pricePerTon: entry.pricePerTon || 0,
+      vehicleNo: entry.vehicleNo || '', tons: tonsN,
+      pricePerTon: parseNum(entry.pricePerTon),
       paymentChannel: entry.paymentChannel || 'naqd',
       cardName: entry.cardName || '', factoryTime: entry.factoryTime || '',
       izoh: entry.izoh || '',
@@ -387,7 +389,35 @@ export function DataProvider({ children }) {
     setRecvRows(p => [...p, row]);
     return row;
   };
-  const updateRecvRow = (id, fields) => setRecvRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
+  // Yukni tahrirlash. Tonna KAMAYTIRILSA, shu yukdan allaqachon chiqarilgan
+  // miqdordan past tushib ketmasligi kerak: sotuv 30 tn, sklad 10 tn bo'lsa-yu
+  // yuk 20 tn ga tushirilsa — sement qoldig'i minusga ketardi (chiqim bor,
+  // kirim yo'q). deleteRecvRow da bunday himoya bor edi, tahrirda yo'q edi.
+  const updateRecvRow = (id, fields) => {
+    if (fields && fields.tons !== undefined) {
+      const newTons = parseNum(fields.tons);
+      if (!(newTons > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return false; }
+      const soldTons = salesRows
+        .filter(s => s.recvId === id)
+        .reduce((s, r) => s + Number(r.tons || 0), 0);
+      const skladTons = skladRows
+        .filter(r => r.type === 'kirim' && r.sourceId === id)
+        .reduce((s, r) => s + Number(r.kg || 0), 0) / 1000;
+      const used = soldTons + skladTons;
+      if (newTons < used - 0.001) {
+        alert(
+          `Tonnani ${fmtTons(newTons)} ga tushirib bo'lmaydi.\n\n` +
+          `Bu yukdan allaqachon chiqarilgan: ${fmtTons(used)} tn` +
+          (soldTons ? `\n · sotuv: ${fmtTons(soldTons)} tn` : '') +
+          (skladTons ? `\n · skladga: ${fmtTons(skladTons)} tn` : '') +
+          `\n\nAvval o'sha sotuv/o'tkazmani bekor qiling.`
+        );
+        return false;
+      }
+    }
+    setRecvRows(p => p.map(r => r.id === id ? { ...r, ...fields } : r));
+    return true;
+  };
   const deleteRecvRow = (id) => {
     // Taqsimlash orqali shu yukdan qilingan sotuvlar bo'lsa — yukni o'chirish
     // ularni "arvoh" qilib qoldiradi: sement kelmagan, lekin sotuv bor.

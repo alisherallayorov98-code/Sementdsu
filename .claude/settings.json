@@ -92,7 +92,9 @@
       "PowerShell(cd c:\\\\SEMENT\\\\dashboard; npm run build 2>&1 | Select-String \"built in|error\"; cd c:\\\\SEMENT\\\\backend; npm test 2>&1 | Select-String \"^ℹ \\(tests|pass|fail\\)\"; $env:PORT=\"5097\"; $p = Start-Process node -ArgumentList \"server.js\" -PassThru -NoNewWindow -RedirectStandardOutput \"$env:TEMP\\\\s3.txt\" -RedirectStandardError \"$env:TEMP\\\\s3e.txt\"; Start-Sleep 4; try { \\(Invoke-RestMethod \"http://localhost:5097/api/health\" -TimeoutSec 5\\).ok } catch { \"XATO\" }; Stop-Process -Id $p.Id -Force)",
       "Bash(mkdir -p src/__lintcmp)",
       "Bash(cp __TRACKED_VAR__/lintcmp/Kassir.old.jsx src/__lintcmp/Kassir.jsx)",
-      "Bash(cp __TRACKED_VAR__/lintcmp/DataContext.old.jsx src/__lintcmp/DataContext.jsx)"
+      "Bash(cp __TRACKED_VAR__/lintcmp/DataContext.old.jsx src/__lintcmp/DataContext.jsx)",
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/pages/RecvTons.jsx)",
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/context/DataContext.jsx)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

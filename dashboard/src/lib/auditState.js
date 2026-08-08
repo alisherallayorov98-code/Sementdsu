@@ -203,7 +203,44 @@ export function auditState(state = {}) {
       supOver.slice(0, 5)));
   }
 
-  // ── 11. Kanallararo o'tkazma muvozanati ──────────────────────────────────
+  // ── 11. Yukdan chiqarilgan sement kelganidan oshmasligi kerak ────────────
+  // Har bir yuk (recvRow) ikki yo'l bilan sarflanadi: taqsimlashda mijozga
+  // sotuv (salesRows.recvId) va chakana skladga o'tkazma (skladRows.sourceId).
+  // Ikkalasining yig'indisi yuk tonnasidan oshsa — sement YO'QDAN paydo
+  // bo'lgan: qoldiq Math.max(0,…) ostida nolda ushlanib, farq hech qaysi
+  // hisobotda ko'rinmaydi.
+  const soldByRecv = new Map();
+  salesRows.forEach(s => {
+    if (s && s.recvId != null) soldByRecv.set(s.recvId, (soldByRecv.get(s.recvId) || 0) + num(s.tons));
+  });
+  const skladByRecv = new Map();
+  skladRows.forEach(r => {
+    if (r && r.type === 'kirim' && r.sourceId != null)
+      skladByRecv.set(r.sourceId, (skladByRecv.get(r.sourceId) || 0) + num(r.kg) / 1000);
+  });
+  const overUsed = recvRows.filter(r => {
+    const used = (soldByRecv.get(r.id) || 0) + (skladByRecv.get(r.id) || 0);
+    return used - num(r.tons) > 0.001;
+  });
+  if (overUsed.length) {
+    out.push(F('xato', 'recv-over-used',
+      `${overUsed.length} ta yukdan kelganidan KO'PROQ sement chiqarilgan`,
+      overUsed.slice(0, 5).map(r => {
+        const sold = soldByRecv.get(r.id) || 0, skl = skladByRecv.get(r.id) || 0;
+        return `${r.source || '—'} ${r.vehicleNo || ''}: kelgan ${num(r.tons).toFixed(2)} tn, chiqarilgan ${(sold + skl).toFixed(2)} tn (sotuv ${sold.toFixed(2)} + sklad ${skl.toFixed(2)})`;
+      })));
+  }
+
+  // Tasdiqlanmagan (pending) yukdan sotuv qilingan bo'lsa — tartib buzilgan:
+  // yuk hali qabul qilinmagan, lekin undan sotuv bor.
+  const pendingWithSale = recvRows.filter(r => r.pending && (soldByRecv.get(r.id) || 0) > 0);
+  if (pendingWithSale.length) {
+    out.push(F('ogoh', 'pending-recv-sold',
+      `${pendingWithSale.length} ta TASDIQLANMAGAN yukdan sotuv qilingan`,
+      pendingWithSale.slice(0, 5).map(r => `${r.source || '—'} ${r.vehicleNo || ''}: ${num(r.tons).toFixed(2)} tn`)));
+  }
+
+  // ── 12. Kanallararo o'tkazma muvozanati ──────────────────────────────────
   // O'tkazma ikkita yozuv yaratadi: manbadan chiqim (−X) va maqsadga kirim
   // (+X). Ikkalasi bitta transferId bilan bog'lanadi va yig'indisi 0 bo'lishi
   // shart. Nolga teng bo'lmasa — bir tomoni tahrirlangan yoki o'chirilgan,
@@ -226,7 +263,7 @@ export function auditState(state = {}) {
       trBad.slice(0, 5)));
   }
 
-  // ── 12. Buzuq sana ───────────────────────────────────────────────────────
+  // ── 13. Buzuq sana ───────────────────────────────────────────────────────
   // Sana "kk.oo.yyyy" satri sifatida saqlanadi va filtr shu formatga tayanadi.
   // Format buzilgan yozuv HECH QAYSI kunlik/oylik hisobotga to'g'ri tushmaydi,
   // lekin ro'yxatda ko'rinib turadi — ya'ni jami summalar mos kelmay qoladi.
@@ -255,7 +292,7 @@ export function auditState(state = {}) {
       'Sanasi noto\'g\'ri yozuvlar — ular kunlik/oylik hisobotlarga tushmaydi', badDate));
   }
 
-  // ── 13. Bank/Click sahifasidagi qoldiq to'liq balansga mos keladimi ──────
+  // ── 14. Bank/Click sahifasidagi qoldiq to'liq balansga mos keladimi ──────
   // bankNetBalance faqat Kirim/Chiqim Bank sahifasi yozuvlarini oladi,
   // totalBankBalance esa avtomatik yozuvlarni ham. Farq bo'lishi normal —
   // bu tekshiruv emas, ma'lumot uchun quyida "xulosa" da beriladi.
