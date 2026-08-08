@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import CustomerSelect from '../components/CustomerSelect';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -46,16 +47,21 @@ export default function Distribution() {
   const add = (e) => {
     e.preventDefault();
     if (!row.customer || !row.tons) return;
-    const price = row.price !== '' ? row.price : defPrice;
-    addSaleRow({
+    const tonsN  = parseNum(row.tons);
+    const priceN = parseNum(row.price !== '' ? row.price : defPrice);
+    if (!(tonsN > 0))  { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    if (!(priceN > 0)) { alert("Narx 0 dan katta bo'lishi kerak."); return; }
+    // Natija tekshiriladi: rad etilsa forma tozalanmasin (taqsimlashda
+    // ketma-ket tez kiritiladi — yo'qolgan qator sezilmay qolardi).
+    if (!addSaleRow({
       customer: row.customer,
-      tons: row.tons,
-      pricePerTon: price || 0,
+      tons: tonsN,
+      pricePerTon: priceN,
       paymentChannel: defChannel,
       note: 'Taqsimot',
       warehouseId: wh,
       worker: currentWorker,
-    });
+    })) return;
     setRow({ customer: '', tons: '', price: '' });
     // Keyingi kiritma uchun mijoz maydoniga fokus — tez ishlash
     setTimeout(() => { const el = document.getElementById('dist-customer'); if (el) el.focus(); }, 30);

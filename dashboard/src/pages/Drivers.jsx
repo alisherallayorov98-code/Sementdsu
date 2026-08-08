@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import { sameCust } from '../lib/customerRef';
 import { api } from '../api';
 import Paginator from '../components/Paginator';
@@ -94,7 +95,10 @@ export default function Drivers({ lang }) {
   const handleAddTrip = (e) => {
     e.preventDefault();
     if (!tripForm.price) return;
-    addDriverTrip(modalDriver, tripForm.destination, tripForm.price, tripForm.isPayment, tripForm.note, tripForm.channel);
+    const amt = parseNum(tripForm.price);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    // Natija tekshiriladi — rad etilsa forma tozalanmasin
+    if (!addDriverTrip(modalDriver, tripForm.destination, amt, tripForm.isPayment, tripForm.note, tripForm.channel)) return;
     setTripForm({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' });
   };
 

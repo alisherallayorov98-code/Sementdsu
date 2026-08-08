@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -69,7 +70,10 @@ export default function Expense({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.amount || !form.desc) return;
-    addExpenseRow(form.amount, form.desc);
+    const amt = parseNum(form.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    // Rad etilsa forma tozalanmaydi (kiritilgan ma'lumot yo'qolmasin)
+    if (addExpenseRow(amt, form.desc) === false) return;
     setForm({ amount: '', desc: '' });
   };
 

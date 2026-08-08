@@ -789,7 +789,10 @@ export function DataProvider({ children }) {
     }
     return true;
   };
-  const useAdvance = (id, useAmount, useNote = '') => {
+  // Nomi ataylab "use..." emas: ESLint "use" bilan boshlanadigan funksiyani
+  // React Hook deb hisoblab, shartli chaqiruvda xato beradi — bu esa oddiy
+  // ma'lumot funksiyasi. (Eski nomi useAdvance edi.)
+  const spendAdvance = (id, useAmount, useNote = '') => {
     const amt = Number(useAmount);
     if (!(amt > 0)) return false;
     // Avansda boridan ko'proq ishlatishni bloklaymiz. Ilgari cheklov yo'q edi:
@@ -1302,10 +1305,14 @@ export function DataProvider({ children }) {
   useEffect(() => save('salary_payments', salaryPayments), [salaryPayments]);
 
   const addWorker = (name, salary, opts = {}) => {
+    // Manfiy/yaroqsiz oylik "qolgan oylik" hisobini teskari buzardi
+    // (totalQoldiMonth = salary − paid).
+    const sal = parseNum(salary);
+    if (!(sal > 0)) { alert("Oylik summasi 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
     setWorkers(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,
-      name, salary: Number(salary), paid: 0,
+      name, salary: sal, paid: 0,
       position: opts.position || '',
       phone:    opts.phone    || '',
       note:     opts.note     || '',
@@ -1314,6 +1321,7 @@ export function DataProvider({ children }) {
       warehouseId: opts.warehouseId || null, // biriktirilgan sklad
       linkCode: genLinkCode(),
     }]);
+    return true;
   };
 
   const payWorker = (id, amount, note = '', channel = 'naqd') => {
@@ -2015,7 +2023,7 @@ export function DataProvider({ children }) {
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
-    advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
+    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     // 13. Sotish
     salesRows, addSaleRow, updateSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank

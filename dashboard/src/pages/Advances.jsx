@@ -6,6 +6,7 @@ import Paginator from '../components/Paginator';
 import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import { parseNum } from '../lib/parseNum';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -54,7 +55,7 @@ const STATUS_STYLE = {
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function Advances({ lang }) {
   const {
-    advanceRows, addAdvanceRow, useAdvance, deleteAdvanceRow,
+    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow,
     totalAdvances, totalAdvancesUsed, totalAdvancesAll,
   } = useData();
 
@@ -71,10 +72,14 @@ export default function Advances({ lang }) {
   // ── Forma submit ────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
     e.preventDefault();
-    if (form.customer && form.amount) {
-      addAdvanceRow(form.customer, form.amount, form.note, form.channel);
-      setForm({ customer: '', amount: '', note: '', channel: 'naqd' });
-    }
+    if (!form.customer || !form.amount) return;
+    const amt = parseNum(form.amount);
+    if (!(amt > 0)) { alert("Avans summasi 0 dan katta bo'lishi kerak."); return; }
+    // Natija tekshiriladi: addAdvanceRow rad etsa (alert bilan) forma
+    // tozalanmasligi kerak — aks holda kiritilgan ma'lumot sababsiz yo'qolib,
+    // xodim avans qabul qilindi deb o'ylardi.
+    if (!addAdvanceRow(form.customer, amt, form.note, form.channel)) return;
+    setForm({ customer: '', amount: '', note: '', channel: 'naqd' });
   };
 
   // ── Ishlatish ───────────────────────────────────────────────────────────────
@@ -82,10 +87,15 @@ export default function Advances({ lang }) {
     setUseForm({ id, amount: '', note: '' });
   };
   const handleUseConfirm = () => {
-    if (useForm.amount) {
-      useAdvance(useForm.id, useForm.amount, useForm.note);
-      setUseForm({ id: null, amount: '', note: '' });
+    const amt = parseNum(useForm.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    // spendAdvance avansda boridan ko'p ishlatishni rad etadi — o'sha holatda
+    // oyna yopilmasligi kerak (ilgari yopilardi va rad etilgani bilinmasdi).
+    if (!spendAdvance(useForm.id, amt, useForm.note)) {
+      alert("Ishlatib bo'lmadi — avansda yetarli qoldiq yo'q.");
+      return;
     }
+    setUseForm({ id: null, amount: '', note: '' });
   };
 
   // ── O'chirish ───────────────────────────────────────────────────────────────

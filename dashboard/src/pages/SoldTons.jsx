@@ -4,6 +4,7 @@ import CustomerSelect from '../components/CustomerSelect';
 import { printSaleReceipt } from '../lib/receipt';
 import { customerSummary } from '../lib/customerSummary';
 import { custRows } from '../lib/customerRef';
+import { parseNum } from '../lib/parseNum';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -101,9 +102,15 @@ export default function SoldTons({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.mijoz || !form.tonna || !form.narx) return;
+    // parseNum: "12,5" kabi vergulli kasr Number() da NaN berib, to'g'ri
+    // kiritilgan sotuv ham rad etilardi.
+    const tonsN  = parseNum(form.tonna);
+    const priceN = parseNum(form.narx);
+    if (!(tonsN > 0))  { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    if (!(priceN > 0)) { alert("Narx 0 dan katta bo'lishi kerak."); return; }
     const created = addSoldRow({
-      customer: form.mijoz, tons: form.tonna,
-      pricePerTon: form.narx, paymentChannel: form.tolov,
+      customer: form.mijoz, tons: tonsN,
+      pricePerTon: priceN, paymentChannel: form.tolov,
       izoh: form.izoh,
     });
     // Sotuv rad etilsa (manfiy tonna) forma tozalanmaydi.
@@ -155,7 +162,10 @@ export default function SoldTons({ lang }) {
   // ── Nasiya to'lash ────────────────────────────────────────────────────────
   const handlePay = (debtId) => {
     if (payForm.debtId === debtId && payForm.amount) {
-      payDebt(debtId, payForm.amount);
+      // Natija tekshiriladi: payDebt manfiy summani rad etadi va qarzdan
+      // ortiq to'lovda tasdiq so'raydi. Ilgari forma baribir yopilardi —
+      // to'lov o'tmagani bilinmay qolardi.
+      if (!payDebt(debtId, parseNum(payForm.amount))) return;
       setPayForm({ debtId: null, amount: '' });
     } else {
       setPayForm({ debtId, amount: '' });

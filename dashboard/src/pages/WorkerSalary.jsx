@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import { api } from '../api';
@@ -94,14 +95,18 @@ function WorkersTab() {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name || !form.salary) return;
-    addWorker(form.name, form.salary, { position: form.position, phone: form.phone, note: form.note });
+    const sal = parseNum(form.salary);
+    if (!(sal > 0)) { alert("Oylik summasi 0 dan katta bo'lishi kerak."); return; }
+    addWorker(form.name, sal, { position: form.position, phone: form.phone, note: form.note });
     setForm({ name: '', salary: '', position: '', phone: '', note: '' });
     setShowForm(false);
   };
 
   const handlePay = (id) => {
     if (payForm.id === id && payForm.amount) {
-      payWorker(id, payForm.amount, payForm.note, payForm.channel);
+      // Natija tekshiriladi: payWorker manfiy/nol summani rad etadi.
+      // Ilgari forma baribir yopilardi va to'lov o'tmagani bilinmasdi.
+      if (!payWorker(id, parseNum(payForm.amount), payForm.note, payForm.channel)) return;
       setPayForm({ id: null, amount: '', note: '', channel: 'naqd' });
     } else {
       setPayForm({ id, amount: '', note: '', channel: 'naqd' });
@@ -110,7 +115,9 @@ function WorkersTab() {
 
   const saveEdit = (id) => {
     if (!editData.name || !editData.salary) return;
-    updateWorker(id, { name: editData.name, salary: Number(editData.salary), position: editData.position, phone: editData.phone, note: editData.note });
+    const sal = parseNum(editData.salary);
+    if (!(sal > 0)) { alert("Oylik summasi 0 dan katta bo'lishi kerak."); return; }
+    updateWorker(id, { name: editData.name, salary: sal, position: editData.position, phone: editData.phone, note: editData.note });
     setEditId(null);
   };
 

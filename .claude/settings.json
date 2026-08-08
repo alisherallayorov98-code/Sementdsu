@@ -97,7 +97,9 @@
       "Bash(git -C c:/SEMENT show HEAD:dashboard/src/context/DataContext.jsx)",
       "Bash(git -C c:/SEMENT show HEAD:dashboard/src/pages/Debts.jsx)",
       "Bash(node /tmp/perf.mjs)",
-      "Bash(awk '/const updateCustomer = /,/^  };/' src/context/DataContext.jsx)"
+      "Bash(awk '/const updateCustomer = /,/^  };/' src/context/DataContext.jsx)",
+      "Bash(awk '/const addWorker = /,/^  };/' context/DataContext.jsx)",
+      "Bash(awk '/const paySupplier = /,/^  };/' context/DataContext.jsx)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

@@ -11,6 +11,7 @@ import { filterByRange } from '../lib/dateRange';
 import Paginator from '../components/Paginator';
 import { api } from '../api';
 import { findCust } from '../lib/customerRef';
+import { parseNum } from '../lib/parseNum';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -64,14 +65,22 @@ export default function Sales({ lang }) {
     e.preventDefault();
     if (!form.customer || !form.tons || !form.pricePerTon) return;
 
+    // parseNum: "12,5" yoki "1 200" kabi yozuv Number() da NaN berardi —
+    // qoldiq tekshiruvi ishlamay, addSaleRow esa uni rad etardi (alert bilan),
+    // ya'ni to'g'ri kiritilgan sotuv o'tmay qolardi.
+    const tonsN  = parseNum(form.tons);
+    const priceN = parseNum(form.pricePerTon);
+    if (!(tonsN > 0))  { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    if (!(priceN > 0)) { alert("Narx 0 dan katta bo'lishi kerak."); return; }
+
     // Qoldiqni tekshirish (tanlangan sklad bo'yicha)
-    if (Number(form.tons) > Number(whBalance)) {
+    if (tonsN > Number(whBalance)) {
       if (!window.confirm(`Diqqat! "${whName(activeWh)}" skladida faqat ${whBalance} tn sement bor. Baribir sotasizmi?`)) {
         return;
       }
     }
 
-    const created = addSaleRow({ ...form, date: isoToLocal(form.date), warehouseId: activeWh, worker: currentWorker });
+    const created = addSaleRow({ ...form, tons: tonsN, pricePerTon: priceN, date: isoToLocal(form.date), warehouseId: activeWh, worker: currentWorker });
     // Sotuv rad etilgan bo'lsa (manfiy/noto'g'ri qiymat) — formani tozalamaymiz,
     // aks holda kiritilgan ma'lumot sababsiz yo'qolib, xato bilinmay qolardi.
     if (!created) return;

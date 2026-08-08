@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -107,17 +108,23 @@ export default function IncomeClick({ lang }) {
   const [openingVal,  setOpeningVal]  = useState(String(clickOpening.amount));
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+  // parseNum + musbat tekshiruvi: probelli/vergulli yozuv Number() da NaN
+  // berardi, manfiy summa esa kirimni chiqimga (va aksincha) aylantirardi.
   const handleAddIncome = (e) => {
     e.preventDefault();
     if (!incForm.amount || !incForm.desc) return;
-    addClickIncomeRow(incForm.amount, incForm.desc);
+    const amt = parseNum(incForm.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    addClickIncomeRow(amt, incForm.desc);
     setIncForm({ ...incForm, amount: '', desc: '' });
   };
 
   const handleAddExpense = (e) => {
     e.preventDefault();
     if (!expForm.amount || !expForm.desc) return;
-    addClickExpenseRow(expForm.amount, expForm.desc);
+    const amt = parseNum(expForm.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    addClickExpenseRow(amt, expForm.desc);
     setExpForm({ ...expForm, amount: '', desc: '' });
   };
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import SupplierSelect from '../components/SupplierSelect';
 import { sameName } from '../lib/customerRef';
 import ExcelExport from '../components/ExcelExport';
@@ -31,10 +32,13 @@ export default function SupplierDebts() {
   const handlePay = (e) => {
     e.preventDefault();
     if (!pay.supplier || !pay.amount) return;
-    const amt = Number(pay.amount);
+    const amt = parseNum(pay.amount);
+    if (!(amt > 0)) { alert("To'lov summasi 0 dan katta bo'lishi kerak."); return; }
     const rem = debtOf(pay.supplier);
     if (amt > rem && !window.confirm(`Diqqat! "${pay.supplier}" ga qarzimiz ${fmt(rem)} so'm. Baribir ${fmt(amt)} so'm to'lansinmi? (Ortiqcha to'lov bo'ladi)`)) return;
-    paySupplier(pay.supplier, amt, pay.channel, pay.note || "Zavodga to'lov");
+    // paySupplier o'zi ham ortiqcha to'lovda tasdiq so'raydi va rad etilsa
+    // false qaytaradi — o'sha holatda forma tozalanmasligi kerak.
+    if (!paySupplier(pay.supplier, amt, pay.channel, pay.note || "Zavodga to'lov")) return;
     setPay({ supplier: '', amount: '', channel: 'naqd', note: '' });
   };
 

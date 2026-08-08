@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import CustomerSelect from '../components/CustomerSelect';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
@@ -76,11 +77,17 @@ export default function Income({ lang }) {
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.amount || !form.desc) return;
-    const amt = form.amount;
+    // parseNum + musbat tekshiruvi: "1 200 000" kabi yozuv Number() da NaN
+    // berardi, manfiy summa esa kirim ko'rinishida qoldiqni kamaytirardi.
+    const amt = parseNum(form.amount);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
     const dsc = form.desc;
-    if (form.type === 'naqd')           addIncomeRow(amt, dsc);
-    else if (form.type === 'click')     addClickIncomeRow(amt, dsc);
+    let ok = true;
+    if (form.type === 'naqd')                ok = addIncomeRow(amt, dsc);
+    else if (form.type === 'click')          addClickIncomeRow(amt, dsc);
     else if (form.type === 'perechisleniya') addBankIncomeRow(amt, dsc);
+    // Rad etilgan bo'lsa forma tozalanmaydi — kiritilgan ma'lumot yo'qolmasin
+    if (ok === false) return;
     setForm({ ...form, amount: '', desc: '' });
   };
 
