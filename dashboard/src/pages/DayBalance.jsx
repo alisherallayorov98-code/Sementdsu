@@ -18,7 +18,7 @@ const fmtS = (n) => (n >= 0 ? '+' : '') + fmt(n);
 // "dd.mm.yyyy" → timestamp (kun boshida 00:00)
 const parseDate = (s) => {
   if (!s) return 0;
-  const parts = s.split('.');
+  const parts = String(s).split('.');
   if (parts.length !== 3) return 0;
   const [d, m, y] = parts.map(Number);
   return new Date(y, m - 1, d).getTime();
@@ -48,9 +48,13 @@ const fromInputDate = (v) => {
 };
 
 const toInputDate = (s) => {
-  if (!s || s.length < 8) return '';
-  const [d, m, y] = s.split('.');
-  return `${y}-${m}-${d}`;
+  // String(...) — sana raqam bo'lib qolsa (eski Excel importidan) .length va
+  // .split ishlamay, sahifa butunlay ochilmasdi.
+  const str = String(s ?? '');
+  if (str.length < 8) return '';
+  const [d, m, y] = str.split('.');
+  if (!d || !m || !y) return '';
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 };
 
 export default function DayBalance({ lang }) {

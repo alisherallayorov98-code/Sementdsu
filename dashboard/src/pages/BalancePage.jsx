@@ -16,7 +16,7 @@ const fmtT = (ts) => {
 
 const parseDate = (s) => {
   if (!s) return 0;
-  const parts = s.split('.');
+  const parts = String(s).split('.');
   if (parts.length !== 3) return 0;
   const [d, m, y] = parts.map(Number);
   return new Date(y, m - 1, d).getTime();

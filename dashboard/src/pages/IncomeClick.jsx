@@ -37,7 +37,7 @@ const todayStr = () => {
 
 const parseDate = (s) => {
   if (!s) return 0;
-  const [d, m, y] = s.split('.').map(Number);
+  const [d, m, y] = String(s).split('.').map(Number);
   return new Date(y, m - 1, d).getTime();
 };
 
