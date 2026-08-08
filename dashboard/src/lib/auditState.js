@@ -203,7 +203,24 @@ export function auditState(state = {}) {
       supOver.slice(0, 5)));
   }
 
-  // ── 11. Yukdan chiqarilgan sement kelganidan oshmasligi kerak ────────────
+  // ── 11. Mijozlar bazasida takrorlangan nom ───────────────────────────────
+  // Yangi yozuv har doim BIRINCHI topilgan mijozga bog'lanadi, ya'ni
+  // ikkinchisi hech qachon savdo ko'rmaydi va kartochkasi bo'sh turadi.
+  // Import orqali bunday dublikat paydo bo'lishi mumkin.
+  const custByKey = new Map();
+  customers.forEach(c => {
+    const k = nameKey(c.name);
+    if (!k) return;
+    custByKey.set(k, (custByKey.get(k) || 0) + 1);
+  });
+  const dupCust = [...custByKey.entries()].filter(([, n]) => n > 1);
+  if (dupCust.length) {
+    out.push(F('ogoh', 'duplicate-customer',
+      `${dupCust.length} ta mijoz nomi bazada TAKRORLANGAN`,
+      dupCust.slice(0, 8).map(([k, n]) => `${k} — ${n} ta yozuv`)));
+  }
+
+  // ── 12. Yukdan chiqarilgan sement kelganidan oshmasligi kerak ────────────
   // Har bir yuk (recvRow) ikki yo'l bilan sarflanadi: taqsimlashda mijozga
   // sotuv (salesRows.recvId) va chakana skladga o'tkazma (skladRows.sourceId).
   // Ikkalasining yig'indisi yuk tonnasidan oshsa — sement YO'QDAN paydo
@@ -240,7 +257,7 @@ export function auditState(state = {}) {
       pendingWithSale.slice(0, 5).map(r => `${r.source || '—'} ${r.vehicleNo || ''}: ${num(r.tons).toFixed(2)} tn`)));
   }
 
-  // ── 12. Kanallararo o'tkazma muvozanati ──────────────────────────────────
+  // ── 13. Kanallararo o'tkazma muvozanati ──────────────────────────────────
   // O'tkazma ikkita yozuv yaratadi: manbadan chiqim (−X) va maqsadga kirim
   // (+X). Ikkalasi bitta transferId bilan bog'lanadi va yig'indisi 0 bo'lishi
   // shart. Nolga teng bo'lmasa — bir tomoni tahrirlangan yoki o'chirilgan,
@@ -263,7 +280,7 @@ export function auditState(state = {}) {
       trBad.slice(0, 5)));
   }
 
-  // ── 13. Buzuq sana ───────────────────────────────────────────────────────
+  // ── 14. Buzuq sana ───────────────────────────────────────────────────────
   // Sana "kk.oo.yyyy" satri sifatida saqlanadi va filtr shu formatga tayanadi.
   // Format buzilgan yozuv HECH QAYSI kunlik/oylik hisobotga to'g'ri tushmaydi,
   // lekin ro'yxatda ko'rinib turadi — ya'ni jami summalar mos kelmay qoladi.
@@ -292,7 +309,7 @@ export function auditState(state = {}) {
       'Sanasi noto\'g\'ri yozuvlar — ular kunlik/oylik hisobotlarga tushmaydi', badDate));
   }
 
-  // ── 14. Bank/Click sahifasidagi qoldiq to'liq balansga mos keladimi ──────
+  // ── 15. Bank/Click sahifasidagi qoldiq to'liq balansga mos keladimi ──────
   // bankNetBalance faqat Kirim/Chiqim Bank sahifasi yozuvlarini oladi,
   // totalBankBalance esa avtomatik yozuvlarni ham. Farq bo'lishi normal —
   // bu tekshiruv emas, ma'lumot uchun quyida "xulosa" da beriladi.

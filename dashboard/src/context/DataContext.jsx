@@ -1457,6 +1457,25 @@ export function DataProvider({ children }) {
         );
         return false;
       }
+
+      // Hisob-kitobi yopilgan, lekin TARIXI bor mijoz. Uni o'chirsak sotuv va
+      // to'lov yozuvlari bazada qoladi-yu, hech qaysi mijozga tegishli
+      // bo'lmaydi: kartochka ochilmaydi, hisobotlarda "egasiz" ko'rinadi.
+      // Bloklamaymiz (tarixni o'chirish noto'g'ri bo'lardi), lekin nima
+      // bo'lishini aytamiz — ilgari hech qanday ogohlantirish yo'q edi.
+      const salesCnt = custRows(salesRows, c).length + custRows(soldRows, c).length;
+      const debtCnt  = custRows(debtRows, c).length;
+      const advCnt   = custRows(advanceRows, c).length;
+      const histCnt  = salesCnt + debtCnt + advCnt;
+      if (histCnt > 0 && !window.confirm(
+        `"${c.name}" da ${histCnt} ta tarix yozuvi bor` +
+        (salesCnt ? `\n · sotuv: ${salesCnt} ta` : '') +
+        (debtCnt  ? `\n · qarz (yopilgan): ${debtCnt} ta` : '') +
+        (advCnt   ? `\n · avans (sarflangan): ${advCnt} ta` : '') +
+        `\n\nMijoz o'chirilsa bu yozuvlar bazada qoladi, lekin ularni mijoz\n` +
+        `kartochkasidan ko'rib bo'lmaydi (hisobotlarda "egasiz" ko'rinadi).\n\n` +
+        `Baribir o'chirilsinmi?`
+      )) return false;
     }
     setCustomers(p => p.filter(x => x.id !== id));
     return true;

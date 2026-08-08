@@ -80,6 +80,7 @@ export default function SelfAudit() {
           <li>Sotuvi o'chirilgan "yetim" kassa yozuvlari yo'qmi</li>
           <li>Kassa/bank/click/sklad qoldig'i manfiy emasmi</li>
           <li>Qarzi bor mijozlar mijozlar bazasida bormi</li>
+          <li>Mijozlar bazasida takrorlangan nom yo'qmi</li>
           <li>Yetkazib beruvchiga olingan yukdan ortiq to'lanmaganmi</li>
           <li>Yukdan kelganidan ko'p sement chiqarilmaganmi (sotuv + sklad)</li>
           <li>Tasdiqlanmagan yukdan sotuv qilinmaganmi</li>

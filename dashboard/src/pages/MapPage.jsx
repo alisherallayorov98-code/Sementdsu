@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from 'react';
 import { useData } from '../context/DataContext';
-import { customerSummary } from '../lib/customerSummary';
+import { customerSummaryAll } from '../lib/customerSummary';
 import { activityStatus, STATUS } from '../lib/monitoring';
 import CustomerCard from '../components/CustomerCard';
 
@@ -67,12 +67,15 @@ export default function MapPage() {
     periodByCust[k].sum  += Number(r.tons || 0) * Number(r.pricePerTon || 0);
   });
 
-  // Joylashuvi bor mijozlar + savdo ma'lumoti
+  // Joylashuvi bor mijozlar + savdo ma'lumoti.
+  // Hisoblash bir o'tishda (har mijoz uchun alohida chaqiruv butun
+  // ro'yxatlarni qaytadan aylanardi).
+  const statMap = customerSummaryAll(data);
   const located = customers
     .map(c => {
       const loc = (c.lat != null && c.lon != null) ? { lat: c.lat, lon: c.lon } : (c.phone ? tgLocationFor(c.phone) : null);
       if (!loc) return null;
-      const s = customerSummary(c, data);
+      const s = statMap.get(c.id);
       const act = c.monitored ? activityStatus(s, c, globalDays) : null;
       const per = periodByCust[c.name] || { tons: 0, sum: 0 };
       return {

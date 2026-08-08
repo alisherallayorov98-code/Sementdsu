@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { customerSummary } from '../lib/customerSummary';
+import { customerSummaryAll } from '../lib/customerSummary';
 import { activityStatus, effectiveDays } from '../lib/monitoring';
 import CustomerCard from '../components/CustomerCard';
 
@@ -37,10 +37,14 @@ export default function Monitoring() {
 
   // ── Nazoratdagi mijozlar + holatlari ─────────────────────────────────────
   const monitored = useMemo(() => {
+    // Barcha mijozlar bir o'tishda hisoblanadi — har biri uchun alohida
+    // chaqiruv butun ro'yxatlarni qaytadan aylanardi (mijozlar ko'payganda
+    // sahifa sezilarli sekinlashardi).
+    const statMap = customerSummaryAll(data);
     return customers
       .filter(c => c.monitored)
       .map(c => {
-        const s = customerSummary(c, data);
+        const s = statMap.get(c.id);
         const act = activityStatus(s, c, globalDays);
         return { c, s, act };
       })

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
-import { customerSummary } from '../lib/customerSummary';
+import { customerSummaryAll } from '../lib/customerSummary';
 import { sameCust } from '../lib/customerRef';
 import CustomerCard from '../components/CustomerCard';
 import Paginator from '../components/Paginator';
@@ -40,15 +40,43 @@ export default function Customers() {
   };
 
   // ── Yagona hisoblagich (yangi "Sotish" + eski "Sotilgan tonna" birga) ─────
-  // Mijoz obyektini beramiz (ism emas) — bog'lanish customerId bo'yicha ketadi.
-  const stat = (c) => customerSummary(c, data);
+  // BARCHA mijozlar uchun bir o'tishda hisoblanadi. Ilgari har mijoz uchun
+  // alohida chaqirilardi va u har safar butun ro'yxatlarni boshidan aylanardi:
+  // 420 mijozda bu ~750 ms bo'lib, qidiruvda har harf yozilganda sahifa
+  // qotib qolardi. useMemo — faqat ma'lumot o'zgarganda qayta hisoblanadi.
+  // Bog'liqlik ro'yxatida `data` ning O'ZI emas, uning ro'yxatlari sanalgan:
+  // context qiymati har render'da yangi obyekt bo'ladi, ya'ni [data] qo'yilsa
+  // memo hech qachon ishlamay, tezlik yutug'i yo'qolardi.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const statMap = useMemo(() => customerSummaryAll(data), [
+    customers, data.salesRows, data.soldRows, data.debtRows, data.advanceRows,
+    data.tgOrders, data.skladRows, data.cashRows, data.bankRows, data.clickRows,
+    data.bankIncomeRows, data.bankExpenseRows,
+  ]);
+  const EMPTY_STAT = { totalTon: 0, totalXarid: 0, totalQarz: 0, totalTolandi: 0, qolganQarz: 0,
+                       totalAvans: 0, qolganAvans: 0, balans: 0, lastSaleAt: 0, salesCount: 0,
+                       sales: [], debts: [], advs: [], orders: [], unlinked: [], unlinkedIn: 0, unlinkedOut: 0 };
+  const stat = (c) => statMap.get(c.id) || EMPTY_STAT;
 
   // ── Qo'shish ─────────────────────────────────────────────────────────────
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name) return;
-    const exists = customers.some(c => sameCust(c.name, form.name));
-    if (exists && !window.confirm(`"${form.name}" allaqachon mavjud. Qo'shilsinmi?`)) return;
+    // Bir xil nomli ikkinchi mijozga YO'L QO'YILMAYDI.
+    // Ilgari tasdiqlash bilan qo'shsa bo'lardi, lekin natijasi chalkash edi:
+    // yangi yozuvlar har doim BIRINCHI topilgan mijozga bog'lanadi (findCust),
+    // ya'ni ikkinchisi hech qachon savdo ko'rmaydi va uning kartochkasi bo'sh
+    // turadi. Tahrirlashda bunday to'qnashuv allaqachon bloklangan edi —
+    // qo'shishda ham shunday bo'lishi kerak.
+    const clash = customers.find(c => sameCust(c.name, form.name));
+    if (clash) {
+      alert(
+        `"${clash.name}" nomli mijoz allaqachon bor.\n\n` +
+        `Ikki xil mijoz bo'lsa, nomlarini ajratib yozing —\n` +
+        `masalan "${form.name.trim()} (Chirchiq)".`
+      );
+      return;
+    }
     const phone = form.phone.trim() === '+998' ? '' : form.phone.trim();
     addCustomer({ ...form, phone });
     setForm({ name: '', phone: '+998 ', address: '', note: '' });

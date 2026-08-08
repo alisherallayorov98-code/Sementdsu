@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import CustomerCard from '../components/CustomerCard';
 import BalanceBreakdown from '../components/BalanceBreakdown';
-import { customerSummary } from '../lib/customerSummary';
+import { customerSummaryAll } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -42,9 +42,13 @@ export default function Dashboard() {
 
   // ── Mijoz nazorati: "jim qolgan" nazoratdagi mijozlar ────────────────────
   const globalDays = Number(appSettings?.monitorDays) || 14;
+  // Bosh sahifa har o'zgarishda qayta chiziladi — hisoblash bir o'tishda
+  // bo'lishi shart (har mijoz uchun alohida chaqiruv butun ro'yxatlarni
+  // qaytadan aylanardi).
+  const statMapDash = customerSummaryAll(data);
   const quietCustomers = customers
     .filter(c => c.monitored)
-    .map(c => ({ c, act: activityStatus(customerSummary(c, data), c, globalDays) }))
+    .map(c => ({ c, act: activityStatus(statMapDash.get(c.id), c, globalDays) }))
     .filter(m => m.act.status.key === 'alert' || m.act.status.key === 'never')
     .sort((a, b) => (b.act.daysSince || 9999) - (a.act.daysSince || 9999));
 

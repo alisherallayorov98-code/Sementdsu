@@ -100,6 +100,25 @@ test('yetkazib beruvchiga ortiqcha to\'lov ogohlantirish beradi', () => {
   assert.ok(codes(st).includes('supplier-overpaid'));
 });
 
+test('bazadagi takrorlangan mijoz nomi topiladi', () => {
+  const st = {
+    customers: [
+      { id: 1, name: 'Ali aka' },
+      { id: 2, name: '  ALI  aka ' },   // normallashtirilganda bir xil
+      { id: 3, name: 'Vali' },
+    ],
+  };
+  const f = auditState(st).find(x => x.code === 'duplicate-customer');
+  assert.ok(f, 'dublikat topilishi kerak');
+  assert.strictEqual(f.level, 'ogoh');
+  assert.ok(f.detail[0].includes('2 ta'));
+});
+
+test('har xil nomli mijozlar dublikat sanalmaydi', () => {
+  const st = { customers: [{ id: 1, name: 'Ali aka' }, { id: 2, name: 'Ali aka (Chirchiq)' }] };
+  assert.ok(!codes(st).includes('duplicate-customer'));
+});
+
 // ── Olingan tonna (sement oqimi) ─────────────────────────────────────────────
 
 test('yukdan kelganidan ko\'p sement chiqarilsa topiladi', () => {
