@@ -136,7 +136,8 @@
       "Bash(xargs echo \"spendAdvance qatorlari:\")",
       "Bash(sed -n '/const payCustomerDebt/,/^  };/p' src/context/DataContext.jsx)",
       "Bash(sed -n '/const addAdvanceRow/,/^  };/p' src/context/DataContext.jsx)",
-      "Bash(node -e 'const fs=require\\('\\\\''fs'\\\\''\\);const p='\\\\''src/pages/IncomeBank.jsx'\\\\'';let s=fs.readFileSync\\(p,'\\\\''utf8'\\\\''\\);const L=s.split\\('\\\\''\\\\n'\\\\''\\); *)"
+      "Bash(node -e 'const fs=require\\('\\\\''fs'\\\\''\\);const p='\\\\''src/pages/IncomeBank.jsx'\\\\'';let s=fs.readFileSync\\(p,'\\\\''utf8'\\\\''\\);const L=s.split\\('\\\\''\\\\n'\\\\''\\); *)",
+      "Bash(grep -n \"setCashRows\\(p => \\\\[...p, {\" src/context/DataContext.jsx)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

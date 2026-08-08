@@ -13,7 +13,7 @@ const L = {
 
 function CementBal({ lang }) {
   const { cementOpening, totalCementBalance, totalRecvTons, totalSoldTons, totalSalesTons,
-          warehouses, cementByWarehouse, skladRows } = useData();
+          warehouses, cementByWarehouse, skladRows, totalSkladKg } = useData();
 
   // Sotilgan jami = eski "Sotilgan tonna" + yangi "Sotish" bo'limi
   const sotilganJami = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);
@@ -35,6 +35,13 @@ function CementBal({ lang }) {
     }] : []),
     { label: L.joriy,    val: fmt(totalCementBalance) + ' tn',  bg: '#ffff00' },
   ];
+
+  // Chakana skladda hozir yotgan sement (kirim − sotilgan, kilogrammda).
+  // Ilgari bu sahifada UMUMAN ko'rinmasdi: ulgurjidan chiqarilgan sement
+  // "sotilgan"ga ham o'xshamas, qoldiqda ham turmasdi — savol tug'ilardi
+  // "skladga o'tkazgan sementim qayerda?".
+  const skladQoldiqTn = Number(totalSkladKg || 0) / 1000;
+  const umumiySement  = Number(totalCementBalance || 0) + skladQoldiqTn;
 
   return (
     <div>
@@ -77,7 +84,9 @@ function CementBal({ lang }) {
             { k: 'Olingan tonna', v: Number(totalRecvTons || 0) },
             { k: 'Sotilgan tonna', v: sotilganJami },
             ...(skladgaOtkazilgan > 0.0001 ? [{ k: "Chakana skladga o'tkazilgan", v: skladgaOtkazilgan }] : []),
-            { k: 'Joriy qoldiq', v: Number(totalCementBalance || 0) },
+            { k: 'Joriy qoldiq (ulgurji)', v: Number(totalCementBalance || 0) },
+            { k: 'Chakana skladda qolgan', v: Number(totalSkladKg || 0) / 1000 },
+            { k: 'UMUMIY SEMENT', v: Number(totalCementBalance || 0) + Number(totalSkladKg || 0) / 1000 },
             ...cementByWarehouse.map(w => ({ k: `Sklad: ${w.name}`, v: Number(w.balance || 0) })),
           ]}
         />
@@ -92,6 +101,26 @@ function CementBal({ lang }) {
           ))}
         </tbody>
       </table>
+      {/* Ulgurji + chakana = qo'lda turgan butun sement */}
+      <table className="data-table" style={{ width: 400, marginTop: 10 }}>
+        <tbody>
+          <tr style={{ background: '#fff' }}>
+            <td style={{ padding: '6px 10px' }}>Ulgurji qoldiq (yuqoridagi)</td>
+            <td style={{ textAlign: 'right', fontWeight: 'bold', padding: '6px 10px', width: 140 }}>{fmt(totalCementBalance)} tn</td>
+          </tr>
+          <tr style={{ background: '#fff3e0' }}>
+            <td style={{ padding: '6px 10px' }}>🏗 Chakana skladda qolgan</td>
+            <td style={{ textAlign: 'right', fontWeight: 'bold', padding: '6px 10px' }}>
+              {fmt(skladQoldiqTn)} tn <span style={{ color: '#888', fontWeight: 'normal' }}>({fmt(Math.round(totalSkladKg || 0))} kg)</span>
+            </td>
+          </tr>
+          <tr style={{ background: '#c8e6c9' }}>
+            <td style={{ padding: '6px 10px', fontWeight: 'bold' }}>UMUMIY SEMENT</td>
+            <td style={{ textAlign: 'right', fontWeight: 'bold', padding: '6px 10px' }}>{fmt(umumiySement)} tn</td>
+          </tr>
+        </tbody>
+      </table>
+
       <p style={{ fontSize: 12, color: '#888', marginTop: 12 }}>
         * Aniq ma'lumot uchun "10. Olingan tonna" va "9. Sotilgan tonna" bo'limlariga kiring.
       </p>

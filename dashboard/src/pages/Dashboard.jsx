@@ -9,6 +9,7 @@ import { useData } from '../context/DataContext';
 import CustomerCard from '../components/CustomerCard';
 import BalanceBreakdown from '../components/BalanceBreakdown';
 import { customerSummaryAll } from '../lib/customerSummary';
+import { custKey } from '../lib/customerRef';
 import { activityStatus } from '../lib/monitoring';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -17,6 +18,19 @@ const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) :
 // shunchaki o'z pulingni ko'chirish. Yalpi kirim/chiqim hisobidan chiqarib
 // tashlanadi, aks holda ikkala raqam ham sun'iy shishardi.
 const isTransfer = (r) => String(r.desc || '').trim().startsWith('↔️');
+
+// Kanal ro'yxatlaridan kirim / chiqim yig'indisi.
+//   · o'tkazma (↔️) hisobga olinmaydi — u kirim ham, chiqim ham emas;
+//   · `auto` yozuvlar HISOBGA OLINADI — ular haqiqiy pul harakati (sotuv,
+//     qarz to'lovi, avans, oylik, zavodga to'lov, haydovchi to'lovi).
+// Ilgari chiqim tomonida `!r.auto` filtri turardi: oylik, zavodga to'lov va
+// haydovchi to'lovlari "Jami chiqim"ga UMUMAN kirmasdi — pul kassadan chiqib
+// ketgani ko'rinardi-yu, chiqim raqami o'sha-o'sha turardi.
+// income*/expense* ro'yxatlari musbat saqlanadi (ular allaqachon tur bo'yicha
+// ajratilgan), shuning uchun ular uchun ham inSum ishlatiladi.
+const inSum  = (arr) => (arr || []).reduce((s, r) => isTransfer(r) ? s : s + Math.max(0,  Number(r.amount || 0)), 0);
+const outSum = (arr) => (arr || []).reduce((s, r) => isTransfer(r) ? s : s + Math.max(0, -Number(r.amount || 0)), 0);
+const onDay  = (arr, d) => (arr || []).filter(r => r.date === d);
 
 // Komponent ichida hisoblanadi — brauzer tab ochiq qolsa sana eskirib qolmasin
 
@@ -59,34 +73,58 @@ export default function Dashboard() {
   const todaySales = allSales.filter(r => r.date === today);
   const monthSales = allSales.filter(r => (r.date || '').endsWith(monthKey));
 
-  const kassirTodayIn  = (arr) => arr.filter(r => r.date === today && !r.auto && !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
-  const kassirTodayOut = (arr) => arr.filter(r => r.date === today && !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
-  const todayIncome  = incomeRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0) + kassirTodayIn(cashRows) + kassirTodayIn(bankRows) + kassirTodayIn(clickRows);
-  const todayExpense = expenseRows.filter(r => r.date === today).reduce((s, r) => s + Number(r.amount || 0), 0) + kassirTodayOut(cashRows) + kassirTodayOut(bankRows) + kassirTodayOut(clickRows);
+  // Bugungi kirim/chiqim — pastdagi "Jami" bilan BIR XIL qoida bo'yicha
+  // (barcha kanallar, auto yozuvlar bilan). Ilgari bugungi hisob `!r.auto`
+  // filtrlagani uchun bugun sotilgan sement puli "Bugun / kirim"da
+  // ko'rinmasdi, pastdagi "Jami kirim"da esa ko'rinardi — ikki raqam bir-biriga
+  // mos kelmasdi.
+  const todayIncome =
+      inSum(onDay(incomeRows, today)) + inSum(onDay(bankIncomeRows, today)) + inSum(onDay(clickIncomeRows, today))
+    + inSum(onDay(cashRows, today))   + inSum(onDay(bankRows, today))       + inSum(onDay(clickRows, today));
+  const todayExpense =
+      inSum(onDay(expenseRows, today)) + inSum(onDay(bankExpenseRows, today)) + inSum(onDay(clickExpenseRows, today))
+    + outSum(onDay(cashRows, today))   + outSum(onDay(bankRows, today))       + outSum(onDay(clickRows, today));
 
   const pending = tgOrders.filter(o => o.status === 'kutilmoqda');
   const pendingTons = pending.reduce((s, o) => s + Number(o.tons || 0), 0);
 
-  // Kirim/chiqim jami (barcha kanallar)
-  const sumArr = (arr, positive = true) => (arr || []).reduce((s, r) => {
-    if (isTransfer(r)) return s;                 // o'tkazma — kirim/chiqim emas
-    const v = Number(r.amount || 0);
-    return positive ? s + (v > 0 ? v : 0) : s + (v < 0 ? -v : 0);
-  }, 0);
-  const totalIncome  = sumArr(incomeRows) + sumArr(clickIncomeRows) + sumArr(bankIncomeRows)
-    + sumArr(cashRows) + sumArr(bankRows) + sumArr(clickRows);
-  const totalExpense = sumArr(expenseRows) + sumArr(bankExpenseRows || []) + sumArr(clickExpenseRows || [])
-    + (cashRows || []).filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
-    + (bankRows || []).filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0)
-    + (clickRows || []).filter(r => !r.auto && !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
+  // Kirim/chiqim jami (barcha kanallar). Tarkib qatorlari pastda AYNAN shu
+  // qismlardan chiziladi, shuning uchun qo'shib ko'rilganda "Jami"ga teng
+  // chiqadi (ilgari Kassir bank/click kirimlari jamiga kirar, lekin ro'yxatda
+  // ko'rinmasdi).
+  const incParts = [
+    ['Naqd kirim',        inSum(incomeRows)],
+    ['Bank kirim',        inSum(bankIncomeRows)],
+    ['Click kirim',       inSum(clickIncomeRows)],
+    ['Kassir — naqd',     inSum(cashRows)],
+    ['Kassir — bank',     inSum(bankRows)],
+    ['Kassir — click',    inSum(clickRows)],
+  ];
+  const expParts = [
+    ['Naqd chiqim',       inSum(expenseRows)],
+    ['Bank chiqim',       inSum(bankExpenseRows)],
+    ['Click chiqim',      inSum(clickExpenseRows)],
+    ['Kassir — naqd',     outSum(cashRows)],
+    ['Kassir — bank',     outSum(bankRows)],
+    ['Kassir — click',    outSum(clickRows)],
+  ];
+  const totalIncome  = incParts.reduce((s, [, v]) => s + v, 0);
+  const totalExpense = expParts.reduce((s, [, v]) => s + v, 0);
 
-  // Eng katta qarzdorlar
-  const debtByCust = {};
+  // Eng katta qarzdorlar — customerId bo'yicha (bo'lmasa normallashtirilgan
+  // nom bo'yicha). Ilgari xom `r.customer` kalit edi: bitta mijoz "Akmal aka"
+  // va "akmal  aka" deb yozilgan bo'lsa ro'yxatda ikki qator bo'lib chiqardi.
+  const debtByCust = new Map();
   debtRows.forEach(r => {
     const q = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
-    if (q > 0) debtByCust[r.customer] = (debtByCust[r.customer] || 0) + q;
+    if (q <= 0) return;
+    const key = r.customerId != null ? `#${r.customerId}` : custKey(r.customer);
+    if (!key) return;
+    const prev = debtByCust.get(key);
+    if (prev) prev.sum += q;
+    else debtByCust.set(key, { name: r.customer, sum: q });
   });
-  const topDebtors = Object.entries(debtByCust).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const topDebtors = [...debtByCust.values()].sort((a, b) => b.sum - a.sum).slice(0, 6);
 
   return (
     <div style={{ fontFamily: 'Tahoma, Arial, sans-serif' }}>
@@ -103,7 +141,9 @@ export default function Dashboard() {
         <Stat label="Naqd kassa"        value={fmt(totalCashBalance)}   unit="so'm" onClick={() => setBreak_('naqd')} />
         <Stat label="Bank"              value={fmt(totalBankBalance)}   unit="so'm" onClick={() => setBreak_('bank')} />
         <Stat label="Click"             value={fmt(totalClickBalance)}  unit="so'm" onClick={() => setBreak_('click')} />
-        <Stat label="Sement qoldig'i"   value={fmtT(totalCementBalance)} unit="tn"  onClick={() => setBreak_('cement')} />
+        {/* "Sement qoldig'i" faqat ULGURJI qoldiq — chakana skladdagi sement
+            bu raqamga kirmaydi (u "Umumiy ma'lumot → Sement" da alohida). */}
+        <Stat label="Sement (ulgurji)"  value={fmtT(totalCementBalance)} unit="tn"  onClick={() => setBreak_('cement')} />
         <Stat label="Bizga jami qarz"   value={fmt(totalDebts)}         unit="so'm" onClick={() => setBreak_('debt')} />
         <Stat label="Kutilayotgan zakaz" value={`${pending.length} ta`} unit={`${fmtT(pendingTons)} tn`} onClick={() => navigate('/tg_order')} blink={pending.length > 0} />
       </div>
@@ -151,8 +191,9 @@ export default function Dashboard() {
         <Panel title="📅 Bugun">
           <Line label="Sotuv (tonna)" value={`${fmtT(tonsOf(todaySales))} tn`} />
           <Line label="Sotuv (summa)" value={`${fmt(sumOf(todaySales))} so'm`} strong />
-          <Line label="Naqd kirim"    value={`${fmt(todayIncome)} so'm`} />
-          <Line label="Naqd chiqim"   value={`${fmt(todayExpense)} so'm`} />
+          {/* "Naqd" emas — bu yerda naqd + bank + click hammasi qo'shilgan */}
+          <Line label="Kirim (barcha kanal)"  value={`${fmt(todayIncome)} so'm`} />
+          <Line label="Chiqim (barcha kanal)" value={`${fmt(todayExpense)} so'm`} />
         </Panel>
 
         <Panel title="🗓 Shu oy">
@@ -201,10 +242,7 @@ export default function Dashboard() {
             💰 Kirim (jami)
           </div>
           <div style={{ padding: '8px 12px' }}>
-            <Line label="Naqd kirim"    value={`${fmt(sumArr(incomeRows))} so'm`} />
-            <Line label="Bank kirim"    value={`${fmt(sumArr(bankIncomeRows))} so'm`} />
-            <Line label="Click kirim"   value={`${fmt(sumArr(clickIncomeRows))} so'm`} />
-            <Line label="Kassir (naqd)" value={`${fmt(sumArr(cashRows))} so'm`} />
+            {incParts.map(([lbl, v]) => <Line key={lbl} label={lbl} value={`${fmt(v)} so'm`} />)}
             <Line label="Jami kirim"    value={`${fmt(totalIncome)} so'm`} color="#1b5e20" strong />
           </div>
         </div>
@@ -213,10 +251,7 @@ export default function Dashboard() {
             📤 Chiqim (jami)
           </div>
           <div style={{ padding: '8px 12px' }}>
-            <Line label="Naqd chiqim"   value={`${fmt(sumArr(expenseRows))} so'm`} />
-            <Line label="Bank chiqim"   value={`${fmt(sumArr(bankExpenseRows || []))} so'm`} />
-            <Line label="Click chiqim"  value={`${fmt(sumArr(clickExpenseRows || []))} so'm`} />
-            <Line label="Kassir chiqim" value={`${fmt((cashRows||[]).filter(r=>!r.auto&&!isTransfer(r)&&Number(r.amount)<0).reduce((s,r)=>s-Number(r.amount),0))} so'm`} />
+            {expParts.map(([lbl, v]) => <Line key={lbl} label={lbl} value={`${fmt(v)} so'm`} />)}
             <Line label="Jami chiqim"   value={`${fmt(totalExpense)} so'm`} color="#b71c1c" strong />
           </div>
         </div>
@@ -277,7 +312,7 @@ export default function Dashboard() {
           ) : (
             <table className="data-table" style={{ width: '100%' }}>
               <tbody>
-                {topDebtors.map(([name, sum]) => (
+                {topDebtors.map(({ name, sum }) => (
                   <tr key={name} style={{ cursor: 'pointer' }} onClick={() => setCard(name)}>
                     <td style={{ fontWeight: 'bold' }}>👤 {name}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#c62828' }}>{fmt(sum)} so'm</td>
