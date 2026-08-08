@@ -475,8 +475,9 @@ export default function IncomeBank({ lang }) {
 
 // ─── Excel hisobot ───────────────────────────────────────────────────────────
 function exportExcel(incRows, expRows, tab) {
-  const XLSX = window.XLSX || (typeof require !== 'undefined' ? require('xlsx') : null);
-  // XLSX import qilingan, window.XLSX emas — shuning uchun modulni ishlatamiz
+  // Modul dinamik yuklanadi (import) — sahifa ochilishida xlsx bundle'ga
+  // kirmasin. Ilgari bu yerda ishlatilmaydigan `require('xlsx')` qatori ham
+  // bor edi: brauzerda require mavjud emas, ya'ni o'lik va chalg'ituvchi kod.
   import('xlsx').then(X => {
     const rows = (tab === 'kirim' ? incRows : expRows).map(r => ({
       'Sana':    r.date   || '—',

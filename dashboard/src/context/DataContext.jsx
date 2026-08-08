@@ -1305,10 +1305,13 @@ export function DataProvider({ children }) {
   useEffect(() => save('salary_payments', salaryPayments), [salaryPayments]);
 
   const addWorker = (name, salary, opts = {}) => {
-    // Manfiy/yaroqsiz oylik "qolgan oylik" hisobini teskari buzardi
-    // (totalQoldiMonth = salary − paid).
+    // MANFIY oylik "qolgan oylik" hisobini teskari buzadi
+    // (totalQoldiMonth = salary − paid), shuning uchun bloklanadi.
+    // NOL esa to'g'ri holat: Sozlamalardan xodim qo'shilganda oylik
+    // kiritilmaydi (keyin "Ishchilar oyligi" bo'limida belgilanadi).
+    // Oylik majburiy bo'lgan joyda chaqiruvchining o'zi `> 0` talab qiladi.
     const sal = parseNum(salary);
-    if (!(sal > 0)) { alert("Oylik summasi 0 dan katta bo'lishi kerak."); return false; }
+    if (sal < 0) { alert("Oylik summasi manfiy bo'lishi mumkin emas."); return false; }
     const ts = uid();
     setWorkers(p => [...p, {
       id: ts, createdAt: ts, worker: currentWorker,

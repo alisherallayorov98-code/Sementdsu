@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { parseNum } from '../lib/parseNum';
+import { driverBalance } from '../lib/driverBalance';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import { api } from '../api';
@@ -324,7 +325,8 @@ function WorkersTab() {
 // 2. HAYDOVCHILAR TABI
 // ═════════════════════════════════════════════════════════════════════════════
 function DriversTab() {
-  const { drivers, addDriver, updateDriver, deleteDriver, driverTrips, addDriverTrip, deleteDriverTrip } = useData();
+  const { drivers, addDriver, updateDriver, deleteDriver, driverTrips, addDriverTrip, deleteDriverTrip,
+          cashRows, bankRows, clickRows } = useData();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({ name: '', carNumber: '', phone: '' });
@@ -356,13 +358,22 @@ function DriversTab() {
   const handleAdd = (e) => { e.preventDefault(); if (!form.name) return; addDriver(form.name, form.carNumber, form.phone); setForm({ name: '', carNumber: '', phone: '' }); setShowForm(false); };
   const saveEdit = (id) => { if (!editData.name) return; updateDriver(id, editData); setEditId(null); };
 
-  const handleAddTrip = (e) => { e.preventDefault(); if (!tripForm.price) return; addDriverTrip(modalDriver, tripForm.destination, tripForm.price, tripForm.isPayment, tripForm.note, tripForm.channel); setTripForm({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' }); };
+  const handleAddTrip = (e) => {
+    e.preventDefault();
+    if (!tripForm.price) return;
+    const amt = parseNum(tripForm.price);
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    if (!addDriverTrip(modalDriver, tripForm.destination, amt, tripForm.isPayment, tripForm.note, tripForm.channel)) return;
+    setTripForm({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' });
+  };
 
+  // Hisob lib/driverBalance.js da — Haydovchilar sahifasi bilan AYNAN bir xil.
+  // Ilgari bu yerda alohida hisob bor edi va u KASSADAN berilgan pulni
+  // umuman hisobga olmasdi: bir xil haydovchining balansi ikki sahifada
+  // ikki xil ko'rinardi (bu yerda ko'proq qarzdor bo'lib turardi).
   const getStats = (id) => {
-    const trips = driverTrips.filter(t => t.driverId === id);
-    const earnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const paid     = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    return { earnings, paid, balance: Math.max(0, earnings - paid), count: trips.filter(t => !t.isPayment).length };
+    const b = driverBalance(drivers.find(d => d.id === id), { driverTrips, cashRows, bankRows, clickRows });
+    return { earnings: b.earnings, paid: b.totalPaid, balance: Math.max(0, b.balance), count: b.tripsCount };
   };
 
   const allStats     = drivers.map(d => getStats(d.id));

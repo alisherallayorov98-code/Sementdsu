@@ -5,7 +5,7 @@ import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
 // Ilgari bu yerda o'z summa parseri bor edi: u vergulni O'CHIRIB tashlardi,
 // ya'ni "1 378 756,50" → 137875650 bo'lib summa 100 barobar oshardi.
-import { parseNum as parseAmount } from '../lib/parseNum';
+import { parseNum, parseNum as parseAmount } from '../lib/parseNum';
 import { nameKey as normName } from '../lib/customerRef';
 
 // Parol yacheykasi: yangi parolni kiriting, eski hashni ko'rsatmaydi
@@ -596,22 +596,70 @@ export default function Settings({ lang }) {
     }
   };
 
+  // Zaxiradan tiklash — dasturdagi ENG XAVFLI amal: butun baza almashtiriladi.
+  // Ilgari fayl umuman tekshirilmasdi: bo'sh `{}` yoki boshqa dasturning
+  // JSON'i yuklansa ham hammasi o'chib ketardi (server faqat xodimlarni
+  // saqlab qolardi). Endi uch bosqichli himoya bor.
   const handleImport = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!window.confirm("DIQQAT! Tiklash hozirgi BARCHA ma'lumotni zaxiradagi ma'lumotga almashtiradi. Davom etamizmi?")) {
-      e.target.value = '';
-      return;
-    }
+    const reset = () => { e.target.value = ''; };
     const reader = new FileReader();
+    reader.onerror = () => { alert("Faylni o'qib bo'lmadi."); reset(); };
     reader.onload = async () => {
+      let parsed;
       try {
-        const parsed = JSON.parse(reader.result);
+        parsed = JSON.parse(reader.result);
+      } catch {
+        alert("Bu JSON fayl emas yoki buzilgan. Tiklab bo'lmadi.");
+        reset(); return;
+      }
+
+      // 1) Bu haqiqatan shu dasturning zaxirasimi?
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        alert("Fayl tarkibi noto'g'ri — bu dastur zaxirasi emas.");
+        reset(); return;
+      }
+      const KNOWN = ['debt_rows', 'customers', 'sales_rows', 'cash_rows', 'recv_rows', 'workers', 'advance_rows'];
+      const found = KNOWN.filter(k => Array.isArray(parsed[k]));
+      if (found.length < 2) {
+        alert(
+          "Bu dastur zaxirasiga o'xshamaydi.\n\n" +
+          "Kutilgan bo'limlar topilmadi (mijozlar, qarzlar, sotuvlar...).\n" +
+          "Sozlamalar → Zaxira → \"Zaxirani yuklab olish\" orqali olingan faylni tanlang."
+        );
+        reset(); return;
+      }
+
+      // 2) Nima tiklanayotganini ko'rsatamiz — bo'sh zaxira bilan almashtirish
+      //    eng ko'p uchraydigan xato edi.
+      const cnt = (k) => (Array.isArray(parsed[k]) ? parsed[k].length : 0);
+      const summary =
+        `Mijozlar: ${cnt('customers')}\n` +
+        `Qarzlar: ${cnt('debt_rows')}\n` +
+        `Sotuvlar: ${cnt('sales_rows')}\n` +
+        `Olingan tonna: ${cnt('recv_rows')}\n` +
+        `Kassa yozuvlari: ${cnt('cash_rows')}`;
+      if (!window.confirm(
+        `DIQQAT! Hozirgi BARCHA ma'lumot quyidagi zaxira bilan ALMASHTIRILADI:\n\n${summary}\n\n` +
+        `Bu amalni qaytarib bo'lmaydi. Davom etamizmi?`
+      )) { reset(); return; }
+
+      // 3) Oxirgi imkoniyat: joriy holatni saqlab qolish
+      if (window.confirm(
+        "Tiklashdan OLDIN hozirgi ma'lumotni faylga yuklab olasizmi?\n\n" +
+        "(Tavsiya etiladi — zaxira noto'g'ri chiqsa qaytish imkoni bo'ladi.)"
+      )) {
+        await handleExport();
+      }
+
+      try {
         await api.saveState(parsed);
         alert("Ma'lumotlar tiklandi! Dastur yangilanadi.");
         window.location.reload();
-      } catch {
-        alert("Fayl noto'g'ri yoki buzilgan. Tiklab bo'lmadi.");
+      } catch (err) {
+        alert(`Tiklab bo'lmadi: ${err?.message || 'server xatosi'}`);
+        reset();
       }
     };
     reader.readAsText(file);
@@ -1158,10 +1206,19 @@ function OpeningRow({ row, inp, fmtN, onSaved }) {
   const dirty = Number(val || 0) !== current || (date || '') !== (cur?.date || '');
 
   const save = () => {
-    const n = Number(val);
+    // parseNum: "1 200 000" kabi probelli yozuv Number() da NaN berib,
+    // to'g'ri kiritilgan boshlang'ich qoldiq ham rad etilardi.
+    const n = parseNum(val);
     if (!isFinite(n)) { alert("Son noto'g'ri kiritilgan."); return; }
     if (n < 0 && !window.confirm('Manfiy qiymat kiritilmoqda. Davom etamizmi?')) return;
-    set({ ...cur, [field]: n, date });
+    // Sana bo'sh bo'lishi mumkin (ixtiyoriy), lekin yozilgan bo'lsa formati
+    // to'g'ri bo'lsin — u balans tarkibida "… holatiga" deb ko'rsatiladi.
+    const d = String(date || '').trim();
+    if (d && !/^\d{2}\.\d{2}\.\d{4}$/.test(d)) {
+      alert("Sana formati: kk.oo.yyyy (masalan 01.08.2026)");
+      return;
+    }
+    set({ ...cur, [field]: n, date: d });
     onSaved(`${label} boshlang'ich qoldig'i saqlandi`);
   };
 
