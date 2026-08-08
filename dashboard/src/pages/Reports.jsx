@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { sameCust } from '../lib/customerRef';
+import { totalDriverDebt } from '../lib/driverBalance';
 import { buildReport, parseDate } from '../lib/reportData';
 import { generateReportExcel } from '../lib/reportExcel';
 
@@ -59,19 +59,12 @@ export default function Reports() {
     .reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalWDebt = workers.reduce((s, w) => s + Math.max(0, Number(w.salary) - paidThisMonth(w.id)), 0);
 
-  // Haydovchi qarzi — reys + Kassir to'lovlari (Drivers bilan bir xil)
-  const totalDriverDebt = drivers.reduce((sum, d) => {
-    const trips = driverTrips.filter(t => t.driverId === d.id);
-    const earnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const tripPaid = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const kassiPaid = [...cashRows, ...bankRows, ...clickRows]
-      .filter(r => !r.auto && sameCust(r.customer, d.name) && Number(r.amount) < 0)
-      .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
-    return sum + Math.max(0, earnings - tripPaid - kassiPaid);
-  }, 0);
+  // Haydovchi qarzi — hisob lib/driverBalance.js da (Haydovchilar sahifasi
+  // bilan aynan bir xil bo'lishi uchun; ilgari uch joyda qo'lda takrorlanardi).
+  const totalDriverDebtSum = totalDriverDebt(drivers, { driverTrips, cashRows, bankRows, clickRows });
 
   const totalAssets      = Number(totalCashBalance) + Number(totalBankBalance) + Number(totalClickBalance) + Number(totalDebts);
-  const totalLiabilities = Number(totalAdvances) + totalWDebt + totalDriverDebt;
+  const totalLiabilities = Number(totalAdvances) + totalWDebt + totalDriverDebtSum;
   const netCapital       = totalAssets - totalLiabilities;
 
   const handleExcel = async () => {
@@ -185,7 +178,7 @@ export default function Reports() {
           <div style={{ paddingLeft: 12, fontSize: 12, color: '#777' }}>
             <Row label="· Biz olgan avanslar" val={Number(totalAdvances)} />
             <Row label="· Ishchilarga qarzimiz (shu oy)" val={totalWDebt} />
-            <Row label="· Haydovchilarga qarzimiz" val={totalDriverDebt} />
+            <Row label="· Haydovchilarga qarzimiz" val={totalDriverDebtSum} />
           </div>
           <Divider />
           <Row label="SOF KAPITAL = Aktiv − Majburiyat" val={netCapital} color={netCapital >= 0 ? '#1a237e' : '#c62828'} bold />

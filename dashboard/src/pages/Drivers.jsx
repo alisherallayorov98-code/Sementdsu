@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { parseNum } from '../lib/parseNum';
-import { sameCust } from '../lib/customerRef';
+import { driverBalance } from '../lib/driverBalance';
 import { api } from '../api';
 import Paginator from '../components/Paginator';
 
@@ -123,18 +123,10 @@ export default function Drivers({ lang }) {
   };
 
   // ── Statistika ────────────────────────────────────────────────────────────
+  // Hisob lib/driverBalance.js da (uch joyda takrorlanardi — endi bitta manba)
   const getStats = (id) => {
-    const drv   = drivers.find(d => d.id === id);
-    const trips = driverTrips.filter(t => t.driverId === id);
-    const totalEarnings = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const tripPaid      = trips.filter(t => t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    // Kassirdan qo'lda kiritilgan to'lovlar (auto emas — driverTrips orqali yaratilgan avtomatiklar ikki marta sanalmaydi)
-    const kassiPaid = drv ? [...(cashRows || []), ...(bankRows || []), ...(clickRows || [])]
-      .filter(r => !r.auto && sameCust(r.customer, drv.name) && Number(r.amount) < 0)
-      .reduce((s, r) => s + Math.abs(Number(r.amount)), 0) : 0;
-    const totalPaid = tripPaid + kassiPaid;
-    const balance   = totalEarnings - totalPaid;
-    return { totalEarnings, totalPaid, balance, tripsCount: trips.filter(t => !t.isPayment).length };
+    const b = driverBalance(drivers.find(d => d.id === id), { driverTrips, cashRows, bankRows, clickRows });
+    return { totalEarnings: b.earnings, totalPaid: b.totalPaid, balance: b.balance, tripsCount: b.tripsCount };
   };
   const allStats     = drivers.map(d => getStats(d.id));
   const totalBalance = allStats.reduce((s, x) => s + Math.max(0, x.balance), 0);

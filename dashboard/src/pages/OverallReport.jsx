@@ -1,5 +1,5 @@
 import { useData } from '../context/DataContext';
-import { sameCust } from '../lib/customerRef';
+import { totalDriverDebt as driverDebtTotal } from '../lib/driverBalance';
 import ExcelExport from '../components/ExcelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -54,15 +54,7 @@ export default function OverallReport() {
   // Haydovchilar qarzi — Kassirдан qo'lда berilgan to'lovlarни ham ayiramiz
   // (Drivers sahifasi bilan bir xil). Ilgari faqat reys to'lovlari hisoblanib,
   // qarz oshib ko'rinardi.
-  const totalDriverDebt = drivers.reduce((sum, d) => {
-    const trips = driverTrips.filter(t => t.driverId === d.id);
-    const earnings  = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const tripPaid  = trips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price), 0);
-    const kassiPaid = [...(cashRows||[]), ...(bankRows||[]), ...(clickRows||[])]
-      .filter(r => !r.auto && sameCust(r.customer, d.name) && Number(r.amount) < 0)
-      .reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
-    return sum + Math.max(0, earnings - tripPaid - kassiPaid);
-  }, 0);
+  const totalDriverDebt = driverDebtTotal(drivers, { driverTrips, cashRows, bankRows, clickRows });
 
   // Telegram zakazlar
   const pendingTgTons = tgOrders.filter(o => o.status === 'kutilmoqda').reduce((s, o) => s + Number(o.tons), 0);
