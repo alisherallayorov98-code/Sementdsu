@@ -31,6 +31,7 @@ export default function Drivers({ lang }) {
     driverTrips, addDriverTrip, deleteDriverTrip,
     driverTariffs, appSettings,
     cashRows, bankRows, clickRows,
+    totalCashBalance, totalBankBalance, totalClickBalance,
   } = useData();
 
   const [showForm, setShowForm] = useState(false);
@@ -97,6 +98,23 @@ export default function Drivers({ lang }) {
     if (!tripForm.price) return;
     const amt = parseNum(tripForm.price);
     if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+    // AVANS (isPayment) — kassadan haqiqiy pul chiqadi, shuning uchun qoldiq
+    // tekshiriladi (Kassir, oylik va zavodga to'lov bilan bir xil qoida).
+    // Reys qo'shish esa pul harakati emas — u yerda tekshirilmaydi.
+    if (tripForm.isPayment) {
+      const have = { naqd: totalCashBalance, bank: totalBankBalance, click: totalClickBalance }[tripForm.channel] || 0;
+      if (amt > Number(have) + 0.001 && !window.confirm(
+        `Diqqat: ${tripForm.channel} qoldig'idan ko'p to'lov.
+
+` +
+        `Qoldiq: ${fmt(have)} so'm
+Avans: ${fmt(amt)} so'm
+` +
+        `Qoldiq ${fmt(Number(have) - amt)} so'm (manfiy) bo'ladi.
+
+Davom etamizmi?`
+      )) return;
+    }
     // Natija tekshiriladi — rad etilsa forma tozalanmasin
     if (!addDriverTrip(modalDriver, tripForm.destination, amt, tripForm.isPayment, tripForm.note, tripForm.channel)) return;
     setTripForm({ destination: '', price: '', note: '', isPayment: false, channel: 'naqd' });

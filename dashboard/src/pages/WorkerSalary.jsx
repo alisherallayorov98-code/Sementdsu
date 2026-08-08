@@ -58,7 +58,8 @@ export default function WorkerSalary({ lang }) {
 // 1. ISHCHILAR TABI
 // ═════════════════════════════════════════════════════════════════════════════
 function WorkersTab() {
-  const { workers, addWorker, updateWorker, payWorker, deleteWorker, salaryPayments, deleteSalaryPayment } = useData();
+  const { workers, addWorker, updateWorker, payWorker, deleteWorker, salaryPayments, deleteSalaryPayment,
+          totalCashBalance, totalBankBalance, totalClickBalance } = useData();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({ name: '', salary: '', position: '', phone: '', note: '' });
@@ -105,9 +106,25 @@ function WorkersTab() {
 
   const handlePay = (id) => {
     if (payForm.id === id && payForm.amount) {
+      // Kassa qoldig'i tekshiruvi — Kassir va zavodga to'lov bilan bir xil
+      // qoida. Ilgari umuman yo'q edi: kassada 500 ming turganda 5 mln oylik
+      // "berish" mumkin va qoldiq jimgina manfiyga tushardi.
+      const amt = parseNum(payForm.amount);
+      const have = { naqd: totalCashBalance, bank: totalBankBalance, click: totalClickBalance }[payForm.channel] || 0;
+      if (amt > Number(have) + 0.001 && !window.confirm(
+        `Diqqat: ${payForm.channel} qoldig'idan ko'p to'lov.
+
+` +
+        `Qoldiq: ${fmt(have)} so'm
+To'lov: ${fmt(amt)} so'm
+` +
+        `Qoldiq ${fmt(Number(have) - amt)} so'm (manfiy) bo'ladi.
+
+Davom etamizmi?`
+      )) return;
       // Natija tekshiriladi: payWorker manfiy/nol summani rad etadi.
       // Ilgari forma baribir yopilardi va to'lov o'tmagani bilinmasdi.
-      if (!payWorker(id, parseNum(payForm.amount), payForm.note, payForm.channel)) return;
+      if (!payWorker(id, amt, payForm.note, payForm.channel)) return;
       setPayForm({ id: null, amount: '', note: '', channel: 'naqd' });
     } else {
       setPayForm({ id, amount: '', note: '', channel: 'naqd' });

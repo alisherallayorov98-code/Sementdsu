@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import Paginator from '../components/Paginator';
+import { isTransferRow } from '../lib/transferRow';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => {
@@ -75,6 +76,7 @@ export default function DailyWork({ lang }) {
     incomeRows, expenseRows,
     bankIncomeRows, bankExpenseRows, clickIncomeRows, clickExpenseRows,
     soldRows, salesRows, recvRows,
+    cashRows, bankRows, clickRows,
     currentWorker, setCurrentWorker,
   } = useData();
 
@@ -150,6 +152,31 @@ export default function DailyWork({ lang }) {
       tonna: r.tons,
       tolov: r.paymentChannel || '—',
     })),
+    // KASSIR YOZUVLARI (naqd/bank/click). Ilgari bu sahifa faqat eski
+    // income*/expense* ro'yxatlarini o'qirdi — pul kirish nuqtasi Kassirga
+    // birlashtirilgandan keyin kunlik jurnal deyarli bo'sh qolardi.
+    // Sotuv va sement olishdan yaratilgan auto yozuvlar CHIQARIB TASHLANADI:
+    // ular pastdagi 'sotilgan'/'olingan' qatorlarida allaqachon bor, ikki
+    // marta ko'rinsa kunlik jami ikkilanardi.
+    ...[
+      ...cashRows.map(r  => ({ ...r, _tolov: 'Naqd'  })),
+      ...bankRows.map(r  => ({ ...r, _tolov: 'Bank'  })),
+      ...clickRows.map(r => ({ ...r, _tolov: 'Click' })),
+    ]
+      .filter(r => !(r.auto && ['sale', 'sold', 'sklad_sale', 'recv'].includes(r.sourceType)))
+      .filter(r => !isTransferRow(r))   // o'tkazma kirim ham, chiqim ham emas
+      .map(r => ({
+        id: 'ks_' + r.id,
+        createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),
+        date: r.date,
+        type: Number(r.amount || 0) >= 0
+          ? (r._tolov === 'Bank' ? 'kirim_bank' : r._tolov === 'Click' ? 'kirim_click' : 'kirim_naqd')
+          : 'chiqim',
+        worker: r.worker || '',
+        izoh: r.desc || r.customer || '',
+        summa: Math.abs(Number(r.amount || 0)),
+        tonna: null, tolov: r._tolov,
+      })),
     ...recvRows.map(r => ({
       id: 'rcv_' + r.id,
       createdAt: r.createdAt || (r.id > 1e10 ? r.id : null),

@@ -1413,6 +1413,11 @@ export function DataProvider({ children }) {
       else if (channel === 'bank')  setBankRows(p  => [...p, { ...link, id: uid(), amount: -num, desc: tag }]);
       else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount: -num, desc: tag }]);
     }
+    // MUVAFFAQIYAT natijasi QAYTARILISHI shart: chaqiruvchi
+    // (WorkerSalary → handlePay) `if (!payWorker(...)) return;` deb tekshiradi.
+    // Qaytarilmaganda undefined kelib, to'lov o'tgan bo'lsa ham forma
+    // yopilmasdi va xodim to'lov o'tmadi deb qayta bosardi.
+    return true;
   };
 
   // Oylik to'lovini bekor qilish. guardAutoDelete kassa yozuvini o'chirmoqchi
@@ -1434,12 +1439,30 @@ export function DataProvider({ children }) {
   const updateWorker = (id, data) => setWorkers(p => p.map(w => w.id === id ? { ...w, ...data } : w));
   const deleteWorker = (id) => {
     // Xodim o'chsa, uning oylik to'lovlaridan yaratilgan kassa chiqimlari
-    // ilgari kassada "egasiz" qolib ketardi.
-    const sids = new Set(salaryPayments.filter(x => x.workerId === id).map(x => `${id}_s${x.id}`));
+    // ilgari kassada "egasiz" qolib ketardi — shuning uchun ular ham o'chadi.
+    // LEKIN bu kassa qoldig'ini OSHIRADI: pul haqiqatan berilgan, uni
+    // o'chirish qoldiqni yolg'on ko'tarib yuboradi. Shuning uchun to'lov
+    // tarixi bo'lsa, nima bo'lishini aniq aytib tasdiq so'raymiz (ilgari
+    // hech qanday ogohlantirish yo'q edi).
+    const myPays = salaryPayments.filter(x => x.workerId === id);
+    const paidSum = myPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+    if (paidSum > 0) {
+      const w = workers.find(x => x.id === id);
+      if (!window.confirm(
+        `"${w?.name || 'Xodim'}" ga ${myPays.length} ta to'lov qilingan — jami ` +
+        `${paidSum.toLocaleString('ru-RU')} so'm.\n\n` +
+        `O'chirilsa bu to'lovlar va ular yaratgan kassa chiqimlari ham o'chadi, ` +
+        `ya'ni kassa qoldig'i ${paidSum.toLocaleString('ru-RU')} so'mga OSHADI ` +
+        `(garchi pul haqiqatan berilgan bo'lsa ham).\n\n` +
+        `Ishdan bo'shagan xodimni o'chirmasdan qoldirish to'g'riroq.\n\nBaribir o'chirilsinmi?`
+      )) return false;
+    }
+    const sids = new Set(myPays.map(x => `${id}_s${x.id}`));
     setWorkers(p => p.filter(w => w.id !== id));
     setSalaryPayments(p => p.filter(x => x.workerId !== id));
     const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'salary' && sids.has(r.sourceId)));
     setCashRows(rm); setBankRows(rm); setClickRows(rm);
+    return true;
   };
 
   // ── 17. Telegram zakaz ────────────────────────────────────────────────────
@@ -1689,13 +1712,19 @@ export function DataProvider({ children }) {
     if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return false; }
     const ts = uid();
     const today = new Date().toLocaleDateString('ru-RU');
-    setDriverTrips(p => {
-      const updated = [...p, {
-        id: ts, createdAt: ts, driverId, date: today,
-        destination, price: amt, isPayment, note,
-        channel: isPayment ? channel : undefined,
-      }];
-      // Haydovchiga bot xabari (avans berilib yoki qo'shimcha reys qo'shilsa)
+    const newTrip = {
+      id: ts, createdAt: ts, driverId, date: today,
+      destination, price: amt, isPayment, note,
+      channel: isPayment ? channel : undefined,
+    };
+    setDriverTrips(p => [...p, newTrip]);
+    {
+      // Haydovchiga bot xabari (avans berilib yoki qo'shimcha reys qo'shilsa).
+      // MUHIM: bu blok setDriverTrips UPDATERI ICHIDA turardi. React
+      // StrictMode updaterni ataylab IKKI MARTA chaqiradi (sof funksiya
+      // ekanini tekshirish uchun) — natijada haydovchiga har amalda ikkita
+      // bir xil xabar ketardi. Yon ta'sir updater ichida bo'lmasligi kerak.
+      const updated = [...driverTrips, newTrip];
       const drv = drivers.find(d => d.id === driverId);
       if (drv?.telegramChatId) {
         const earned = updated.filter(t => t.driverId === driverId && !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
@@ -1713,8 +1742,7 @@ export function DataProvider({ children }) {
           api.notify({ chatId: drv.telegramChatId, text: msg, channels: ['telegram'] }).catch(() => {});
         });
       }
-      return updated;
-    });
+    }
     // ── INTEGRATSIYA: haydovchiga to'lov → tegishli kassadan chiqim ─────────
     if (isPayment && amt > 0) {
       const drv = drivers.find(d => d.id === driverId);
