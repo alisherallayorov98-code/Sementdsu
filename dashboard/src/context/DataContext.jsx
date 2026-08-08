@@ -840,6 +840,43 @@ export function DataProvider({ children }) {
     const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'advance' && r.sourceId === id));
     setCashRows(rm); setBankRows(rm); setClickRows(rm);
   };
+  // Excel'dan ko'plab avans import qilish (unikal id bilan). importDebts kabi:
+  // bu tarixiy/boshlang'ich qoldiq import, kassaga kirim YOZILMAYDI (haqiqiy
+  // pul harakati emas — addAdvanceRow'dagi kabi yozilsa, kassa balansi
+  // sun'iy oshib ketardi). Mijoz bazasi bilan bir amalda bog'lanadi: bazada
+  // yo'q ism uchun shu yerda mijoz ochiladi va avansga uning id'si beriladi.
+  // Qaytaradi: { added, newCustomers }
+  const importAdvances = (rows) => {
+    const byKey = new Map(customers.map(c => [custKey(c.name), c]));
+    const fresh = [];
+    const prepared = rows.map((r) => {
+      const raw = String(r.customer ?? '').trim();
+      const key = custKey(raw);
+      if (!key || !(parseNum(r.amount) > 0)) return null;
+      let c = key ? byKey.get(key) : null;
+      if (!c && key) {
+        const cid = uid();
+        c = {
+          id: cid, createdAt: cid, worker: currentWorker,
+          name: raw, address: '', phone: '', note: 'Excel importdan',
+          linkCode: genLinkCode(),
+        };
+        byKey.set(key, c);
+        fresh.push(c);
+      }
+      const rid = uid();
+      return {
+        id: rid, createdAt: rid, worker: currentWorker,
+        date: r.date || new Date().toLocaleDateString('ru-RU'),
+        customer: c ? c.name : raw, customerId: c ? c.id : undefined,
+        amount: parseNum(r.amount), used: 0,
+        note: r.note || '', usages: [],
+      };
+    }).filter(Boolean);
+    if (fresh.length) setCustomers(p => [...p, ...fresh]);
+    setAdvanceRows(p => [...p, ...prepared]);
+    return { added: prepared.length, newCustomers: fresh.length };
+  };
   const totalAdvances     = advanceRows.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
   const totalAdvancesUsed = advanceRows.reduce((s, r) => s + Number(r.used), 0);
   const totalAdvancesAll  = advanceRows.reduce((s, r) => s + Number(r.amount), 0);
@@ -2031,7 +2068,7 @@ export function DataProvider({ children }) {
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
-    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
+    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow, importAdvances, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     // 13. Sotish
     salesRows, addSaleRow, updateSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank

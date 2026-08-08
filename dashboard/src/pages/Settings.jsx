@@ -527,7 +527,7 @@ function CementTypeAdder({ addCementType, cementTypes, themeColor }) {
 export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
-    customers, importCustomers, importDebts,
+    customers, importCustomers, importDebts, importAdvances,
     warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
     cementTypes, addCementType, removeCementType,
     driverTariffs, addDriverTariff, removeDriverTariff, renameDriverTariff, addPriceToTariff, removePriceFromTariff,
@@ -572,6 +572,26 @@ export default function Settings({ lang }) {
       clean.push({ customer, amount, note: r.note, date: r.date });
     });
     const res = importDebts(clean) || {};
+    return {
+      added: res.added ?? clean.length,
+      skipped,
+      extra: res.newCustomers ? `Mijozlar bazasiga yangi qo'shildi: ${res.newCustomers} ta` : '',
+    };
+  };
+
+  // ── Excel import: Avanslar ────────────────────────────────────────────────
+  // Kassaga kirim yozilmaydi — bu tarixiy/boshlang'ich qoldiqni yuklash,
+  // haqiqiy pul harakati emas (importDebts bilan bir xil mantiq).
+  const importAdvancesHandler = (rows) => {
+    const clean = [];
+    let skipped = 0;
+    rows.forEach(r => {
+      const customer = String(r.customer || '').trim();
+      const amount = Math.abs(parseAmount(r.amount));
+      if (!customer || amount <= 0) { skipped++; return; }
+      clean.push({ customer, amount, note: r.note, date: r.date });
+    });
+    const res = importAdvances(clean) || {};
     return {
       added: res.added ?? clean.length,
       skipped,
@@ -791,6 +811,21 @@ export default function Settings({ lang }) {
               { key: 'date',     header: 'Sana',         aliases: ['date', 'дата'], type: 'date' },
             ]}
             onImport={importDebtsHandler}
+          />
+
+          <ExcelImport
+            title="💰 Avanslar ro'yxatini import qilish"
+            color="#ef6c00"
+            sheetName="Avanslar"
+            templateName="avanslar-shablon.xlsx"
+            hint="Summa raqam bo'lishi kerak (masalan: 1500000). Manfiy summa ham qabul qilinadi — moduli olinadi. Sana ustunini Excelda sana formatida qoldiring. Mijoz bazada bo'lmasa avtomatik ochiladi. Diqqat: kassaga kirim yozilmaydi — bu faqat avans qoldig'ini yuklash."
+            columns={[
+              { key: 'customer', header: 'Mijoz',          aliases: ['ism', 'name', 'контрагент'], required: true, type: 'text' },
+              { key: 'amount',   header: 'Avans summasi',  aliases: ['summa', 'avans', 'amount', 'сумма', 'аванс'], required: true },
+              { key: 'note',     header: 'Izoh',           aliases: ['note', 'комментарий'], type: 'text' },
+              { key: 'date',     header: 'Sana',           aliases: ['date', 'дата'], type: 'date' },
+            ]}
+            onImport={importAdvancesHandler}
           />
         </div>
       )}
