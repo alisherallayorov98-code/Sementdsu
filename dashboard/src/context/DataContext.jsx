@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { sameCust, custRows, custFields, findCust, custKey, sameName, uniqueNames } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
-import { planDebtPayment } from '../lib/debtAllocation';
+import { planDebtPayment, planAdvanceSpend } from '../lib/debtAllocation';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
@@ -712,25 +712,28 @@ export function DataProvider({ children }) {
     return { applied, leftover };
   };
 
-  // Excel'dan ko'plab qarz import qilish (unikal id bilan).
-  // Mijoz bazasi bilan bir amalda bog'lanadi: bazada yo'q ism uchun shu yerda
-  // mijoz ochiladi va qarzga uning id'si beriladi. Buni chaqiruvchi tomonda
-  // (importCustomers + importDebts ketma-ket) qilib bo'lmaydi — setCustomers
-  // asinxron, ikkinchi chaqiruv yangi mijozlarni hali ko'rmaydi va qarzlar
-  // id'siz qolardi.
-  // Qaytaradi: { added, newCustomers }
-  const importDebts = (rows) => {
+  // ── Excel importi uchun umumiy tayyorgarlik ───────────────────────────────
+  // Mijoz bazasi bilan BIR AMALDA bog'lanadi: bazada yo'q ism uchun shu yerda
+  // mijoz ochiladi va qatorga uning id'si beriladi. Buni chaqiruvchi tomonda
+  // (importCustomers + import… ketma-ket) qilib bo'lmaydi — setCustomers
+  // asinxron, ikkinchi chaqiruv yangi mijozlarni hali ko'rmaydi va qatorlar
+  // customerId siz qolardi.
+  //
+  // Ism yo'q yoki summa musbat emas — qator o'tkazib yuboriladi. Chaqiruvchi
+  // (Settings) ham filtrlaydi, lekin himoya shu yerda ham turishi kerak:
+  // manfiy summa hisobotni teskari buzardi.
+  //
+  // buildRow — bo'limga xos maydonlarni qo'shadi (qarzda paid/payments,
+  // avansda used/usages).
+  const prepareImportRows = (rows, buildRow) => {
     const byKey = new Map(customers.map(c => [custKey(c.name), c]));
     const fresh = [];
-    // Ism yo'q yoki summa musbat emas — qator o'tkazib yuboriladi. Chaqiruvchi
-    // (Settings) ham filtrlaydi, lekin himoya shu yerda ham turishi kerak:
-    // manfiy summa qarz hisobotini kamaytirib yuborardi.
-    const prepared = rows.map((r) => {
+    const prepared = (rows || []).map((r) => {
       const raw = String(r.customer ?? '').trim();
       const key = custKey(raw);
       if (!key || !(parseNum(r.amount) > 0)) return null;
-      let c = key ? byKey.get(key) : null;
-      if (!c && key) {
+      let c = byKey.get(key);
+      if (!c) {
         const cid = uid();
         c = {
           id: cid, createdAt: cid, worker: currentWorker,
@@ -744,14 +747,20 @@ export function DataProvider({ children }) {
       // hisoblagichini surmaydi, ya'ni o'sha diapazonni keyinroq boshqa yozuv
       // qayta band qilib, ikkalasi bir id bilan qolib ketishi mumkin edi.
       const rid = uid();
-      return {
+      return buildRow({
         id: rid, createdAt: rid, worker: currentWorker,
         date: r.date || new Date().toLocaleDateString('ru-RU'),
-        customer: c ? c.name : raw, customerId: c ? c.id : undefined,
-        amount: parseNum(r.amount), paid: 0,
-        note: r.note || '', payments: [],
-      };
+        customer: c.name, customerId: c.id,
+        amount: parseNum(r.amount),
+        note: r.note || '',
+      });
     }).filter(Boolean);
+    return { prepared, fresh };
+  };
+
+  // Excel'dan ko'plab qarz import qilish. Qaytaradi: { added, newCustomers }
+  const importDebts = (rows) => {
+    const { prepared, fresh } = prepareImportRows(rows, (base) => ({ ...base, paid: 0, payments: [] }));
     if (fresh.length) setCustomers(p => [...p, ...fresh]);
     setDebtRows(p => [...p, ...prepared]);
     return { added: prepared.length, newCustomers: fresh.length };
@@ -789,6 +798,26 @@ export function DataProvider({ children }) {
     }
     return true;
   };
+
+  // Excel'dan ko'plab avans import qilish (qarzlar importi bilan bir xil
+  // qoidada). Qaytaradi: { added, newCustomers }
+  //
+  // MUHIM FARQ: bu KASSAGA KIRIM YOZMAYDI. addAdvanceRow yozadi, chunki u
+  // "hozir pul keldi" degani. Import esa TARIXIY qoldiqni kiritadi — o'sha
+  // pul allaqachon kassaga tushgan (yoki boshlang'ich qoldiqda hisobga
+  // olingan). Aks holda kassa balansi import summasi qadar yolg'on oshardi.
+  // Xuddi shu sabab importDebts ham kassaga tegmaydi.
+  const importAdvances = (rows) => {
+    const { prepared, fresh } = prepareImportRows(rows, (base) => ({ ...base, used: 0, usages: [] }));
+    if (fresh.length) setCustomers(p => [...p, ...fresh]);
+    setAdvanceRows(p => [...p, ...prepared]);
+    // Sinxron nusxani ham yangilaymiz: import qilingandan keyin darhol sotuv
+    // qilinsa, consumeAdvance advanceRef.current ni o'qiydi va yangi
+    // avanslarni ko'rmay qolardi (state keyingi renderda yangilanadi).
+    advanceRef.current = [...advanceRef.current, ...prepared];
+    return { added: prepared.length, newCustomers: fresh.length };
+  };
+
   // Nomi ataylab "use..." emas: ESLint "use" bilan boshlanadigan funksiyani
   // React Hook deb hisoblab, shartli chaqiruvda xato beradi — bu esa oddiy
   // ma'lumot funksiyasi. (Eski nomi useAdvance edi.)
@@ -849,23 +878,13 @@ export function DataProvider({ children }) {
   // Sotuvda avansdan yechish — eng eski avansdan boshlab, sourceId (saleId) bilan
   // belgilab. Qaytarilgan: ishlatilgan summa.
   const consumeAdvance = (customer, amount, saleId) => {
-    let left = Number(amount) || 0;
-    if (left <= 0) return 0;
     const today = new Date().toLocaleDateString('ru-RU');
-    const plan = {};
-    let applied = 0;
     // MUHIM: advanceRows emas, advanceRef.current o'qiladi. React state async
     // yangilanadi — taqsimlashda bir necha sotuv KETMA-KET (bir tikda) yaratilsa,
     // ikkinchi sotuv eski holatni ko'rib AYNAN SHU avansni qayta sarflab yuborardi.
-    custRows(advanceRef.current, custRef(customer))
-      .filter(r => Math.max(0, Number(r.amount) - Number(r.used)) > 0)
-      .sort((a, b) => (a.createdAt || a.id) - (b.createdAt || b.id))
-      .forEach(r => {
-        if (left <= 0) return;
-        const rem = Math.max(0, Number(r.amount) - Number(r.used));
-        const use = Math.min(rem, left);
-        plan[r.id] = use; left -= use; applied += use;
-      });
+    // Taqsimlash mantiqi lib/debtAllocation.js da (qarz to'lovi bilan bir xil
+    // qoida — eng eskisidan boshlab, testlar bilan qoplangan).
+    const { plan, applied } = planAdvanceSpend(custRows(advanceRef.current, custRef(customer)), amount);
     if (applied <= 0) return 0;
     const apply = (rows) => rows.map(r => {
       const use = plan[r.id];
@@ -2031,7 +2050,7 @@ export function DataProvider({ children }) {
     // 11. Qarzlar
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
-    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
+    advanceRows, addAdvanceRow, spendAdvance, deleteAdvanceRow, importAdvances, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     // 13. Sotish
     salesRows, addSaleRow, updateSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank

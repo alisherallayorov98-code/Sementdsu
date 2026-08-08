@@ -5,7 +5,8 @@ import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
 // Ilgari bu yerda o'z summa parseri bor edi: u vergulni O'CHIRIB tashlardi,
 // ya'ni "1 378 756,50" → 137875650 bo'lib summa 100 barobar oshardi.
-import { parseNum, parseNum as parseAmount } from '../lib/parseNum';
+import { parseNum } from '../lib/parseNum';
+import { cleanImportRows } from '../lib/importRows';
 import { nameKey as normName } from '../lib/customerRef';
 
 // Parol yacheykasi: yangi parolni kiriting, eski hashni ko'rsatmaydi
@@ -527,7 +528,7 @@ function CementTypeAdder({ addCementType, cementTypes, themeColor }) {
 export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
-    customers, importCustomers, importDebts,
+    customers, importCustomers, importDebts, importAdvances,
     warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
     cementTypes, addCementType, removeCementType,
     driverTariffs, addDriverTariff, removeDriverTariff, renameDriverTariff, addPriceToTariff, removePriceFromTariff,
@@ -558,26 +559,22 @@ export default function Settings({ lang }) {
     return { added: clean.length, skipped };
   };
 
-  // ── Excel import: Qarzlar ─────────────────────────────────────────────────
-  // 1C oborotkasida qarz manfiy ishora bilan chiqadi (-1378756000) — moduli olinadi.
-  // Mijozni bazaga bog'lash (va yo'g'ini ochish) importDebts ichida bajariladi:
-  // shunda qarz darhol customerId bilan yoziladi.
-  const importDebtsHandler = (rows) => {
-    const clean = [];
-    let skipped = 0;
-    rows.forEach(r => {
-      const customer = String(r.customer || '').trim();
-      const amount = Math.abs(parseAmount(r.amount));
-      if (!customer || amount <= 0) { skipped++; return; }
-      clean.push({ customer, amount, note: r.note, date: r.date });
-    });
-    const res = importDebts(clean) || {};
+  // ── Excel import: Qarzlar va Avanslar ─────────────────────────────────────
+  // 1C oborotkasida summa manfiy ishora bilan chiqadi (-1378756000) — moduli
+  // olinadi. Mijozni bazaga bog'lash (va yo'g'ini ochish) import funksiyasi
+  // ichida bajariladi: shunda qator darhol customerId bilan yoziladi.
+  // Tozalash mantiqi lib/importRows.js da (sof funksiya, testlar bilan)
+  const runImport = (rows, importFn) => {
+    const { clean, skipped } = cleanImportRows(rows);
+    const res = importFn(clean) || {};
     return {
       added: res.added ?? clean.length,
       skipped,
       extra: res.newCustomers ? `Mijozlar bazasiga yangi qo'shildi: ${res.newCustomers} ta` : '',
     };
   };
+  const importDebtsHandler    = (rows) => runImport(rows, importDebts);
+  const importAdvancesHandler = (rows) => runImport(rows, importAdvances);
 
   // ── Zaxira (backup) funksiyalari ──────────────────────────────────────────
   const handleExport = async () => {
@@ -791,6 +788,21 @@ export default function Settings({ lang }) {
               { key: 'date',     header: 'Sana',         aliases: ['date', 'дата'], type: 'date' },
             ]}
             onImport={importDebtsHandler}
+          />
+
+          <ExcelImport
+            title="🅰️ Avanslar ro'yxatini import qilish"
+            color="#00695c"
+            sheetName="Avanslar"
+            templateName="avanslar-shablon.xlsx"
+            hint="Mijoz oldindan to'lab qo'ygan (ishlatilmagan) summa. Manfiy summa ham qabul qilinadi — moduli olinadi. DIQQAT: import kassaga kirim YOZMAYDI — bu tarixiy qoldiq, o'sha pul allaqachon kassada hisobga olingan."
+            columns={[
+              { key: 'customer', header: 'Mijoz',         aliases: ['ism', 'name', 'контрагент'], required: true, type: 'text' },
+              { key: 'amount',   header: 'Avans summasi', aliases: ['summa', 'avans', 'amount', 'сумма', 'аванс', 'предоплата'], required: true },
+              { key: 'note',     header: 'Izoh',          aliases: ['note', 'комментарий'], type: 'text' },
+              { key: 'date',     header: 'Sana',          aliases: ['date', 'дата'], type: 'date' },
+            ]}
+            onImport={importAdvancesHandler}
           />
         </div>
       )}

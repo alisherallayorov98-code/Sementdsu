@@ -5,7 +5,7 @@
 // to'g'ridan-to'g'ri pulga tegadi, shuning uchun chetki holatlar qoplangan.
 import test from 'node:test';
 import assert from 'node:assert';
-import { planDebtPayment, remainingOf } from './debtAllocation.js';
+import { planDebtPayment, remainingOf, planAdvanceSpend, advanceRemainingOf } from './debtAllocation.js';
 
 // Qulaylik uchun: id = createdAt (eski qarz kichik raqam bilan)
 const d = (id, amount, paid = 0) => ({ id, createdAt: id, amount, paid });
@@ -88,4 +88,83 @@ test('rejadagi summalar qarz qoldiqlaridan oshmaydi', () => {
     const pay = r.plan[row.id] || 0;
     assert.ok(pay <= remainingOf(row) + 1e-9, `qarz ${row.id}: ${pay} > ${remainingOf(row)}`);
   }
+});
+
+// ── AVANS SARFLASH (sotuvda "avans" kanali tanlanganda) ──────────────────────
+// Import qilingan avanslar ham aynan shu yo'ldan o'tadi.
+
+const adv = (id, amount, used = 0) => ({ id, createdAt: id, amount, used });
+
+test('avans: sotuv summasi bitta avansdan yechiladi', () => {
+  const r = planAdvanceSpend([adv(1, 500000)], 200000);
+  assert.strictEqual(r.applied, 200000);
+  assert.deepStrictEqual(r.plan, { 1: 200000 });
+});
+
+test('avans: ENG ESKI avansdan boshlab sarflanadi', () => {
+  const r = planAdvanceSpend([adv(3, 300000), adv(1, 100000), adv(2, 200000)], 250000);
+  assert.deepStrictEqual(r.plan, { 1: 100000, 2: 150000 });
+});
+
+test('avans yetmasa — faqat bori sarflanadi, qolgani qarzga ketadi', () => {
+  // addSaleRow: `rem = sum - applied` qarzga yoziladi
+  const r = planAdvanceSpend([adv(1, 300000)], 500000);
+  assert.strictEqual(r.applied, 300000);
+  assert.strictEqual(r.leftover, 200000, 'bu summa qarzga yoziladi');
+});
+
+test('avans: qisman ishlatilgan avansda faqat QOLGANI olinadi', () => {
+  const r = planAdvanceSpend([adv(1, 500000, 400000)], 300000);
+  assert.deepStrictEqual(r.plan, { 1: 100000 });
+  assert.strictEqual(r.leftover, 200000);
+});
+
+test('avans: to\'liq ishlatilgan avans o\'tkazib yuboriladi', () => {
+  const r = planAdvanceSpend([adv(1, 100000, 100000), adv(2, 200000)], 150000);
+  assert.deepStrictEqual(r.plan, { 2: 150000 });
+});
+
+test('avans: sarflangan summa qoldiqdan oshmaydi', () => {
+  const rows = [adv(1, 100000), adv(2, 250000, 200000)];
+  const r = planAdvanceSpend(rows, 1000000);
+  for (const row of rows) {
+    const use = r.plan[row.id] || 0;
+    assert.ok(use <= advanceRemainingOf(row) + 1e-9, `avans ${row.id}: ${use} > ${advanceRemainingOf(row)}`);
+  }
+  assert.strictEqual(r.applied, 150000, 'jami qoldiq: 100000 + 50000');
+});
+
+test('avans: manfiy/nol summa hech narsa qilmaydi', () => {
+  for (const amt of [0, -5000, NaN, null, undefined, '']) {
+    const r = planAdvanceSpend([adv(1, 100000)], amt);
+    assert.strictEqual(r.applied, 0, `summa=${amt}`);
+  }
+});
+
+test('avans: IMPORT qilingan qator (used=0, usages=[]) to\'g\'ri ishlaydi', () => {
+  // importAdvances aynan shunday qator yaratadi
+  const imported = { id: 1770000000000, createdAt: 1770000000000, customer: 'Ali', customerId: 5,
+                     amount: 900000, used: 0, usages: [] };
+  const r = planAdvanceSpend([imported], 400000);
+  assert.strictEqual(r.applied, 400000);
+  assert.strictEqual(advanceRemainingOf(imported), 900000, 'import qilingan avans to\'liq bo\'sh');
+});
+
+test('avans: pul yo\'qolmaydi — applied + leftover = so\'ralgan summa', () => {
+  const cases = [
+    [[adv(1, 100000), adv(2, 250000)], 500000],
+    [[adv(1, 100000), adv(2, 250000)], 300000],
+    [[adv(1, 100000, 50000)], 40000],
+    [[], 75000],
+  ];
+  for (const [rows, amt] of cases) {
+    const r = planAdvanceSpend(rows, amt);
+    assert.strictEqual(r.applied + r.leftover, amt, `summa=${amt}`);
+  }
+});
+
+test('advanceRemainingOf manfiy bermaydi', () => {
+  assert.strictEqual(advanceRemainingOf({ amount: 100, used: 150 }), 0);
+  assert.strictEqual(advanceRemainingOf({ amount: 100, used: 40 }), 60);
+  assert.strictEqual(advanceRemainingOf({ amount: 'yaroqsiz', used: null }), 0);
 });
