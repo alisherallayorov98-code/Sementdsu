@@ -339,6 +339,33 @@ module.exports = {
     return earned - paid - kassiPaid;
   },
 
+  // Balansning TARKIBI — bot haydovchiga hisobini ko'rsatganda kerak.
+  // Ilgari bot faqat reys to'lovlarini ("avans olindi") ko'rsatib, balansni
+  // esa kassadan berilgan pulni ham ayirib hisoblardi: haydovchi
+  // "ishladim − avans" ni o'zi qo'shib ko'rsa, aytilgan qoldiqqa mos
+  // kelmasdi va savol tug'ilardi.
+  driverBalanceDetail(acc, driverId) {
+    const st     = load(acc).state || {};
+    const driver = (st.drivers || []).find(d => d.id === driverId);
+    const trips  = (st.driver_trips || []).filter(t => t.driverId === driverId);
+    const num    = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+
+    const earned = trips.filter(t => !t.isPayment).reduce((s, t) => s + num(t.price), 0);
+    const paid   = trips.filter(t =>  t.isPayment).reduce((s, t) => s + num(t.price), 0);
+    const kassiPaid = driver
+      ? [...(st.cash_rows || []), ...(st.bank_rows || []), ...(st.click_rows || [])]
+          .filter(r => r && !r.auto && r.customerId == null && sameName(r.customer, driver.name) && num(r.amount) < 0)
+          .reduce((s, r) => s + Math.abs(num(r.amount)), 0)
+      : 0;
+
+    return {
+      earned, tripPaid: paid, kassiPaid,
+      totalPaid: paid + kassiPaid,
+      balance: earned - paid - kassiPaid,
+      tripsCount: trips.filter(t => !t.isPayment).length,
+    };
+  },
+
   // ── Zayavka bot foydalanuvchi boshqaruvi (global, ko'p-akkaunt) ─────────────
   // Invite code orqali akkaunt topish (barcha akkauntlar ichidan)
   findAccountByInviteCode(code) {

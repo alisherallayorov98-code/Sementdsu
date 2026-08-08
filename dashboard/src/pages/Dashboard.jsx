@@ -11,31 +11,10 @@ import BalanceBreakdown from '../components/BalanceBreakdown';
 import { customerSummaryAll } from '../lib/customerSummary';
 import { custKey } from '../lib/customerRef';
 import { activityStatus } from '../lib/monitoring';
-import { isTransferRow } from '../lib/transferRow';
+import { moneyFlow, moneyFlowOnDay } from '../lib/moneyFlow';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
-// Kanallararo o'tkazma (naqd↔bank↔click) — bu KIRIM ham, CHIQIM ham emas,
-// shunchaki o'z pulingni ko'chirish. Yalpi kirim/chiqim hisobidan chiqarib
-// tashlanadi, aks holda ikkala raqam ham sun'iy shishardi.
-// O'tkazma belgisi: yangi yozuvlarda `transfer: true` bayrog'i bor, eskilarida
-// faqat izoh boshidagi "↔️". Ilgari bu yerda faqat izoh tekshirilardi — izohi
-// tahrirlangan o'tkazma kirim/chiqim sifatida qo'shilib ketardi (Kassir
-// jurnalida esa qo'shilmasdi, ikki sahifa har xil raqam ko'rsatardi).
-const isTransfer = isTransferRow;
-
-// Kanal ro'yxatlaridan kirim / chiqim yig'indisi.
-//   · o'tkazma (↔️) hisobga olinmaydi — u kirim ham, chiqim ham emas;
-//   · `auto` yozuvlar HISOBGA OLINADI — ular haqiqiy pul harakati (sotuv,
-//     qarz to'lovi, avans, oylik, zavodga to'lov, haydovchi to'lovi).
-// Ilgari chiqim tomonida `!r.auto` filtri turardi: oylik, zavodga to'lov va
-// haydovchi to'lovlari "Jami chiqim"ga UMUMAN kirmasdi — pul kassadan chiqib
-// ketgani ko'rinardi-yu, chiqim raqami o'sha-o'sha turardi.
-// income*/expense* ro'yxatlari musbat saqlanadi (ular allaqachon tur bo'yicha
-// ajratilgan), shuning uchun ular uchun ham inSum ishlatiladi.
-const inSum  = (arr) => (arr || []).reduce((s, r) => isTransfer(r) ? s : s + Math.max(0,  Number(r.amount || 0)), 0);
-const outSum = (arr) => (arr || []).reduce((s, r) => isTransfer(r) ? s : s + Math.max(0, -Number(r.amount || 0)), 0);
-const onDay  = (arr, d) => (arr || []).filter(r => r.date === d);
 
 // Komponent ichida hisoblanadi — brauzer tab ochiq qolsa sana eskirib qolmasin
 
@@ -46,11 +25,9 @@ export default function Dashboard() {
   const data = useData();
   const {
     totalCashBalance, totalBankBalance, totalClickBalance, totalCementBalance,
-    totalDebts, salesRows, soldRows, incomeRows, expenseRows, tgOrders, debtRows, currentUser,
+    totalDebts, salesRows, soldRows, tgOrders, debtRows, currentUser,
     customers, appSettings, pendingRecvCount, pendingBankCount,
-    cashRows, bankRows, clickRows,
     advanceRows, totalAdvances, totalAdvancesUsed, totalAdvancesAll,
-    bankIncomeRows, clickIncomeRows, bankExpenseRows, clickExpenseRows,
     totalSoldTons,
   } = data;
   const pendingTotal = (pendingRecvCount || 0) + (pendingBankCount || 0);
@@ -78,54 +55,17 @@ export default function Dashboard() {
   const todaySales = allSales.filter(r => r.date === today);
   const monthSales = allSales.filter(r => (r.date || '').endsWith(monthKey));
 
-  // Eski "Sotilgan tonna" bo'limi kassa yozuvi YARATMAYDI — uning puli
-  // qoldiq formulasiga to'g'ridan-to'g'ri qo'shiladi (_soldNaqd/_soldBank/
-  // _soldClick). Shu sababli u kirim ro'yxatida umuman ko'rinmasdi va
-  // "ochilish + kirim − chiqim" hech qachon qoldiqqa teng chiqmasdi.
-  const soldIn = (ch, rows = soldRows) => rows
-    .filter(r => (r.paymentChannel || 'naqd') === ch)
-    .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
-  const soldInAll = (rows) => soldIn('naqd', rows) + soldIn('bank', rows) + soldIn('click', rows);
-
-  // Bugungi kirim/chiqim — pastdagi "Jami" bilan BIR XIL qoida bo'yicha
-  // (barcha kanallar, auto yozuvlar bilan). Ilgari bugungi hisob `!r.auto`
-  // filtrlagani uchun bugun sotilgan sement puli "Bugun / kirim"da
-  // ko'rinmasdi, pastdagi "Jami kirim"da esa ko'rinardi — ikki raqam bir-biriga
-  // mos kelmasdi.
-  const todayIncome =
-      inSum(onDay(incomeRows, today)) + inSum(onDay(bankIncomeRows, today)) + inSum(onDay(clickIncomeRows, today))
-    + inSum(onDay(cashRows, today))   + inSum(onDay(bankRows, today))       + inSum(onDay(clickRows, today))
-    + soldInAll(onDay(soldRows, today));
-  const todayExpense =
-      inSum(onDay(expenseRows, today)) + inSum(onDay(bankExpenseRows, today)) + inSum(onDay(clickExpenseRows, today))
-    + outSum(onDay(cashRows, today))   + outSum(onDay(bankRows, today))       + outSum(onDay(clickRows, today));
+  // Kirim/chiqim hisobi lib/moneyFlow.js da (sof funksiya, invariant testi
+  // bilan: ochilish + kirim - chiqim = qoldiqlar). Ilgari bu mantiq shu
+  // yerda, Umumiy hisobotda va Excel hisobotida uch marta takrorlanardi va
+  // uchalasi har xil edi.
+  const { incParts, expParts, totalIncome, totalExpense } = moneyFlow(data);
+  const todayFlow = moneyFlowOnDay(data, today);
+  const todayIncome  = todayFlow.totalIncome;
+  const todayExpense = todayFlow.totalExpense;
 
   const pending = tgOrders.filter(o => o.status === 'kutilmoqda');
   const pendingTons = pending.reduce((s, o) => s + Number(o.tons || 0), 0);
-
-  // Kirim/chiqim jami (barcha kanallar). Tarkib qatorlari pastda AYNAN shu
-  // qismlardan chiziladi, shuning uchun qo'shib ko'rilganda "Jami"ga teng
-  // chiqadi (ilgari Kassir bank/click kirimlari jamiga kirar, lekin ro'yxatda
-  // ko'rinmasdi).
-  const incParts = [
-    ['Naqd kirim',        inSum(incomeRows)],
-    ['Bank kirim',        inSum(bankIncomeRows)],
-    ['Click kirim',       inSum(clickIncomeRows)],
-    ['Kassir — naqd',     inSum(cashRows)],
-    ['Kassir — bank',     inSum(bankRows)],
-    ['Kassir — click',    inSum(clickRows)],
-    ...(soldInAll(soldRows) > 0 ? [['Sotilgan tonna (eski)', soldInAll(soldRows)]] : []),
-  ];
-  const expParts = [
-    ['Naqd chiqim',       inSum(expenseRows)],
-    ['Bank chiqim',       inSum(bankExpenseRows)],
-    ['Click chiqim',      inSum(clickExpenseRows)],
-    ['Kassir — naqd',     outSum(cashRows)],
-    ['Kassir — bank',     outSum(bankRows)],
-    ['Kassir — click',    outSum(clickRows)],
-  ];
-  const totalIncome  = incParts.reduce((s, [, v]) => s + v, 0);
-  const totalExpense = expParts.reduce((s, [, v]) => s + v, 0);
 
   // Eng katta qarzdorlar — customerId bo'yicha (bo'lmasa normallashtirilgan
   // nom bo'yicha). Ilgari xom `r.customer` kalit edi: bitta mijoz "Akmal aka"

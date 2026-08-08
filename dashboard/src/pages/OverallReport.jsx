@@ -1,7 +1,7 @@
 import { useData } from '../context/DataContext';
 import { totalDriverDebt as driverDebtTotal } from '../lib/driverBalance';
 import ExcelExport from '../components/ExcelExport';
-import { isTransferRow } from '../lib/transferRow';
+import { inSum, outSum, soldIn } from '../lib/moneyFlow';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
@@ -29,28 +29,19 @@ export default function OverallReport() {
     tgOrders
   } = useData();
 
-  // ── Hisob-kitoblar ────────────────────────────────────────────────────────
-  // Kanallararo o'tkazma (↔️) kirim ham, chiqim ham emas — chiqarib tashlanadi.
-  const isTransfer = isTransferRow;
-  // `auto` yozuvlar ham hisobga olinadi — ular haqiqiy pul harakati (sotuv,
-  // qarz to'lovi, avans, oylik, zavodga to'lov, haydovchi to'lovi). Ilgari
-  // `!r.auto` filtri turgani uchun bu hisobotda sotuvdan tushgan pul kirimga,
-  // oylik va zavodga to'lov esa chiqimga umuman qo'shilmasdi — "Jami kirim"
-  // va "Jami chiqim" haqiqatdan ancha kichik chiqardi.
-  const kassirKirim  = (arr) => (arr || []).filter(r => !isTransfer(r) && Number(r.amount) > 0).reduce((s, r) => s + Number(r.amount), 0);
-  const kassirChiqim = (arr) => (arr || []).filter(r => !isTransfer(r) && Number(r.amount) < 0).reduce((s, r) => s - Number(r.amount), 0);
-  // Eski "Sotilgan tonna" bo'limi kassa yozuvi yaratmaydi — puli qoldiq
-  // formulasiga to'g'ridan-to'g'ri qo'shiladi. Kirim ro'yxatiga ham qo'shmasak,
-  // "ochilish + kirim − chiqim" qoldiqqa teng chiqmaydi.
-  const soldIn = (ch) => (soldRows || [])
-    .filter(r => (r.paymentChannel || 'naqd') === ch)
-    .reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
+  // ── Hisob-kitoblar ─────────────────────────────────────────────
+  // Kirim/chiqim qoidasi lib/moneyFlow.js da (o'tkazma chiqariladi, auto
+  // yozuvlar kiradi, eski "Sotilgan tonna" tushumi qo'shiladi). Bosh sahifa
+  // ham aynan shu moduldan foydalanadi — ikki sahifa har xil raqam
+  // ko'rsatishi mumkin emas.
+  const kassirKirim  = (arr) => inSum(arr);
+  const kassirChiqim = (arr) => outSum(arr);
 
-  const totalIncome   = incomeRows.reduce((s, r) => s + Number(r.amount), 0) + kassirKirim(cashRows) + soldIn('naqd');
-  const totalExpense  = expenseRows.reduce((s, r) => s + Number(r.amount), 0) + kassirChiqim(cashRows);
-  const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows) + soldIn('bank');
+  const totalIncome   = inSum(incomeRows)  + kassirKirim(cashRows)  + soldIn(soldRows, 'naqd');
+  const totalExpense  = inSum(expenseRows) + kassirChiqim(cashRows);
+  const totalBankIncomeAll  = Number(totalBankIncome)  + kassirKirim(bankRows)  + soldIn(soldRows, 'bank');
   const totalBankExpenseAll = Number(totalBankExpense) + kassirChiqim(bankRows);
-  const totalClickIncomeAll  = Number(totalClickIncome)  + kassirKirim(clickRows) + soldIn('click');
+  const totalClickIncomeAll  = Number(totalClickIncome)  + kassirKirim(clickRows)  + soldIn(soldRows, 'click');
   const totalClickExpenseAll = Number(totalClickExpense) + kassirChiqim(clickRows);
   const totalSalesSum = [...salesRows, ...soldRows].reduce((s, r) => s + (Number(r.tons||0) * Number(r.pricePerTon||0)), 0);
   const totalSoldAll  = Number(totalSoldTons || 0) + Number(totalSalesTons || 0);

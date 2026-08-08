@@ -418,10 +418,13 @@ function start() {
     if (text === '📊 Hisobim') {
       const driver = db.getDriverByChatId(DEFAULT_ACCOUNT, chatId);
       if (!driver) { bot.sendMessage(chatId, '⚠️ Siz haydovchi sifatida ulanmagansiz.'); return; }
-      const balance = db.driverBalance(DEFAULT_ACCOUNT, driver.id);
-      const allTrips = (db.getState(DEFAULT_ACCOUNT).driver_trips || []).filter(t => t.driverId === driver.id);
-      const earned = allTrips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
-      const paid   = allTrips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
+      // Tarkib bilan olamiz: kassadan qo'lda berilgan pul ham ko'rinsin.
+      // Ilgari faqat reys to'lovlari ko'rsatilar, balans esa kassadagini ham
+      // ayirardi — haydovchi o'zi qo'shib ko'rsa raqam mos kelmasdi.
+      const d = db.driverBalanceDetail(DEFAULT_ACCOUNT, driver.id);
+      const balance = d.balance;
+      const earned = d.earned;
+      const paid   = d.tripPaid;
       const pending = (db.getPendingDriverTrips(DEFAULT_ACCOUNT) || []).filter(t => t.driverId === driver.id && t.status === 'pending').length;
       const balanceMsg = balance > 0
         ? `💰 Sizga *${fmt(balance)} so'm* to'lanishi kerak`
@@ -430,8 +433,11 @@ function start() {
           : `✅ Hisob muvozanatli`;
       sendDriverMenu(chatId,
         `📊 *${driver.name} — Hisobingiz*\n\n` +
-        `🚛 Jami ishladi: *${fmt(earned)} so'm* (${allTrips.filter(t => !t.isPayment).length} reys)\n` +
+        `🚛 Jami ishladi: *${fmt(earned)} so'm* (${d.tripsCount} reys)\n` +
         `💸 Avans olindi: *${fmt(paid)} so'm*\n` +
+        // Kassadan qo'lda berilgan pul — balansdan ayiriladi, shuning uchun
+        // ko'rinishi shart (aks holda "ishladim − avans" mos kelmaydi).
+        `${d.kassiPaid > 0 ? `🏦 Kassadan berilgan: *${fmt(d.kassiPaid)} so'm*\n` : ''}` +
         `${pending > 0 ? `⏳ Tasdiqlash kutilmoqda: *${pending} ta reys*\n` : ''}` +
         `─────────────────\n${balanceMsg}`);
       return;

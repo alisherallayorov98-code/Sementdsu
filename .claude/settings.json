@@ -141,7 +141,9 @@
       "Bash(sed -i -e \"10d\" src/pages/Settings.jsx)",
       "Bash(sed -i \"s/^    customers, importCustomers, importDebts, importAdvances,$/    importCustomers, importDebts, importAdvances,/\" src/pages/Settings.jsx)",
       "Bash(node --test src/lib/auditState.test.js)",
-      "Bash(node src/lib/auditState.test.js)"
+      "Bash(node src/lib/auditState.test.js)",
+      "Bash(node -e \"require\\('./src/services/telegram.service.js'\\)\")",
+      "Bash(node --test src/lib/moneyFlow.test.js)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
