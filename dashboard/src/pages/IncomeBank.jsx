@@ -40,8 +40,12 @@ export default function IncomeBank({ lang }) {
   // Shu tariqa mijoz puli hech qachon "osilib" qolmaydi.
   const submitBankIncome = (e) => {
     e.preventDefault();
+    // `!amt` manfiy summani o'tkazib yuborardi: payCustomerDebt va
+    // addAdvanceRow uni rad etardi, lekin quyidagi flash(...) baribir
+    // "qabul qilindi" deb yolg'on xabar ko'rsatardi. Mijozsiz holatda esa
+    // manfiy bank kirimi haqiqatan yozilardi.
     const amt = parseNum(incForm.amount);
-    if (!amt) return;
+    if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
     const customer = (incForm.customer || '').trim();
     if (customer) {
       const custDebt = custRows(debtRows, custRef(customer))
@@ -236,7 +240,17 @@ export default function IncomeBank({ lang }) {
           <input type="number" placeholder="Summa" value={openingVal}
             onChange={e => setOpeningVal(e.target.value)}
             style={{ ...inp, width:160 }} />
-          <button onClick={() => { setBankOpening({ date: bankOpening.date, amount: Number(openingVal) }); setEditOpening(false); }}
+          <button onClick={() => {
+            // Number() yaroqsiz qiymatga NaN berardi va u bank balansiga
+            // qo'shilib, butun sahifadagi summalarni "NaN" ga aylantirardi.
+            const n = parseNum(openingVal);
+            if (!isFinite(n)) { alert("Summa noto'g'ri kiritilgan."); return; }
+            if (n < 0 && !window.confirm('Manfiy qoldiq kiritilmoqda. Davom etamizmi?')) return;
+            const d = String(bankOpening.date || '').trim();
+            if (d && !/^\d{2}\.\d{2}\.\d{4}$/.test(d)) { alert('Sana formati: kk.oo.yyyy'); return; }
+            setBankOpening({ date: d, amount: n });
+            setEditOpening(false);
+          }}
             style={{ ...inp, background:'#003366', color:'#fff', border:'none', cursor:'pointer', padding:'4px 14px', fontWeight:'bold' }}>
             ✓ Saqlash
           </button>
@@ -293,6 +307,16 @@ export default function IncomeBank({ lang }) {
             </div>
           ) : (
             <>
+              {/* Mijoz tanlashning ma'nosi — bu chalkashlik manbai edi:
+                  oborotkani tasdiqlash bank harakatini qayd qiladi, lekin
+                  mijozning QARZINI YOPMAYDI. Qarz to'lovi uchun "Kirim bank"
+                  formasidan foydalaniladi. */}
+              <div style={{ background:'#fff8e1', border:'1px solid #ffe082', borderRadius:4, padding:'8px 12px', marginBottom:10, fontSize:12, color:'#6d4c41', lineHeight:1.6 }}>
+                ℹ️ Bu yerda mijoz tanlash — <b>faqat belgi uchun</b> (pul kimdan kelganini bilish).
+                Mijozning <b>qarzi yopilmaydi</b>: buning uchun <b>"↑ Kirim bank"</b> bo'limidan
+                mijozni tanlab kirim qiling — u yerda summa avtomatik qarzga, ortig'i avansga yoziladi.
+              </div>
+
               {/* Bulk amallar */}
               <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center', flexWrap:'wrap' }}>
                 <span style={{ fontSize:12, color:'#555' }}>
@@ -435,7 +459,13 @@ export default function IncomeBank({ lang }) {
         <div style={{ border:'1px solid #ccc', borderTop:'none', padding:14 }}>
 
           {/* Qo'lda kiritish */}
-          <form onSubmit={e => { e.preventDefault(); if(!expForm.amount) return; addBankExpenseRow(expForm.amount, expForm.desc, todayS, expForm.customer); setExpForm({ amount:'', desc:'', customer:'' }); }}
+          <form onSubmit={e => {
+            e.preventDefault();
+            const amt = parseNum(expForm.amount);
+            if (!(amt > 0)) { alert("Summa 0 dan katta bo'lishi kerak."); return; }
+            addBankExpenseRow(amt, expForm.desc, todayS, expForm.customer);
+            setExpForm({ amount:'', desc:'', customer:'' });
+          }}
             style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', padding:'8px 10px', background:'#ffebee', border:'1px solid #ef9a9a', borderRadius:4 }}>
             <input type="number" placeholder="Summa" value={expForm.amount}
               onChange={e => setExpForm(p => ({...p, amount:e.target.value}))}

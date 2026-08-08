@@ -201,7 +201,15 @@ export default function IncomeClick({ lang }) {
           <span style={{ fontSize: 12, fontWeight: 'bold' }}>{L.ochilish[lang]}:</span>
           <input type="number" value={openingVal} onChange={e => setOpeningVal(e.target.value)}
             style={{ ...inp, width: 150 }} />
-          <button onClick={() => { setClickOpening({ ...clickOpening, amount: Number(openingVal) }); setEditOpening(false); }}
+          <button onClick={() => {
+            // Number() yaroqsiz qiymatga NaN berardi va u Click balansiga
+            // qo'shilib, sahifadagi summalarni "NaN" ga aylantirardi.
+            const n = parseNum(openingVal);
+            if (!isFinite(n)) { alert("Summa noto'g'ri kiritilgan."); return; }
+            if (n < 0 && !window.confirm('Manfiy qoldiq kiritilmoqda. Davom etamizmi?')) return;
+            setClickOpening({ ...clickOpening, amount: n });
+            setEditOpening(false);
+          }}
             style={{ ...inp, background: ACCENT, color: '#fff', border: 'none', cursor: 'pointer', padding: '4px 14px' }}>
             ✓ Saqlash
           </button>
