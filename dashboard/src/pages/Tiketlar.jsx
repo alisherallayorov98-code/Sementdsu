@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
+import { parseNum } from '../lib/parseNum';
 import { api } from '../api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
@@ -34,9 +35,12 @@ export default function Tiketlar() {
     e.preventDefault();
     const n = form.number.trim();
     const m = form.marka.trim();
-    const t = Number(form.totalTonna);
-    if (!n || !m || !t) { alert('Barcha maydonlarni to\'ldiring.'); return; }
-    addTicket(n, m, t);
+    // parseNum + musbat tekshiruvi: "12,5" NaN berardi, manfiy tonna esa
+    // `!t` shartidan o'tib ketib, qoldig'i manfiy tiket yaratardi.
+    const t = parseNum(form.totalTonna);
+    if (!n || !m) { alert('Barcha maydonlarni to\'ldiring.'); return; }
+    if (!(t > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    if (!addTicket(n, m, t)) return;   // rad etilsa forma tozalanmasin
     setForm({ number: '', marka: '', totalTonna: '' });
   };
 

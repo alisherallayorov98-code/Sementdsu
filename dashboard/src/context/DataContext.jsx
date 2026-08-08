@@ -1523,12 +1523,17 @@ export function DataProvider({ children }) {
 
   // ── Tiketlar (zayavka uchun) ────────────────────────────────────────────────
   const addTicket = (number, marka, totalTonna) => {
+    // Tiket qoldig'i bot orqali sarflanadi (zayavka). Nol/manfiy tonnali
+    // tiket ochilsa, qoldiq boshidanoq manfiy ko'rinardi.
+    const t = parseNum(totalTonna);
+    if (!(t > 0)) { alert("Tiket tonnasi 0 dan katta bo'lishi kerak."); return false; }
     const id = 'tk_' + uid();
     setTickets(p => [...p, {
-      id, number: number.trim(), marka: marka.trim(),
-      totalTonna: Number(totalTonna) || 0,
+      id, number: String(number).trim(), marka: String(marka).trim(),
+      totalTonna: t,
       usedTonna: 0, status: 'open', createdAt: Date.now(),
     }]);
+    return true;
   };
   const closeTicket  = (id) => setTickets(p => p.map(t => t.id === id ? { ...t, status: 'closed', closedAt: Date.now() } : t));
   const reopenTicket = (id) => setTickets(p => p.map(t => t.id === id ? { ...t, status: 'open', closedAt: null } : t));
