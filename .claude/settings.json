@@ -100,7 +100,13 @@
       "Bash(awk '/const updateCustomer = /,/^  };/' src/context/DataContext.jsx)",
       "Bash(awk '/const addWorker = /,/^  };/' context/DataContext.jsx)",
       "Bash(awk '/const paySupplier = /,/^  };/' context/DataContext.jsx)",
-      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/pages/Settings.jsx)"
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/pages/Settings.jsx)",
+      "Bash(node -e 'require\\('\\\\''./src/services/telegram.service'\\\\''\\); const {uid}=require\\('\\\\''./src/services/uid'\\\\''\\); *)",
+      "Bash(grep -v \"CONFIG\\\\|At line\\\\|CategoryInfo\\\\|FullyQualified\\\\|^ *+\\\\|^ *~\\\\|^$\")",
+      "Bash(grep -v \"CONFIG\\\\|At line\\\\|Category\\\\|Fully\\\\|^ *+\\\\|^ *~\\\\|^$\")",
+      "Bash(node -e \"require\\('./src/db'\\); console.log\\('db.js OK'\\);\")",
+      "Bash(npm test *)",
+      "PowerShell(cd c:\\\\SEMENT\\\\backend; $env:PORT=\"5096\"; $p = Start-Process node -ArgumentList \"server.js\" -PassThru -NoNewWindow -RedirectStandardOutput \"$env:TEMP\\\\s4.txt\" -RedirectStandardError \"$env:TEMP\\\\s4e.txt\"; Start-Sleep 4; try { \\(Invoke-RestMethod \"http://localhost:5096/api/health\" -TimeoutSec 5\\).ok } catch { \"XATO: $_\" }; Stop-Process -Id $p.Id -Force; Get-Content \"$env:TEMP\\\\s4.txt\" -Tail 3)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

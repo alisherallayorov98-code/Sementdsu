@@ -8,6 +8,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { DATA_DIR } = require('./config');
+const { sameName } = require('./services/nameKey');
 
 const ACCOUNTS_DIR    = path.join(DATA_DIR, 'accounts');
 const BACKUP_INTERVAL = 60 * 60 * 1000;
@@ -310,12 +311,32 @@ module.exports = {
     persist(acc);
     return { trip: newTrip, driver: (db.state.drivers || []).find(d => d.id === trip.driverId) };
   },
-  // Haydovchi balansi (state dan hisoblash)
+  // Haydovchi balansi (state dan hisoblash).
+  //
+  // DIQQAT: qoida frontend dagi lib/driverBalance.js bilan AYNAN bir xil
+  // bo'lishi shart — bot haydovchiga shu raqamni aytadi, dasturda esa
+  // boshqasi ko'rinadi. Ilgari bu yerda faqat reys to'lovlari hisoblanardi:
+  // kassadan berilgan pul e'tiborga olinmay, bot "sizga 500 000 to'lanishi
+  // kerak" deb yozardi — aslida undan kamroq qolgan bo'lardi.
+  // O'zgartirilsa — ikkala fayl birga o'zgarishi kerak.
   driverBalance(acc, driverId) {
-    const trips = ((load(acc).state.driver_trips || [])).filter(t => t.driverId === driverId);
-    const earned = trips.filter(t => !t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
-    const paid   = trips.filter(t =>  t.isPayment).reduce((s, t) => s + Number(t.price || 0), 0);
-    return earned - paid;
+    const st     = load(acc).state || {};
+    const driver = (st.drivers || []).find(d => d.id === driverId);
+    const trips  = (st.driver_trips || []).filter(t => t.driverId === driverId);
+    const num    = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+
+    const earned = trips.filter(t => !t.isPayment).reduce((s, t) => s + num(t.price), 0);
+    const paid   = trips.filter(t =>  t.isPayment).reduce((s, t) => s + num(t.price), 0);
+
+    // Kassadan qo'lda berilgan pul. customerId bor yozuv MIJOZGA tegishli
+    // (bir xil nomli mijoz va haydovchi bo'lishi mumkin) — u qo'shilmaydi.
+    const kassiPaid = driver
+      ? [...(st.cash_rows || []), ...(st.bank_rows || []), ...(st.click_rows || [])]
+          .filter(r => r && !r.auto && r.customerId == null && sameName(r.customer, driver.name) && num(r.amount) < 0)
+          .reduce((s, r) => s + Math.abs(num(r.amount)), 0)
+      : 0;
+
+    return earned - paid - kassiPaid;
   },
 
   // ── Zayavka bot foydalanuvchi boshqaruvi (global, ko'p-akkaunt) ─────────────

@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('../db');
+const { uid } = require('./uid');
 const { TELEGRAM_TOKEN, TELEGRAM_BOT_USER, DEFAULT_ACCOUNT } = require('../config');
 
 let running = false;
@@ -328,7 +329,7 @@ function start() {
       bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: q.message.message_id }).catch(() => {});
 
       // Pending trip yaratish
-      const tripId = Date.now();
+      const tripId = uid();
       const today  = new Date().toLocaleDateString('ru-RU');
       const trip   = {
         id: tripId, createdAt: tripId, chatId: String(chatId),
@@ -481,7 +482,7 @@ function start() {
       const workerName = state.workerName || null;
       const orderNote  = [state.tur, state.note, workerName ? null : `(${handle})`].filter(Boolean).join(' | ');
       db.addBotOrder(DEFAULT_ACCOUNT, {
-        id: Date.now(), createdAt: Date.now(),
+        id: uid(), createdAt: Date.now(),
         date: new Date().toLocaleDateString('ru-RU'),
         customer: state.customer, tons: state.tons,
         brand: state.brand, tur: state.tur, note: orderNote,
