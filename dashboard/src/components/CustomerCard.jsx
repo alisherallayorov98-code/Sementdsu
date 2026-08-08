@@ -122,7 +122,7 @@ export default function CustomerCard({ name, onClose }) {
           <AktSverkaModal
             name={name} s={s} aktRef={aktRef}
             onClose={() => setShowAkt(false)}
-            onExcel={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, summary: s })}
+            onExcel={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, advs: s.advs, summary: s })}
           />
         )}
 
@@ -303,6 +303,20 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
   const totalSaleSum = salesSorted.reduce((acc, r) => acc + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0);
   const totalLeft    = s.debts.reduce((acc, r) => acc + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
 
+  // Qarzlar sana bo'yicha (eskisidan) — aktda shu tartibda ko'rsatiladi.
+  const debtsSorted = [...s.debts].sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  const totalDebtSum = debtsSorted.reduce((acc, r) => acc + Number(r.amount || 0), 0);
+  const totalDebtPaid = debtsSorted.reduce((acc, r) => acc + Number(r.paid || 0), 0);
+  // Qoldiq QAYSI SANADAN boshlanganini ko'rsatish uchun: eng eski to'lanmagan
+  // qarzning sanasi. Mijozga akt yuborilganda "qaysi kundagi qoldiq?" degan
+  // savol chiqmasligi uchun sarlavhada ham yoziladi.
+  const oldestUnpaid = debtsSorted.find(r => Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)) > 0);
+  const debtFromDate = oldestUnpaid?.date || '';
+
+  // Avanslar (mijoz foydasiga) — bo'lsa alohida jadvalda ko'rsatiladi
+  const advsSorted = [...(s.advs || [])].sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  const totalAdvLeft = advsSorted.reduce((acc, r) => acc + Math.max(0, Number(r.amount || 0) - Number(r.used || 0)), 0);
+
   // Barcha to'lovlar (debt.payments[]) — mijoz haqiqatda bergan pullar
   const allPayments = s.debts
     .flatMap(d => (d.payments || []).map(p => ({ ...p, debtNote: d.note })))
@@ -344,9 +358,18 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
         <div ref={aktRef} style={{ padding: '20px 24px', fontFamily: 'Times New Roman, serif' }}>
           <h2 style={{ textAlign: 'center', textTransform: 'uppercase', marginBottom: 4 }}>Akt-Sverka</h2>
           <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 4 }}>Tashkilot: <b>SEMENT KORXONA</b></div>
-          <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 4 }}>
             Mijoz: <b>{name}</b> &nbsp;|&nbsp; Tuzilgan: <b>{today}</b>
           </div>
+          {/* Qoldiq QAYSI SANADAN ekanini sarlavhada ham ko'rsatamiz — akt
+              mijozga yuboriladi va "bu qaysi kundagi qarz?" degan savol
+              chiqmasligi kerak. */}
+          {debtFromDate && totalLeft > 0 && (
+            <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 16 }}>
+              Qoldiq qarz <b>{debtFromDate}</b> sanasidan boshlab hisoblangan
+            </div>
+          )}
+          {!(debtFromDate && totalLeft > 0) && <div style={{ marginBottom: 16 }} />}
 
           {/* Umumiy raqamlar */}
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, border: '1px solid #000' }}>
@@ -356,6 +379,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                 <th style={aTh}>Jami tonna</th>
                 <th style={{ ...aTh, color: '#006600' }}>Jami to'landi</th>
                 <th style={{ ...aTh, color: '#c00' }}>Qoldiq qarz</th>
+                {totalAdvLeft > 0 && <th style={{ ...aTh, color: '#00695c' }}>Qoldiq avans</th>}
               </tr>
             </thead>
             <tbody>
@@ -364,11 +388,15 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                 <td style={aTd}>{fmtT(totalSaleTon)} tn</td>
                 <td style={{ ...aTd, color: '#006600', fontWeight: 'bold' }}>{fmt(totalPayments)}</td>
                 <td style={{ ...aTd, fontWeight: 'bold', color: '#c00' }}>{fmt(totalLeft)}</td>
+                {totalAdvLeft > 0 && <td style={{ ...aTd, fontWeight: 'bold', color: '#00695c' }}>{fmt(totalAdvLeft)}</td>}
               </tr>
             </tbody>
           </table>
 
-          {/* Xaridlar jadvali */}
+          {/* Xaridlar jadvali — sotuv bo'lmasa ko'rsatilmaydi (import qilingan
+              qoldiqda bo'sh jadval faqat chalkashtirardi) */}
+          {salesSorted.length > 0 && (
+          <>
           <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>Xaridlar / Sotuvlar ({salesSorted.length} ta)</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
             <thead>
@@ -403,6 +431,96 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
               </tr>
             </tbody>
           </table>
+          </>
+          )}
+
+          {/* QARZLAR jadvali — har bir qarzning SANASI bilan.
+              Ilgari aktda faqat jami qoldiq ko'rinardi: import qilingan yoki
+              sotuvsiz qarzda (masalan eski qoldiq) sana hech qayerda
+              ko'rinmay, mijozda "bu qachondan?" degan savol tug'ilardi. */}
+          {debtsSorted.length > 0 && (
+            <>
+              <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>
+                Qarzlar ({debtsSorted.length} ta)
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+                <thead>
+                  <tr style={{ background: '#f0f0f0' }}>
+                    <th style={aTh}>#</th>
+                    <th style={aTh}>Sana</th>
+                    <th style={{ ...aTh, textAlign: 'right' }}>Qarz summasi</th>
+                    <th style={{ ...aTh, textAlign: 'right', color: '#006600' }}>To'landi</th>
+                    <th style={{ ...aTh, textAlign: 'right', color: '#c00' }}>Qoldiq</th>
+                    <th style={aTh}>Izoh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {debtsSorted.map((r, i) => {
+                    const left = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
+                    return (
+                      <tr key={r.id} style={{ background: i % 2 === 0 ? '#fff8f8' : '#fff' }}>
+                        <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
+                        <td style={{ ...aTd, fontWeight: 'bold' }}>{r.date || '—'}</td>
+                        <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
+                        <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>
+                        <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold', color: left > 0 ? '#c00' : '#006600' }}>{fmt(left)}</td>
+                        <td style={{ ...aTd, fontSize: 10 }}>{r.note || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
+                    <td colSpan={2} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
+                    <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalDebtSum)}</td>
+                    <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(totalDebtPaid)}</td>
+                    <td style={{ ...aTd, textAlign: 'right', color: '#c00' }}>{fmt(totalLeft)}</td>
+                    <td style={aTd}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/* AVANSLAR — mijoz foydasiga bo'lgan qoldiq. Aktda ko'rinmasa,
+              mijoz "men oldindan to'lagan edim-ku" deb e'tiroz bildirardi. */}
+          {advsSorted.length > 0 && (
+            <>
+              <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 4, borderBottom: '1px solid #000', paddingBottom: 2 }}>
+                Avanslar — oldindan to'langan ({advsSorted.length} ta)
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+                <thead>
+                  <tr style={{ background: '#f0f0f0' }}>
+                    <th style={aTh}>#</th>
+                    <th style={aTh}>Sana</th>
+                    <th style={{ ...aTh, textAlign: 'right' }}>Avans summasi</th>
+                    <th style={{ ...aTh, textAlign: 'right' }}>Ishlatilgan</th>
+                    <th style={{ ...aTh, textAlign: 'right', color: '#00695c' }}>Qoldiq</th>
+                    <th style={aTh}>Izoh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advsSorted.map((r, i) => {
+                    const left = Math.max(0, Number(r.amount || 0) - Number(r.used || 0));
+                    return (
+                      <tr key={r.id} style={{ background: i % 2 === 0 ? '#f5fbfa' : '#fff' }}>
+                        <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
+                        <td style={{ ...aTd, fontWeight: 'bold' }}>{r.date || '—'}</td>
+                        <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
+                        <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.used)}</td>
+                        <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold', color: '#00695c' }}>{fmt(left)}</td>
+                        <td style={{ ...aTd, fontSize: 10 }}>{r.note || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
+                    <td colSpan={4} style={{ ...aTd, textAlign: 'right' }}>QOLDIQ AVANS:</td>
+                    <td style={{ ...aTd, textAlign: 'right', color: '#00695c' }}>{fmt(totalAdvLeft)}</td>
+                    <td style={aTd}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
 
           {/* To'lovlar jadvali — mijoz haqiqatda bergan pullar */}
           {allPayments.length > 0 && (

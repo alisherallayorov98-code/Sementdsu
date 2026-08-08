@@ -111,7 +111,9 @@
       "Bash(xargs echo \"Push qilinmagan commit:\")",
       "Bash(xargs echo \"O'zgargan fayl:\")",
       "Bash(xargs echo \"Push qilinmagan:\")",
-      "PowerShell(foreach \\($u in @\\(\"http://45.92.173.216/api/health\",\"https://45.92.173.216/api/health\"\\)\\) { try { $r = Invoke-RestMethod $u -TimeoutSec 6 -SkipCertificateCheck; \"$u -> OK: $\\($r.ok\\)\"; break } catch { \"$u -> $\\($_.Exception.Message.Split\\([Environment]::NewLine\\)[0]\\)\" } })"
+      "PowerShell(foreach \\($u in @\\(\"http://45.92.173.216/api/health\",\"https://45.92.173.216/api/health\"\\)\\) { try { $r = Invoke-RestMethod $u -TimeoutSec 6 -SkipCertificateCheck; \"$u -> OK: $\\($r.ok\\)\"; break } catch { \"$u -> $\\($_.Exception.Message.Split\\([Environment]::NewLine\\)[0]\\)\" } })",
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/components/CustomerCard.jsx)",
+      "Bash(git -C c:/SEMENT show HEAD:dashboard/src/lib/excelExport.js)"
     ],
     "additionalDirectories": [
       "c:\\c\\SEMENT\\backend"

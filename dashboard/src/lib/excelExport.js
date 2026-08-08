@@ -55,15 +55,21 @@ export function exportToExcel({ filename, sheetName = 'Hisobot', columns, rows, 
 }
 
 // ── Mijoz Akt Sverka — ko'p varaqli ─────────────────────────────────────────
-export function exportAktSverka(customerName, { sales, debts, summary }) {
+export function exportAktSverka(customerName, { sales, debts, advs = [], summary }) {
   const wb = XLSX.utils.book_new();
   const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
   const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
+  // Qoldiq QAYSI SANADAN boshlanganini ko'rsatamiz — mijozga akt
+  // yuborilganda "bu qaysi kundagi qarz?" degan savol chiqmasligi uchun.
+  const debtsSorted = [...(debts || [])].sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  const oldestUnpaid = debtsSorted.find(r => Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)) > 0);
+
   // 1-varaq: Umumiy ma'lumot
   const infoAoa = [
     [`AKT-SVERKA: ${customerName}`],
-    [`Sana: ${new Date().toLocaleDateString('ru-RU')}`],
+    [`Tuzilgan sana: ${new Date().toLocaleDateString('ru-RU')}`],
+    ...(oldestUnpaid?.date ? [[`Qoldiq qarz ${oldestUnpaid.date} sanasidan boshlab hisoblangan`]] : []),
     [],
     ['Ko\'rsatkich', 'Qiymat'],
     ['Jami xarid (so\'m)', summary.totalXarid],
@@ -113,6 +119,29 @@ export function exportAktSverka(customerName, { sales, debts, summary }) {
   const wsDebts = XLSX.utils.aoa_to_sheet(debtsAoa);
   wsDebts['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 40 }];
   XLSX.utils.book_append_sheet(wb, wsDebts, 'Qarzlar');
+
+  // 4-varaq: Avanslar (mijoz foydasiga bo'lgan qoldiq).
+  // Ilgari umuman yo'q edi — mijoz "men oldindan to'lagan edim-ku" deb
+  // e'tiroz bildirsa, aktda uni ko'rsatadigan joy bo'lmasdi.
+  if (advs.length) {
+    const advAoa = [
+      [`Avanslar (oldindan to'langan): ${customerName}`],
+      [],
+      ['Sana', 'Avans summasi', 'Ishlatilgan', 'Qoldiq', 'Izoh'],
+      ...advs.map(r => [
+        r.date,
+        Number(r.amount || 0),
+        Number(r.used || 0),
+        Math.max(0, Number(r.amount || 0) - Number(r.used || 0)),
+        r.note || '',
+      ]),
+      [],
+      ['JAMI', advs.reduce((s,r)=>s+Number(r.amount||0),0), advs.reduce((s,r)=>s+Number(r.used||0),0), advs.reduce((s,r)=>s+Math.max(0,Number(r.amount||0)-Number(r.used||0)),0), ''],
+    ];
+    const wsAdv = XLSX.utils.aoa_to_sheet(advAoa);
+    wsAdv['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, wsAdv, 'Avanslar');
+  }
 
   XLSX.writeFile(wb, `AktSverka_${customerName}_${todayStamp()}.xlsx`);
 }
