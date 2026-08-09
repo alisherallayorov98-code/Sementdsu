@@ -15,6 +15,7 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import Paginator from '../components/Paginator';
 import { filterByRange } from '../lib/dateRange';
 import { isTransferRow } from '../lib/transferRow';
+import { useFocusRow, FOCUS_STYLE } from '../lib/useFocusRow';
 
 const fmt   = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const toDay = () => new Date().toLocaleDateString('ru-RU');
@@ -418,6 +419,9 @@ export default function Kassir() {
     skladRange
   );
   const pagedSklad = filteredSklad.slice((skladPage - 1) * SK_PAGE, skladPage * SK_PAGE);
+  // Mijoz kartochkasidagi "manba" oynasidan chakana sotuvga o'tilganda
+  // (?focus=id) shu qator ajratib ko'rsatiladi.
+  const { rowRef: focusRef, isFocused } = useFocusRow(filteredSklad, SK_PAGE, setSkladPage);
   const totalSkladKgSold  = sortedSklad.reduce((s, r) => s + Math.abs(Number(r.kg || 0)), 0);
   const totalSkladSomSold = sortedSklad.reduce((s, r) => s + Math.abs(Number(r.kg || 0)) * Number(r.pricePerKg || 0), 0);
 
@@ -758,7 +762,9 @@ export default function Kassir() {
                 </thead>
                 <tbody>
                   {pagedSklad.map((r, i) => (
-                    <tr key={r.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <tr key={r.id}
+                      ref={isFocused(r.id) ? focusRef : null}
+                      style={isFocused(r.id) ? FOCUS_STYLE : { background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                       <td style={{ color: '#888', textAlign: 'center', fontSize: 11 }}>{(skladPage - 1) * SK_PAGE + i + 1}</td>
                       <td style={{ fontSize: 12, color: '#555' }}>{r.date}</td>
                       <td>

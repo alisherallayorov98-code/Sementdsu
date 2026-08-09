@@ -109,7 +109,8 @@ export default function RecvTons({ lang }) {
   const [splits, setSplits] = useState([]);
   const [range, setRange] = useState({ from: '', to: '' }); // sana oralig'i filtri
   const [selected, setSelected] = useState(new Set()); // ommaviy tanlash
-  const [menuId, setMenuId] = useState(null); // "⋮" menyusi ochiq qator
+  const [menuId, setMenuId] = useState(null);   // "⋮" menyusi ochiq qator
+  const [menuPos, setMenuPos] = useState(null); // menyu ekrandagi joyi (portal)
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
@@ -854,46 +855,32 @@ export default function RecvTons({ lang }) {
                         title="Tahrirlash"
                         style={{ fontSize:11, cursor:'pointer', background:'#1565c0', color:'#fff', border:'none', borderRadius:3, padding:'3px 7px', marginRight:4 }}
                       >✏️</button>
-                      {/* Uch nuqta → menyu → "O'chirish" → tasdiq */}
-                      <span style={{ position:'relative', display:'inline-block' }}>
-                        <button
-                          onClick={() => setMenuId(menuId === r.id ? null : r.id)}
-                          title="Yana"
-                          style={{ ...moreBtn, background: menuId === r.id ? '#e0e0e0' : '#f5f5f5' }}
-                        >⋮</button>
-                        {menuId === r.id && (
-                          <>
-                            {/* Tashqariga bosilsa menyu yopiladi */}
-                            <span onClick={() => setMenuId(null)}
-                              style={{ position:'fixed', inset:0, zIndex:40 }} />
-                            <span style={{
-                              position:'absolute', right:0, top:'100%', marginTop:3, zIndex:41,
-                              display:'block', background:'#fff', border:'1px solid #ccc', borderRadius:4,
-                              boxShadow:'0 3px 10px rgba(0,0,0,0.18)', minWidth:130, overflow:'hidden',
-                            }}>
-                              <button
-                                onClick={() => handleRowDelete(r)}
-                                style={{
-                                  display:'block', width:'100%', textAlign:'left', cursor:'pointer',
-                                  padding:'8px 12px', fontSize:12.5, border:'none', whiteSpace:'nowrap',
-                                  background:'#fff', color:'#c62828', fontFamily:'Tahoma, sans-serif',
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.background = '#ffebee'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
-                              >
-                                🗑 O'chirish
-                              </button>
-                            </span>
-                          </>
-                        )}
-                      </span>
+                      {/* Uch nuqta → menyu → "O'chirish" → tasdiq.
+                          Menyu PORTAL orqali chiziladi: jadval "overflow-x:auto"
+                          ichida turadi va oddiy absolute menyu shu quti bilan
+                          KESILIB qolardi (pastki qatorlarda ko'rinmasdi). */}
+                      <button
+                        onClick={e => {
+                          if (menuId === r.id) { setMenuId(null); return; }
+                          const b = e.currentTarget.getBoundingClientRect();
+                          setMenuPos({ top: b.bottom + 3, left: b.right });
+                          setMenuId(r.id);
+                        }}
+                        title="Yana"
+                        style={{ ...moreBtn, background: menuId === r.id ? '#e0e0e0' : '#f5f5f5' }}
+                      >⋮</button>
                     </td>
                   </tr>
                 );
               })}
               <tr style={{ background:'#ffff00', fontWeight:'bold' }}>
-                {appSettings?.allowBulkDelete && <td></td>}
-                <td colSpan={5} style={{ textAlign:'right' }}>{L.jami_lbl[lang]}</td>
+                {/* Belgilash ustuni HAR DOIM chiziladi (sarlavha va qatorlarda
+                    ham), shuning uchun jami qatorida ham bo'lishi shart.
+                    Ilgari u appSettings.allowBulkDelete ga bog'langan edi va
+                    sozlama o'chiq bo'lsa JAMI raqamlari ikki ustun chapga
+                    siljib, tonna "Tur" ustuni tagida turardi. */}
+                <td></td>
+                <td colSpan={6} style={{ textAlign:'right' }}>{L.jami_lbl[lang]}</td>
                 <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtT(totalTons)} tn</td>
                 <td></td>
                 <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmt(totalSum)}</td>
@@ -904,6 +891,32 @@ export default function RecvTons({ lang }) {
           <Paginator total={filtered.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
         </div>
         </>
+      )}
+
+      {/* "⋮" menyusi — portal (jadval overflow qutisi kesib qo'ymasin) */}
+      {menuId != null && menuPos && createPortal(
+        <>
+          <div onClick={() => setMenuId(null)} style={{ position:'fixed', inset:0, zIndex:5000 }} />
+          <div style={{
+            position:'fixed', top:menuPos.top, left:menuPos.left, transform:'translateX(-100%)', zIndex:5001,
+            background:'#fff', border:'1px solid #ccc', borderRadius:4,
+            boxShadow:'0 3px 12px rgba(0,0,0,0.22)', minWidth:140, overflow:'hidden',
+          }}>
+            <button
+              onClick={() => { const r = recvRows.find(x => x.id === menuId); if (r) handleRowDelete(r); }}
+              style={{
+                display:'block', width:'100%', textAlign:'left', cursor:'pointer',
+                padding:'9px 13px', fontSize:12.5, border:'none', whiteSpace:'nowrap',
+                background:'#fff', color:'#c62828', fontFamily:'Tahoma, sans-serif',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#ffebee'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+            >
+              🗑 O'chirish
+            </button>
+          </div>
+        </>,
+        document.body
       )}
 
       {renderModal()}
