@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
-import { sameName, uniqueNames } from '../lib/customerRef';
+import { sameName, uniqueNames, custRows } from '../lib/customerRef';
 import { excelDateToStr } from '../lib/excelDate';
 import { parseNum } from '../lib/parseNum';
 import SupplierSelect from '../components/SupplierSelect';
@@ -95,7 +95,12 @@ export default function RecvTons({ lang }) {
     skladRows, addSkladKirim,
     salesRows, skladSourceIds,
     cementTypes,
+    advanceBalanceOf, debtRows, custRef,
   } = useData();
+  // Sotuvchi mijozning avansi/qarzini yoddan bilmaydi — taqsimlash oynasida
+  // mijoz tanlangan zahoti shu ikki raqam ko'rsatiladi (pastda "CustBalance").
+  const debtBalanceOf = (name) => custRows(debtRows, custRef(name))
+    .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
   const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
   const myWh = currentUser?.warehouseId || defaultWhId;
   const [verifyRow, setVerifyRow] = useState(null); // tasdiqlash modali
@@ -231,7 +236,21 @@ export default function RecvTons({ lang }) {
   const closeVerify = () => { setVerifyRow(null); setSplits([]); };
 
   const addSplit = (type) => setSplits(p => [...p, { id: Date.now(), type, customer: '', tons: '', pricePerTon: '', paymentChannel: 'naqd' }]);
-  const updateSplit = (id, field, val) => setSplits(p => p.map(s => s.id === id ? { ...s, [field]: val } : s));
+  // Mijoz tanlanganda to'lov turi AVTOMATIK "Avansdan" ga o'tadi (agar mijozning
+  // ishlatilmagan avansi bo'lsa va xodim to'lov turini o'zi hali tanlamagan
+  // bo'lsa). Sabab: sotuvchi 400+ mijozning avansini yoddan bilmaydi —
+  // avansi bor mijozga jimgina naqd/nasiya yozilib ketardi. Xodim to'lov
+  // turini o'zi o'zgartirsa (chTouched), boshqa aralashmaymiz.
+  const updateSplit = (id, field, val) => setSplits(p => p.map(s => {
+    if (s.id !== id) return s;
+    const next = { ...s, [field]: val };
+    if (field === 'paymentChannel') next.chTouched = true;
+    if (field === 'customer' && !s.chTouched) {
+      next.paymentChannel = advanceBalanceOf(val) > 0 ? 'avans' : s.paymentChannel;
+      next.autoAvans = advanceBalanceOf(val) > 0;
+    }
+    return next;
+  }));
   const removeSplit = (id) => setSplits(p => p.filter(s => s.id !== id));
 
   const confirmVerify = () => {
@@ -987,6 +1006,18 @@ export default function RecvTons({ lang }) {
                     {sp.type==='sklad' && Number(sp.tons) > 0 && (
                       <div style={{ fontSize:11, color:'#4e342e' }}>{sp.tons} tn × 1000 = <b>{(Number(sp.tons)*1000).toLocaleString('ru-RU')} kg</b></div>
                     )}
+                    {/* Mijoz tanlangan zahoti uning avansi va qarzi ko'rinadi —
+                        xodim yoddan bilishi shart emas. */}
+                    {sp.type==='mijoz' && sp.customer && (
+                      <CustBalance
+                        customer={sp.customer}
+                        advance={advanceBalanceOf(sp.customer)}
+                        debt={debtBalanceOf(sp.customer)}
+                        sum={Number(sp.tons||0) * Number(sp.pricePerTon||0)}
+                        channel={sp.paymentChannel}
+                        autoAvans={sp.autoAvans}
+                      />
+                    )}
                     {sp.type==='mijoz' && Number(sp.tons) > 0 && Number(sp.pricePerTon) > 0 && (
                       <div style={{ fontSize:11, color:'#01579b' }}>Summa: <b>{fmt(Number(sp.tons)*Number(sp.pricePerTon))} so'm</b></div>
                     )}
@@ -1015,6 +1046,45 @@ export default function RecvTons({ lang }) {
           </div>
         </div>,
         document.body
+      )}
+    </div>
+  );
+}
+
+// ── Mijozning avans / qarz holati (taqsimlash oynasida) ──────────────────────
+// Sotuvchi mijozning avansi borligini yoddan bilmaydi. Mijoz tanlangan zahoti
+// shu qatorcha chiqadi va summa kiritilgach "qanchasi avansdan yopiladi,
+// qanchasi qarzga qoladi" oldindan ko'rinadi.
+function CustBalance({ advance, debt, sum, channel, autoAvans }) {
+  const isCredit = channel === 'avans' || channel === 'nasiya';
+  const fromAdv  = isCredit ? Math.min(advance, sum) : 0;
+  const toDebt   = isCredit ? Math.max(0, sum - fromAdv) : 0;
+  return (
+    <div style={{ fontSize:11, background:'#fff', border:'1px solid #e0e0e0', borderRadius:4, padding:'6px 8px' }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ color: advance > 0 ? '#00838f' : '#aaa', fontWeight: advance > 0 ? 'bold' : 'normal' }}>
+          🅰️ Avans: {fmt(advance)} so'm
+        </span>
+        <span style={{ color: debt > 0 ? '#c62828' : '#aaa', fontWeight: debt > 0 ? 'bold' : 'normal' }}>
+          ⚠️ Qarz: {fmt(debt)} so'm
+        </span>
+        {advance <= 0 && debt <= 0 && <span style={{ color:'#2e7d32' }}>✓ Hisob toza</span>}
+      </div>
+      {autoAvans && channel === 'avans' && (
+        <div style={{ color:'#00838f', marginTop:4 }}>
+          Avansi borligi uchun to'lov turi <b>"Avansdan"</b> qilib qo'yildi — kerak bo'lsa o'zgartiring.
+        </div>
+      )}
+      {isCredit && sum > 0 && (
+        <div style={{ marginTop:4, color:'#555' }}>
+          Avansdan yopiladi: <b style={{ color:'#00838f' }}>{fmt(fromAdv)}</b>
+          {' · '}Qarzga qoladi: <b style={{ color: toDebt > 0 ? '#c62828' : '#2e7d32' }}>{fmt(toDebt)}</b>
+        </div>
+      )}
+      {!isCredit && advance > 0 && (
+        <div style={{ color:'#e65100', marginTop:4 }}>
+          Diqqat: mijozning avansi bor. Pulni hozir olmayotgan bo'lsangiz, <b>"Avansdan"</b> tanlang.
+        </div>
       )}
     </div>
   );

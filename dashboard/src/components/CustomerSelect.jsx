@@ -26,7 +26,7 @@ export default function CustomerSelect({
   accentColor = '#283593',
   inputId,
 }) {
-  const { customers, addCustomer, drivers = [], workers = [] } = useData();
+  const { customers, addCustomer, drivers = [], workers = [], advanceBalanceOf } = useData();
 
   const [open,    setOpen]    = useState(false);
   const [modal,   setModal]   = useState(false);
@@ -39,7 +39,13 @@ export default function CustomerSelect({
     ...customers.filter(c =>
       c.name.toLowerCase().includes(query.toLowerCase()) ||
       (c.phone || '').includes(query)
-    ).slice(0, 8).map(c => ({ key: 'c' + c.id, name: c.name, sub: c.phone || '', badge: '👤', badgeColor: '#1565c0' })),
+    // Avans qoldig'i ro'yxatda ko'rinadi: xodim 400+ mijozning avansini yoddan
+    // bilmaydi va avansi bor mijozga jimgina naqd/nasiya yozib yuborardi.
+    ).slice(0, 8).map(c => ({
+      key: 'c' + c.id, name: c.name, sub: c.phone || '',
+      badge: '👤', badgeColor: '#1565c0',
+      advance: advanceBalanceOf ? advanceBalanceOf(c.name) : 0,
+    })),
 
     ...drivers.filter(d =>
       d.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -159,11 +165,17 @@ export default function CustomerSelect({
                         {highlight(entry.name, query)}
                       </b>
                     </span>
-                    {entry.sub && (
-                      <span style={{ color: '#888', fontSize: 10, marginLeft: 8, whiteSpace: 'nowrap' }}>
-                        {entry.sub}
-                      </span>
-                    )}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8, whiteSpace: 'nowrap' }}>
+                      {entry.advance > 0 && (
+                        <span title="Ishlatilmagan avans" style={{
+                          background: '#e0f7fa', color: '#00838f', border: '1px solid #4dd0e1',
+                          borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 'bold',
+                        }}>
+                          🅰️ {Number(entry.advance).toLocaleString('ru-RU').replace(/,/g, ' ')}
+                        </span>
+                      )}
+                      {entry.sub && <span style={{ color: '#888', fontSize: 10 }}>{entry.sub}</span>}
+                    </span>
                   </div>
                 ))
               ) : (
