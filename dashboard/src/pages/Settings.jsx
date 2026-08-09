@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import ArchiveSettings from '../components/ArchiveSettings';
+import DateFixTool from '../components/DateFixTool';
 import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
 // Ilgari bu yerda o'z summa parseri bor edi: u vergulni O'CHIRIB tashlardi,
@@ -752,6 +753,10 @@ export default function Settings({ lang }) {
               <li>Faylni qaytadan shu yerga yuklang va "Import qilish"ni bosing.</li>
             </ol>
           </div>
+
+          {/* Import xatosini tuzatish vositasi — shu yerda, chunki xato
+              aynan import paytida bo'ladi va odam shu sahifaga qaytadi */}
+          <DateFixTool themeColor={appSettings.themeColor} />
 
           <ExcelImport
             title="👥 Mijozlar bazasini import qilish"

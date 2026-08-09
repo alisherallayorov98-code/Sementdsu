@@ -879,6 +879,34 @@ export function DataProvider({ children }) {
     return { added: prepared.length, newCustomers: fresh.length };
   };
 
+  // ── Sanani ommaviy to'g'rilash (import xatosi uchun) ─────────────────────
+  // Importda bitta sana butun faylga qo'yiladi. Xato yozilsa yuzlab qatorni
+  // bittalab tuzatib bo'lmaydi, hammasini o'chirib qayta import qilish esa
+  // mijozlar bazasiga qo'shilgan yangi mijozlarni va qilingan to'lovlarni
+  // ham yo'q qilardi.
+  //
+  // FAQAT qator sanasi o'zgaradi. To'lovlar (payments) va sarflar (usages)
+  // o'z sanasida qoladi — ular haqiqatan o'sha kunlarda bo'lgan. Import
+  // qilingan qarz/avans kassaga yozuv yaratmaydi, shuning uchun bog'langan
+  // yozuvlarni qayta tiklash shart emas.
+  const fixRowDates = ({ scope = 'both', from, to }) => {
+    const swap = (rows) => rows.map(r => r.date === from ? { ...r, date: to } : r);
+    let debts = 0, advances = 0;
+
+    if (scope === 'debt' || scope === 'both') {
+      debts = debtRows.filter(r => r.date === from).length;
+      if (debts) setDebtRows(swap);
+    }
+    if (scope === 'advance' || scope === 'both') {
+      advances = advanceRows.filter(r => r.date === from).length;
+      if (advances) {
+        setAdvanceRows(swap);
+        advanceRef.current = swap(advanceRef.current);
+      }
+    }
+    return { debts, advances };
+  };
+
   const deleteAdvanceRow = (id) => {
     // Sotuvga ishlatilgan avansni o'chirib bo'lmaydi — aks holda sotuv
     // "to'langan" bo'lib qoladi-yu, puli hech qayerda ko'rinmaydi.
@@ -2155,6 +2183,7 @@ export function DataProvider({ children }) {
     debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
     advanceRows, addAdvanceRow, deleteAdvanceRow, importAdvances, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
+    fixRowDates,
     // 13. Sotish
     salesRows, addSaleRow, updateSaleRow, deleteSaleRow,
     // 14. Kirim bank + Chiqim bank
