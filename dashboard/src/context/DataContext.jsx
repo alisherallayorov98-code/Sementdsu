@@ -2120,6 +2120,9 @@ export function DataProvider({ children }) {
     currentUser, token, login, signup, logout, currentWorker, setCurrentWorker,
     appSettings, updateAppSettings,
     backendOnline, hydrated, dirty,
+    // Butun holat nusxasi — avtomatik arxiv JSON faylini yasashda ishlatiladi
+    // (o'sha fayldan baza to'liq tiklanadi: Sozlamalar → Zaxira → Tiklash).
+    snapshot,
     // Bildirishnoma (Telegram/SMS)
     tgContacts, notifyMeta, refreshTgContacts, tgChatIdFor, tgLocationFor,
     // 2. Naqd pul

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import ArchiveSettings from '../components/ArchiveSettings';
 import { api } from '../api';
 import ExcelImport from '../components/ExcelImport';
 // Ilgari bu yerda o'z summa parseri bor edi: u vergulni O'CHIRIB tashlardi,
@@ -801,7 +802,12 @@ export default function Settings({ lang }) {
 
       {/* ZAXIRA TABI */}
       {tab === 'backup' && (
-        <div style={{ maxWidth: 640 }}>
+        <div style={{ maxWidth: 720 }}>
+          {/* Avtomatik arxiv — eng muhimi tepada: mijozning o'z kompyuterida
+              butun tarix Excel bo'lib yotadi. Serverdagi zaxira uni
+              almashtirmaydi, ikkalasi birga ishlaydi. */}
+          <ArchiveSettings themeColor={appSettings.themeColor} />
+
           <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #eee' }}>
             <h3 style={{ marginTop: 0, color: appSettings.themeColor }}>Ma'lumotlar zaxirasi</h3>
             <p style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>

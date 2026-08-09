@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { useData } from './context/DataContext';
+import { useAutoArchive } from './hooks/useAutoArchive';
 import GlobalSearch from './components/GlobalSearch';
 import ConnectionBlock from './components/ConnectionBlock';
 
@@ -66,7 +67,14 @@ const FULL_MENU = [
 function App() {
   const [lang, setLang] = useState('latn');
   const location = useLocation();
-  const { currentUser, token, logout, appSettings, backendOnline, hydrated, dirty } = useData();
+  const data = useData();
+  const { currentUser, token, logout, appSettings, backendOnline, hydrated, dirty } = data;
+
+  // Avtomatik arxiv: mijoz ertalab kirganda butun tarix uning D diskidagi
+  // papkaga Excel bo'lib yoziladi. Hook SHARTSIZ chaqiriladi (React qoidasi),
+  // ishlashi esa `hydrated` ga bog'liq — ma'lumot to'liq yuklanmasdan
+  // arxiv yozilsa, yarim holat to'g'ri arxiv ustiga bosilib qolardi.
+  const archive = useAutoArchive(data, hydrated && !!token);
 
   // Token (yoki foydalanuvchi) bo'lmasa — kirish oynasi
   if (!currentUser || !token) {
@@ -108,6 +116,15 @@ function App() {
           >
             🔄 <span style={{ fontSize: 10, opacity: 0.85 }}>Ctrl+Shift+R</span>
           </button>
+
+          {/* Arxiv yozilayotgani — bir necha soniya davom etadi, xodim nima
+              bo'layotganini bilib tursin (jimgina qotib qolgandek tuyulmasin) */}
+          {archive.busy && (
+            <div title="Ma'lumot kompyuteringizdagi arxiv papkasiga yozilmoqda"
+              style={{ color: '#fff', fontSize: 12, background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: 12, whiteSpace: 'nowrap' }}>
+              💾 Arxiv{archive.progress ? ` ${archive.progress.done}/${archive.progress.total}` : '…'}
+            </div>
+          )}
 
           {/* Saqlash holati — xodim yozuvi serverga yetganini ko'rib tursin */}
           {!backendOnline ? (
