@@ -103,6 +103,7 @@ export default function RecvTons({ lang }) {
   const [splits, setSplits] = useState([]);
   const [range, setRange] = useState({ from: '', to: '' }); // sana oralig'i filtri
   const [selected, setSelected] = useState(new Set()); // ommaviy tanlash
+  const [menuId, setMenuId] = useState(null); // "⋮" menyusi ochiq qator
 
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
@@ -327,6 +328,19 @@ export default function RecvTons({ lang }) {
       setSelected(prev => { const s = new Set(prev); paged.forEach(r => s.add(r.id)); return s; });
     }
   };
+  // O'chirish ikki qadamli: yolg'iz ✕ tugmasi juda "oson" edi — qo'l tegib
+  // ketsa zavoddan olingan yuk o'chib, sement qoldig'i buzilardi. Endi "⋮"
+  // bosiladi, menyudan "O'chirish" tanlanadi va shundan keyin tasdiq so'raladi.
+  const handleRowDelete = (r) => {
+    setMenuId(null);
+    if (window.confirm(
+      `Haqiqatan o'chirasizmi?\n\n` +
+      `${r.date} · ${r.source || '—'} · ${fmtT(r.tons)} tn` +
+      (r.vehicleNo ? ` · ${r.vehicleNo}` : '') +
+      `\n\nBu yozuv o'chsa, sement qoldig'i shuncha kamayadi.`
+    )) deleteRecvRow(r.id);
+  };
+
   const handleBulkDelete = () => {
     if (selected.size === 0) return;
     // Sotuvi bor yuklarni oldindan ajratamiz — aks holda har biri uchun
@@ -758,7 +772,7 @@ export default function RecvTons({ lang }) {
                 <th style={{ width:100 }}>{L.karta[lang]}</th>
                 <th style={{ width:130, fontSize:11 }}>{L.vaqt[lang]}</th>
                 <th style={{ width:80 }}>{L.xodim[lang]}</th>
-                <th style={{ width:40 }}></th>
+                <th style={{ width:80 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -812,10 +826,39 @@ export default function RecvTons({ lang }) {
                         title="Tahrirlash"
                         style={{ fontSize:11, cursor:'pointer', background:'#1565c0', color:'#fff', border:'none', borderRadius:3, padding:'3px 7px', marginRight:4 }}
                       >✏️</button>
-                      <button
-                        onClick={() => { if(window.confirm("O'chirilsinmi?")) deleteRecvRow(r.id); }}
-                        style={{ fontSize:10, cursor:'pointer', background:'#ffcccc', border:'1px solid #c00', padding:'2px 5px' }}
-                      >✕</button>
+                      {/* Uch nuqta → menyu → "O'chirish" → tasdiq */}
+                      <span style={{ position:'relative', display:'inline-block' }}>
+                        <button
+                          onClick={() => setMenuId(menuId === r.id ? null : r.id)}
+                          title="Yana"
+                          style={{ ...moreBtn, background: menuId === r.id ? '#e0e0e0' : '#f5f5f5' }}
+                        >⋮</button>
+                        {menuId === r.id && (
+                          <>
+                            {/* Tashqariga bosilsa menyu yopiladi */}
+                            <span onClick={() => setMenuId(null)}
+                              style={{ position:'fixed', inset:0, zIndex:40 }} />
+                            <span style={{
+                              position:'absolute', right:0, top:'100%', marginTop:3, zIndex:41,
+                              display:'block', background:'#fff', border:'1px solid #ccc', borderRadius:4,
+                              boxShadow:'0 3px 10px rgba(0,0,0,0.18)', minWidth:130, overflow:'hidden',
+                            }}>
+                              <button
+                                onClick={() => handleRowDelete(r)}
+                                style={{
+                                  display:'block', width:'100%', textAlign:'left', cursor:'pointer',
+                                  padding:'8px 12px', fontSize:12.5, border:'none', whiteSpace:'nowrap',
+                                  background:'#fff', color:'#c62828', fontFamily:'Tahoma, sans-serif',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#ffebee'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                              >
+                                🗑 O'chirish
+                              </button>
+                            </span>
+                          </>
+                        )}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -1114,3 +1157,6 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
 
 const thS = { border:'1px solid #999', padding:'5px 8px', background:'#f0f0f0', fontWeight:'bold', fontSize:12, textAlign:'left' };
 const tdS = { border:'1px solid #ccc', padding:'5px 8px', fontSize:12 };
+// "⋮" — neytral ko'rinish: bu tugma o'zi hech narsa o'chirmaydi, faqat menyu
+// ochadi. Qizil rang bermaymiz, aks holda yana "xavfli" tuyulardi.
+const moreBtn = { padding:'2px 7px', cursor:'pointer', background:'#f5f5f5', border:'1px solid #bbb', borderRadius:3, color:'#555', fontSize:14, lineHeight:1, fontWeight:'bold' };

@@ -23,7 +23,7 @@ const CHANNELS = [
 ];
 
 export default function Distribution() {
-  const { salesRows, addSaleRow, deleteSaleRow, recvRows, totalCementBalance, currentWorker,
+  const { salesRows, addSaleRow, deleteSaleRow, updateSaleRow, recvRows, totalCementBalance, currentWorker,
           warehouses, whOf, defaultWhId, currentUser, cementBalanceOf, whName } = useData();
   const myWh = currentUser?.warehouseId || defaultWhId;
 
@@ -35,6 +35,48 @@ export default function Distribution() {
   // Tez kiritish formasi
   const [row, setRow] = useState({ customer: '', tons: '', price: '' });
   const tonsRef = useRef();
+
+  // Qator tahrirlash: taqsimotda tez kiritilgani uchun xato (noto'g'ri mijoz,
+  // tonna yoki narx) tez-tez uchraydi. Ilgari yagona chora — o'chirib qayta
+  // kiritish edi. Endi qator joyida tahrirlanadi.
+  const [editId, setEditId] = useState(null);
+  const [edit, setEdit] = useState({ customer: '', tons: '', price: '', channel: 'nasiya' });
+
+  const startEdit = (r) => {
+    setEditId(r.id);
+    setEdit({
+      customer: r.customer || '',
+      tons: String(r.tons ?? ''),
+      price: String(r.pricePerTon ?? ''),
+      channel: r.paymentChannel || 'naqd',
+    });
+  };
+  const cancelEdit = () => { setEditId(null); };
+  const saveEdit = (r) => {
+    const tonsN  = parseNum(edit.tons);
+    const priceN = parseNum(edit.price);
+    if (!edit.customer)   { alert('Mijoz tanlanmagan.'); return; }
+    if (!(tonsN > 0))     { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    if (!(priceN >= 0) || !isFinite(priceN)) { alert("Narx noto'g'ri kiritilgan."); return; }
+    // Qoldiq tekshiruvi: tahrirda tonna oshsa ham omborda yo'q sement
+    // "sotilib" ketmasin. Farq hisobga olinadi (eski tonna allaqachon yechilgan).
+    const delta = tonsN - Number(r.tons || 0);
+    if (delta > Number(whQoldiq || 0)) {
+      if (!window.confirm(
+        `Diqqat! "${whName(wh)}" skladida ${fmtT(whQoldiq)} tn sement bor.\n` +
+        `Tonna ${fmtT(delta)} tn ga oshirilmoqda.\n\nBaribir davom etamizmi?`
+      )) return;
+    }
+    // updateSaleRow rad etsa (masalan qarzga to'lov qilingan bo'lsa) forma
+    // ochiq qoladi — o'zgarish saqlanmagani bilinmay qolmasin.
+    if (updateSaleRow(r.id, {
+      customer: edit.customer,
+      tons: tonsN,
+      pricePerTon: priceN,
+      paymentChannel: edit.channel,
+    }) === false) return;
+    setEditId(null);
+  };
 
   const t = today();
   // Tanlangan sklad bo'yicha
@@ -172,29 +214,77 @@ export default function Distribution() {
               <th style={{ textAlign: 'right', width: 110 }}>Narx/tn</th>
               <th style={{ textAlign: 'right', width: 130 }}>Summa</th>
               <th style={{ width: 90 }}>To'lov</th>
-              <th style={{ width: 40 }}></th>
+              <th style={{ width: 78 }}></th>
             </tr>
           </thead>
           <tbody>
             {[...todaySales].sort((a, b) => b.createdAt - a.createdAt).map((r, i) => {
               const sum = Number(r.tons || 0) * Number(r.pricePerTon || 0);
               const isNasiya = r.paymentChannel === 'nasiya';
+              const isEdit = editId === r.id;
               return (
-                <tr key={r.id} style={{ background: i % 2 === 0 ? '#fff' : '#f7fbfd' }}>
+                <tr key={r.id} style={{ background: isEdit ? '#fffde7' : (i % 2 === 0 ? '#fff' : '#f7fbfd') }}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{todaySales.length - i}</td>
                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{timeOf(r.createdAt)}</td>
-                  <td style={{ fontWeight: 'bold', color: '#01579b' }}>{r.customer}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', fontSize: 15 }}>{fmtT(r.tons)}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#555' }}>{r.pricePerTon ? fmt(r.pricePerTon) : '—'}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{sum ? fmt(sum) : '—'}</td>
-                  <td>
-                    <span style={{ fontSize: 11, fontWeight: 'bold', color: isNasiya ? '#c62828' : '#2e7d32' }}>
-                      {isNasiya ? 'Nasiya' : (r.paymentChannel || 'naqd')}
-                    </span>
+                  <td style={{ fontWeight: 'bold', color: '#01579b' }}>
+                    {isEdit ? (
+                      <CustomerSelect
+                        value={edit.customer}
+                        onChange={val => setEdit({ ...edit, customer: val })}
+                        placeholder="Mijoz..."
+                        width={190}
+                        accentColor="#0288d1"
+                      />
+                    ) : r.customer}
                   </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button onClick={() => { if (window.confirm("O'chirasizmi? (Sement qoldig'i qaytadi)")) deleteSaleRow(r.id); }}
-                      style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', fontSize: 15 }}>
+                    {isEdit ? (
+                      <input type="number" step="0.01" value={edit.tons}
+                        onChange={e => setEdit({ ...edit, tons: e.target.value })}
+                        style={editInp} />
+                    ) : fmtT(r.tons)}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#555' }}>
+                    {isEdit ? (
+                      <input type="number" value={edit.price}
+                        onChange={e => setEdit({ ...edit, price: e.target.value })}
+                        style={{ ...editInp, width: 100 }} />
+                    ) : (r.pricePerTon ? fmt(r.pricePerTon) : '—')}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                    {isEdit
+                      ? fmt(parseNum(edit.tons) * parseNum(edit.price))
+                      : (sum ? fmt(sum) : '—')}
+                  </td>
+                  <td>
+                    {isEdit ? (
+                      <select value={edit.channel} onChange={e => setEdit({ ...edit, channel: e.target.value })}
+                        style={{ ...editInp, width: 92, textAlign: 'left' }}>
+                        {CHANNELS.map(ch => <option key={ch.v} value={ch.v}>{ch.label}</option>)}
+                      </select>
+                    ) : (
+                      <span style={{ fontSize: 11, fontWeight: 'bold', color: isNasiya ? '#c62828' : '#2e7d32' }}>
+                        {isNasiya ? 'Nasiya' : (r.paymentChannel || 'naqd')}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {isEdit ? (
+                      <>
+                        <button onClick={() => saveEdit(r)} title="Saqlash"
+                          style={{ cursor: 'pointer', background: '#e8f5e9', border: '1px solid #2e7d32', color: '#2e7d32', borderRadius: 3, padding: '2px 7px', marginRight: 4, fontWeight: 'bold' }}>✓</button>
+                        <button onClick={cancelEdit} title="Bekor qilish"
+                          style={{ cursor: 'pointer', background: '#f5f5f5', border: '1px solid #bbb', color: '#555', borderRadius: 3, padding: '2px 7px' }}>✕</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => startEdit(r)} title="Tahrirlash"
+                          style={{ cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', color: '#1565c0', borderRadius: 3, padding: '2px 7px', marginRight: 4 }}>✎</button>
+                        <button onClick={() => { if (window.confirm("O'chirasizmi? (Sement qoldig'i qaytadi)")) deleteSaleRow(r.id); }}
+                          title="O'chirish"
+                          style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               );
@@ -212,6 +302,9 @@ export default function Distribution() {
     </div>
   );
 }
+
+// Jadval ichidagi tahrir maydonlari — qator balandligi o'zgarmasin uchun kichik
+const editInp = { width: 78, padding: '2px 4px', fontSize: 13, border: '1px solid #0288d1', borderRadius: 3, fontFamily: 'monospace', textAlign: 'right' };
 
 function Stat({ label, value, unit, color, bg, big }) {
   return (
