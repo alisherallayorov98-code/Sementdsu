@@ -365,15 +365,17 @@ export function DataProvider({ children }) {
       note: tag, auto: true, sourceType: 'sold', sourceId: ts,
     }]);
 
-    if (ch === 'nasiya' && amt > 0) {
-      mkDebt(amt, `🔗 Eski sotuv (nasiya): ${row.customer} — ${fmtTons(row.tons)} tn`);
-    } else if (ch === 'avans' && amt > 0) {
-      // AVANSDAN: pul allaqachon olingan — kassaga yozilmaydi (_soldByCh ham
-      // faqat naqd/bank/click ni sanaydi). Yetmagan qismi qarzga o'tadi.
-      // Ilgari bu bo'limda "avansdan" varianti umuman yo'q edi.
+    if ((ch === 'nasiya' || ch === 'avans') && amt > 0) {
+      // NASIYA ham, AVANSDAN ham bir xil: mijozning avansi bo'lsa AVVAL
+      // shundan yechiladi, yetmagan qismi qarzga o'tadi. Pul allaqachon
+      // olingan — kassaga yozilmaydi (_soldByCh faqat naqd/bank/click ni
+      // sanaydi). Ilgari nasiya avansga tegmasdi: avansi bor mijoz nasiyaga
+      // yuk olsa, avansi turgan holda qarzdor bo'lib qolardi.
       row.advanceUsed = consumeAdvance(row.customer, amt, ts);
       const rem = amt - row.advanceUsed;
-      if (rem > 0) mkDebt(rem, `🔗 Eski sotuv (avans yetmadi): ${row.customer} — ${fmtTons(row.tons)} tn`);
+      if (rem > 0) mkDebt(rem,
+        `🔗 Eski sotuv (${ch === 'avans' ? 'avans' : 'nasiya'}): ${row.customer} — ${fmtTons(row.tons)} tn` +
+        (row.advanceUsed > 0 ? ` (avansdan ${row.advanceUsed.toLocaleString('ru-RU')} so'm yechildi)` : ''));
     }
     return row; // SoldTons.jsx qaytган qatorни tekshiradi
   };
@@ -716,6 +718,52 @@ export function DataProvider({ children }) {
     else if (channel === 'click') setClickRows(p => [...p, { ...link, id: uid(), amount:  amt, desc: tag }]);
     return true;
   };
+  // Mijozning QOLDIQ AVANSINI uning qarzlariga qo'llash (eskisidan boshlab).
+  // Yangi sotuvlarda bu avtomatik bo'ladi, lekin bu qoida joriy etilgunga
+  // qadar yozilgan qatorlarda mijoz bir vaqtda ham qarzdor, ham avansi bor
+  // holda qolgan. Bu tugma o'sha eski yozuvlarni to'g'rilaydi.
+  // Kassaga kirim YOZILMAYDI — pul avans olinganda allaqachon kassaga kirgan.
+  const payDebtFromAdvance = (customer) => {
+    const cRef  = custRef(customer);
+    const avail = custRows(advanceRef.current, cRef)
+      .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.used)), 0);
+    const myDebts = custRows(debtRows, cRef);
+    const owed = myDebts.reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
+    if (!(avail > 0)) { alert(`"${customer}" da qoldiq avans yo'q.`); return false; }
+    if (!(owed  > 0)) { alert(`"${customer}" da qolgan qarz yo'q.`); return false; }
+
+    const use = Math.min(avail, owed);
+    if (!window.confirm(
+      `"${customer}"\n\n` +
+      `Qoldiq avans: ${avail.toLocaleString('ru-RU')} so'm\n` +
+      `Qolgan qarz:  ${owed.toLocaleString('ru-RU')} so'm\n\n` +
+      `${use.toLocaleString('ru-RU')} so'm avansdan qarzga o'tkaziladi.\n` +
+      `(Kassaga qayta kirim yozilmaydi — pul allaqachon olingan.)\n\nDavom etamizmi?`
+    )) return false;
+
+    const ts    = uid();
+    const today = new Date().toLocaleDateString('ru-RU');
+    // Avansdan yechish: sourceId sifatida shu operatsiya ts si yoziladi, ya'ni
+    // keyinchalik izini topish mumkin (usages[].saleId).
+    const applied = consumeAdvance(customer, use, ts);
+    if (applied <= 0) return false;
+
+    const { plan } = planDebtPayment(myDebts, applied);
+    setDebtRows(p => p.map(r => {
+      const pay = plan[r.id];
+      if (!pay) return r;
+      return {
+        ...r,
+        paid: Number(r.paid) + pay,
+        payments: [...(r.payments || []), {
+          id: uid(), date: today, amount: pay, channel: 'avans',
+          note: 'Avansdan yopildi', worker: currentWorker,
+        }],
+      };
+    }));
+    return true;
+  };
+
   const deleteDebtRow = (id) => {
     // To'lovi bor qarzni o'chirib bo'lmaydi. Sabab: to'lov Kassa orqali
     // (payCustomerDebt — sourceId "mijoz_pc...") qilingan bo'lsa, uni bu yerdan
@@ -1016,13 +1064,21 @@ export function DataProvider({ children }) {
       if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
-      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), customer: sale.customer, customerId: sale.customerId, amount: sum, paid: 0, note: tag, payments: [] }]);
-      else if (channel === 'avans') {
-        // Avansdan yechamiz (pul allaqachon kassada). Yetmasa — qolgani qarzga.
+      else if (channel === 'nasiya' || channel === 'avans') {
+        // NASIYA va AVANSDAN bir xil qoida bilan yopiladi: mijozning avansi
+        // bo'lsa AVVAL shundan yechiladi, yetmagan qismi qarzga yoziladi.
+        // Ilgari "nasiya" avansga umuman tegmasdi — avansi bor mijozga nasiya
+        // sotilsa, u bir vaqtning o'zida ham qarzdor bo'lib, ham avansi
+        // turaverardi (bir pul ikki joyda). Pul allaqachon kassada, shuning
+        // uchun avansdan yopilgan qism kassaga QAYTA yozilmaydi.
         const applied = consumeAdvance(sale.customer, sum, ts);
         sale.advanceUsed = applied;
         const rem = sum - applied;
-        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), customer: sale.customer, customerId: sale.customerId, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+        if (rem > 0) setDebtRows(p => [...p, {
+          ...link, id: uid(), customer: sale.customer, customerId: sale.customerId,
+          amount: rem, paid: 0, payments: [],
+          note: applied > 0 ? `${tag} (avansdan ${applied.toLocaleString('ru-RU')} so'm yechildi)` : tag,
+        }]);
       }
     }
     setSalesRows(p => [...p, sale]);
@@ -1034,7 +1090,10 @@ export function DataProvider({ children }) {
     if (directChatId || custPhone) {
       const existingDebt = custRows(debtRows, cust || sale.customer)
         .reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
-      const newDebt = (sale.paymentChannel === 'nasiya') ? sum : 0;
+      // Avansdan yopilgan qism qarz emas — xabarda ham shu ko'rinsin.
+      const newDebt = (sale.paymentChannel === 'nasiya' || sale.paymentChannel === 'avans')
+        ? Math.max(0, sum - Number(sale.advanceUsed || 0))
+        : 0;
       const totalDebt = existingDebt + newDebt;
       api.notifySale({
         chatId: directChatId,   // to'g'ridan-to'g'ri (telefon shart emas)
@@ -1101,12 +1160,15 @@ export function DataProvider({ children }) {
       if      (ch === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (ch === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (ch === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
-      else if (ch === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), ...cf, amount: sum, paid: 0, note: tag, payments: [] }]);
-      else if (ch === 'avans') {
+      else if (ch === 'nasiya' || ch === 'avans') {
+        // addSaleRow bilan bir xil qoida: avvo avansdan, qolgani qarzga.
         const applied = consumeAdvance(next.customer, sum, id);
         next.advanceUsed = applied;
         const rem = sum - applied;
-        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), ...cf, amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+        if (rem > 0) setDebtRows(p => [...p, {
+          ...link, id: uid(), ...cf, amount: rem, paid: 0, payments: [],
+          note: applied > 0 ? `${tag} (avansdan ${applied.toLocaleString('ru-RU')} so'm yechildi)` : tag,
+        }]);
       }
     }
     setSalesRows(p => p.map(r => r.id === id ? next : r));
@@ -1219,16 +1281,16 @@ export function DataProvider({ children }) {
       if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
-      else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), amount: sum, paid: 0, note: tag, payments: [] }]);
-      else if (channel === 'avans') {
-        // AVANSDAN: pul allaqachon olingan, kassaga yozilmaydi. Yetmagan
-        // qismi qarzga o'tadi — ulgurji sotuv (addSaleRow) bilan bir xil
-        // qoida. Ilgari sklad sotuvida "avansdan" varianti umuman yo'q edi:
-        // avansi bor mijozga chakana sement sotilsa, uni qarzga yozishdan
-        // boshqa yo'l yo'q edi va avans o'z holicha qolib ketardi.
+      else if (channel === 'nasiya' || channel === 'avans') {
+        // NASIYA va AVANSDAN bir xil: avvo mijozning avansidan yechiladi,
+        // yetmagan qismi qarzga o'tadi. Pul allaqachon olingan, kassaga
+        // yozilmaydi — ulgurji sotuv (addSaleRow) bilan bir xil qoida.
         advanceUsed = consumeAdvance(customer, sum, ts);
         const rem = sum - advanceUsed;
-        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+        if (rem > 0) setDebtRows(p => [...p, {
+          ...link, id: uid(), amount: rem, paid: 0, payments: [],
+          note: advanceUsed > 0 ? `${tag} (avansdan ${advanceUsed.toLocaleString('ru-RU')} so'm yechildi)` : tag,
+        }]);
       }
     }
     const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, ...cf, pricePerKg: Number(pricePerKg), amount: sum, channel, advanceUsed, note: note || '', worker: currentWorker, cementType: cementType || '' };
@@ -2209,7 +2271,7 @@ export function DataProvider({ children }) {
     supplierList, supplierReceivedOf, supplierPaidOf, supplierDebtOf,
     totalSupplierDebt, totalSupplierReceived, totalSupplierPaid,
     // 11. Qarzlar
-    debtRows, addDebtRow, payDebt, payCustomerDebt, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
+    debtRows, addDebtRow, payDebt, payCustomerDebt, payDebtFromAdvance, deleteDebtRow, importDebts, totalDebts, totalDebtsPaid, totalDebtsAll,
     // 12. Avanslar
     advanceRows, addAdvanceRow, deleteAdvanceRow, importAdvances, totalAdvances, totalAdvancesUsed, totalAdvancesAll, advanceBalanceOf,
     fixRowDates,

@@ -30,7 +30,8 @@ const AGE_BADGE  = [
 
 // ─── ASOSIY KOMPONENT ────────────────────────────────────────────────────────
 export default function Debts({ lang }) {
-  const { debtRows, totalDebts, totalDebtsPaid, totalDebtsAll, customers } = useData();
+  const { debtRows, totalDebts, totalDebtsPaid, totalDebtsAll, customers,
+          advanceBalanceOf, payDebtFromAdvance } = useData();
 
   const [reminder, setReminder] = useState(null);
   const [search,   setSearch]   = useState('');
@@ -196,7 +197,7 @@ export default function Debts({ lang }) {
                         <td style={td}>{i + 1}</td>
                         <td style={td}>{p.date || '—'}</td>
                         <td style={{ ...td, textAlign:'right', color:'#2e7d32', fontWeight:'bold' }}>{fmt(p.amount)}</td>
-                        <td style={td}>{{ naqd:'💵 Naqd', bank:'🏦 Bank', click:'📱 Click' }[p.channel] || '💵'}</td>
+                        <td style={td}>{{ naqd:'💵 Naqd', bank:'🏦 Bank', click:'📱 Click', avans:'🅰️ Avansdan' }[p.channel] || '💵'}</td>
                         <td style={td}>{p.worker || '—'}</td>
                         <td style={{ ...td, color:'#888', fontSize:11 }}>{p.note || p._debtNote || '—'}</td>
                       </tr>
@@ -247,6 +248,11 @@ export default function Debts({ lang }) {
               const rowBg = g.remaining > 0 ? AGE_COLORS[lvl] : '#e6ffe6';
               const ageBadge = g.remaining > 0 ? AGE_BADGE[lvl] : null;
               const phone = findCust(customers, g.customer)?.phone || '';
+              // Mijozning ishlatilmagan avansi bo'lsa — u bir vaqtda qarzdor
+              // ham, avansi bor ham bo'lib turibdi (yangi sotuvlarda bunday
+              // bo'lmaydi, avans avtomatik yechiladi). Eski yozuvlar uchun
+              // "avansdan yopish" tugmasi chiqadi.
+              const custAdv = g.remaining > 0 ? advanceBalanceOf(g.customer) : 0;
               return (
                 <tr key={g.key} style={{ background: rowBg }}>
                   <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{(page-1)*PAGE_SIZE+i+1}</td>
@@ -260,7 +266,14 @@ export default function Debts({ lang }) {
                   </td>
                   <td style={{ textAlign:'right', fontFamily:'monospace', fontWeight:'bold' }}>{fmt(g.totalAmount)}</td>
                   <td style={{ textAlign:'right', fontFamily:'monospace', color:'#2e7d32', fontWeight:'bold' }}>{fmt(g.totalPaid)}</td>
-                  <td style={{ textAlign:'right', fontFamily:'monospace', color:'#c62828', fontWeight:'bold', fontSize:14 }}>{fmt(g.remaining)}</td>
+                  <td style={{ textAlign:'right', fontFamily:'monospace', color:'#c62828', fontWeight:'bold', fontSize:14 }}>
+                    {fmt(g.remaining)}
+                    {custAdv > 0 && (
+                      <div style={{ fontSize:10, fontWeight:'normal', color:'#00838f' }}>
+                        avans: {fmt(custAdv)}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ fontSize:12, color: g.lastPaymentStr === '—' ? '#bbb' : '#333' }}>
                     {g.lastPaymentStr}
                   </td>
@@ -288,6 +301,11 @@ export default function Debts({ lang }) {
                         <button onClick={() => openReminder(g)}
                           title="Eslatma yuborish"
                           style={actionBtn('#6a1b9a', '#f3e5f5')}>📢</button>
+                      )}
+                      {custAdv > 0 && (
+                        <button onClick={() => payDebtFromAdvance(g.customer)}
+                          title={`Avansdan yopish (${fmt(custAdv)} so'm mavjud)`}
+                          style={actionBtn('#00838f', '#e0f7fa')}>🅰️</button>
                       )}
                     </div>
                   </td>

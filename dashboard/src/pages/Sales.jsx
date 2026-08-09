@@ -88,10 +88,11 @@ export default function Sales({ lang }) {
     if (created) {
       const s = customerSummary(created.customer, data);
       const saleTotal = Number(created.tons || 0) * Number(created.pricePerTon || 0);
-      // Nasiya: to'liq qarzga yoziladi; Avans: yetmagan qismi qarzga yoziladi; qolganlar: qarz yo'q
-      const extraDebt = created.paymentChannel === 'nasiya' ? saleTotal
-                      : created.paymentChannel === 'avans'  ? Math.max(0, saleTotal - (created.advanceUsed || 0))
-                      : 0;
+      // Nasiya ham, avans ham: mijozning avansidan yechilgani ayriladi,
+      // qolgani qarzga yoziladi. Qolgan kanallarda qarz yo'q.
+      const extraDebt = (created.paymentChannel === 'nasiya' || created.paymentChannel === 'avans')
+        ? Math.max(0, saleTotal - (created.advanceUsed || 0))
+        : 0;
       const totalDebt = s.qolganQarz + extraDebt;
       // Chek FAQAT KASSIR akkauntida MAJBURIY va AVTOMATIK chiqadi
       if (isKassir && appSettings?.autoPrintReceipt !== false) {
@@ -221,9 +222,16 @@ export default function Sales({ lang }) {
               <option value="nasiya">⚠️ Nasiya (Qarz)</option>
               <option value="avans">🅰️ Avansdan</option>
             </select>
-            {form.customer && form.paymentChannel === 'avans' && (
-              <div style={{ fontSize: 11, color: custAdvance > 0 ? '#2e7d32' : '#c62828', marginTop: 3 }}>
-                Mavjud avans: <b>{fmt(custAdvance)} so'm</b>{custAdvance <= 0 ? ' — yetmaydi, qolgani qarzga yoziladi' : ''}
+            {/* Nasiyada ham ogohlantiramiz: avansi bor mijozga nasiya sotilsa,
+                summa avvo avansdan yechiladi — xodim buni oldindan ko'rsin. */}
+            {form.customer && (form.paymentChannel === 'avans' || form.paymentChannel === 'nasiya') && custAdvance > 0 && (
+              <div style={{ fontSize: 11, color: '#2e7d32', marginTop: 3 }}>
+                Mavjud avans: <b>{fmt(custAdvance)} so'm</b> — avvo shundan yechiladi, qolgani qarzga
+              </div>
+            )}
+            {form.customer && form.paymentChannel === 'avans' && custAdvance <= 0 && (
+              <div style={{ fontSize: 11, color: '#c62828', marginTop: 3 }}>
+                Avans yo'q — summa to'liq qarzga yoziladi
               </div>
             )}
           </div>
