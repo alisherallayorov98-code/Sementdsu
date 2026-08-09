@@ -21,9 +21,11 @@ const todayFull = () => {
 };
 
 const XODIMLAR = ['Botir aka','Alisher aka','Ganisher aka','Sharofidin','Saloh','Qosim','Anvarjon'];
+// Zavoddan yuk 99% holatda bank o'tkazmasi bilan olinadi — bank birinchi
+// (formada standart tanlov ham shu).
 const TOLOV    = [
-  { v:'naqd',  latn:'Naqd',  cyrl:'Нақд'  },
   { v:'bank',  latn:'Bank',  cyrl:'Банк'  },
+  { v:'naqd',  latn:'Naqd',  cyrl:'Нақд'  },
   { v:'click', latn:'Click', cyrl:'Клик'  },
 ];
 
@@ -74,12 +76,14 @@ const downloadTemplate = () => {
   const headers = [
     'имя клиента', 'Марка цемента', 'Номер автомобиля',
     'объем', 'Цена за еден', 'Сумма',
-    'Время выезда из завода', 'Название бумажной карты'
+    'Время выезда из завода', 'Название бумажной карты',
+    'Шартнома / Тикет №'
   ];
   const example = [
     'ZAVOD NOMI MCHJ', '42.5B-K мешание', '30953LBA',
     50, 670000, 33500000,
-    '2026-06-08 22:35:42', 'A26007338 (2)'
+    '2026-06-08 22:35:42', 'Samarkand Dealer mashina',
+    'A26007338'
   ];
   const ws  = XLSX.utils.aoa_to_sheet([headers, example]);
   const wb  = XLSX.utils.book_new();
@@ -115,13 +119,15 @@ export default function RecvTons({ lang }) {
   const [form, setForm] = useState({
     source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
     paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
-    cementType:'',
+    cementType:'', contractNo:'',
   });
   const [filterSource, setFilterSource] = useState('');
   const [filterBrand,  setFilterBrand]  = useState('');
+  const [filterContract, setFilterContract] = useState(''); // shartnoma (tiket) №
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
   const [importRows,   setImportRows]   = useState(null); // Excel preview
+  const [bulkContract, setBulkContract] = useState('');   // preview: barchasiga tiket №
   const [modalSource,  setModalSource]  = useState(null); // Akt Sverka
 
   const fileRef  = useRef();
@@ -142,10 +148,13 @@ export default function RecvTons({ lang }) {
       izoh: form.izoh,
       warehouseId: form.warehouseId || myWh,
       cementType: form.cementType || '',
+      // Shartnoma / tiket raqami — birja bilan solishtirish uchun kalit
+      contractNo: form.contractNo || '',
     });
     if (!created) return; // rad etilsa forma tozalanmaydi
     setForm({ source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
-              paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'', cementType:'' });
+              paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
+              cementType:'', contractNo: form.contractNo });
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
@@ -178,7 +187,8 @@ export default function RecvTons({ lang }) {
       }
 
       // 1-qator sarlavha, 2-qatordan boshlab ma'lumot.
-      // A=imya(0) B=marka(1) C=avto(2) D=hajm(3) E=narx(4) F=summa(5) G=vaqt(6) H=karta(7)
+      // A=imya(0) B=marka(1) C=avto(2) D=hajm(3) E=narx(4) F=summa(5) G=vaqt(6)
+      // H=karta(7) I=shartnoma/tiket(8)
       const rows = [];
       const skipped = [];
       for (let i = 1; i < data.length; i++) {
@@ -204,7 +214,13 @@ export default function RecvTons({ lang }) {
           // bo'lsa ham, matn bo'lsa ham "kk.oo.yyyy" ga keltiriladi.
           date: excelDateToStr(row[6]) || '',
           cardName:   String(row[7] || '').trim(),
-          paymentChannel: 'naqd',
+          // Zavoddan yuk 99% holatda BANK o'tkazmasi bilan olinadi. Ilgari
+          // import qilingan har bir qatorga "naqd" yozilardi — kassa hisoboti
+          // ham, yetkazib beruvchi bilan hisob-kitob ham noto'g'ri chiqardi.
+          paymentChannel: 'bank',
+          // Shartnoma (tiket) raqami — birja bilan solishtirish kaliti.
+          // Faylda bo'lmasa, preview oynasida barchasiga birdan qo'yiladi.
+          contractNo: String(row[8] || '').trim(),
           izoh: '',
         });
       }
@@ -283,6 +299,8 @@ export default function RecvTons({ lang }) {
       tons, pricePerTon: parseNum(verifyRow.pricePerTon),
       paymentChannel: verifyRow.paymentChannel,
       warehouseId: verifyRow.warehouseId || myWh,
+      cementType: verifyRow.cementType || '',
+      contractNo: verifyRow.contractNo || '',
     })) return;
     // 2) Taqsimlash — har bir qator.
     // Natijalar sanaladi: bir qator rad etilsa (masalan sklad sig'imi yetmasa)
@@ -328,15 +346,18 @@ export default function RecvTons({ lang }) {
   // "Kizilkum Sement" filtr ro'yxatida ikki qator bo'lib chiqmasin.
   const sourceList = uniqueNames(recvRows.map(r => r.source));
   const brandList  = [...new Set(recvRows.map(r => r.brand).filter(Boolean))];
+  // Shartnoma (tiket) raqamlari — filtr ro'yxati uchun
+  const contractList = [...new Set(recvRows.map(r => String(r.contractNo || '').trim()).filter(Boolean))].sort();
 
   let filtered = recvRows;
   if (filterSource) filtered = filtered.filter(r => sameName(r.source, filterSource));
   if (filterBrand)  filtered = filtered.filter(r => r.brand  === filterBrand);
+  if (filterContract) filtered = filtered.filter(r => String(r.contractNo||'').trim() === filterContract);
   filtered = filterByRange(filtered, range); // sanadan–sanagacha
 
   const totalTons = filtered.reduce((s,r) => s + Number(r.tons||0), 0);
   const totalSum  = filtered.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
-  useEffect(() => { setPage(1); setSelected(new Set()); }, [filterSource, filterBrand, range.from, range.to]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [filterSource, filterBrand, filterContract, range.from, range.to]);
   const reversedFiltered = [...filtered].reverse();
   const paged = reversedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   // Mijoz kartochkasidagi "manba" oynasidan kelingan bo'lsa (?focus=id) —
@@ -578,6 +599,36 @@ export default function RecvTons({ lang }) {
             </div>
           </div>
           <div style={{ padding:'12px 16px' }}>
+            {/* Shartnoma (tiket) raqami odatda butun fayl uchun BITTA bo'ladi
+                (bir tiket bo'yicha bir necha mashina keladi). Faylda ustun
+                bo'lmasa, shu yerdan barchasiga birdan qo'yiladi — aks holda
+                birja bilan solishtirish uchun kalit bo'lmay qolardi. */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
+                          marginBottom:10, padding:'8px 12px', background:'#e0f2f1',
+                          border:'1px solid #4db6ac', borderRadius:6 }}>
+              <b style={{ fontSize:12, color:'#00695c' }}>📄 Shartnoma / Tiket №:</b>
+              <input
+                value={bulkContract}
+                onChange={e => setBulkContract(e.target.value)}
+                placeholder="masalan A26007338"
+                style={{ ...inp, width:180, fontWeight:'bold' }}
+              />
+              <button
+                onClick={() => {
+                  const v = bulkContract.trim();
+                  if (!v) { alert('Shartnoma raqamini kiriting.'); return; }
+                  setImportRows(rows => rows.map(r => ({ ...r, contractNo: v })));
+                }}
+                style={{ ...btnS, background:'#00695c', color:'#fff', fontWeight:'bold' }}
+              >
+                Barchasiga qo'yish
+              </button>
+              <span style={{ fontSize:11, color:'#00695c' }}>
+                {importRows.filter(r => !String(r.contractNo || '').trim()).length > 0
+                  ? `⚠️ ${importRows.filter(r => !String(r.contractNo || '').trim()).length} ta qatorda shartnoma raqami yo'q — birja solishtiruviga kirmaydi`
+                  : '✓ Barcha qatorlarda shartnoma raqami bor'}
+              </span>
+            </div>
             <table className="data-table" style={{ width:'100%', fontSize:12 }}>
               <thead>
                 <tr>
@@ -585,6 +636,7 @@ export default function RecvTons({ lang }) {
                   <th>{L.manbaa[lang]}</th>
                   <th>{L.marka[lang]}</th>
                   <th>{L.mashina[lang]}</th>
+                  <th>Shartnoma №</th>
                   <th style={{ textAlign:'right' }}>{L.tonna[lang]}</th>
                   <th style={{ textAlign:'right' }}>{L.narx[lang]}</th>
                   <th style={{ textAlign:'right' }}>{L.jami[lang]}</th>
@@ -599,6 +651,9 @@ export default function RecvTons({ lang }) {
                     <td style={{ fontWeight:'bold', color:'#003366', fontSize:11 }}>{r.source}</td>
                     <td style={{ color:'#006699' }}>{r.brand}</td>
                     <td style={{ fontSize:11 }}>{r.vehicleNo}</td>
+                    <td style={{ fontSize:11, fontWeight:'bold', color: r.contractNo ? '#00695c' : '#e65100' }}>
+                      {r.contractNo || '⚠ yo‘q'}
+                    </td>
                     <td style={{ textAlign:'right', fontWeight:'bold', fontFamily:'monospace' }}>{fmtT(r.tons)}</td>
                     <td style={{ textAlign:'right', fontFamily:'monospace' }}>{r.pricePerTon?fmt(r.pricePerTon):'—'}</td>
                     <td style={{ textAlign:'right', fontWeight:'bold', color:'#006699', fontFamily:'monospace' }}>{r.summa?fmt(r.summa):'—'}</td>
@@ -607,7 +662,7 @@ export default function RecvTons({ lang }) {
                   </tr>
                 ))}
                 <tr style={{ background:'#ffff00', fontWeight:'bold' }}>
-                  <td colSpan={4} style={{ textAlign:'right' }}>JAMI:</td>
+                  <td colSpan={5} style={{ textAlign:'right' }}>JAMI:</td>
                   <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtT(totTn)} tn</td>
                   <td></td>
                   <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmt(totSm)}</td>
@@ -654,6 +709,12 @@ export default function RecvTons({ lang }) {
         </summary>
         <form onSubmit={handleAdd} style={{ display:'flex', gap:5, marginTop:8, alignItems:'center', flexWrap:'wrap' }}>
           <SupplierSelect value={form.source} onChange={val=>setForm({...form,source:val})} placeholder={L.manbaa[lang]} width={140} accentColor="#00695c" required />
+          {/* Shartnoma (tiket) raqami — birja bilan solishtirish kaliti.
+              Odatda bir tiket bo'yicha ketma-ket bir necha mashina keladi,
+              shuning uchun qo'shgandan keyin ham maydonda qolib turadi. */}
+          <input placeholder="Shartnoma / Tiket №" value={form.contractNo}
+            onChange={e=>setForm({...form,contractNo:e.target.value})}
+            style={{ ...inp, width:150, fontWeight:'bold', color:'#00695c' }} title="Birja shartnomasi (tiket) raqami" />
           <input placeholder={L.marka[lang]}   value={form.brand}     onChange={e=>setForm({...form,brand:e.target.value})}     style={{ ...inp, width:130 }} />
           <select value={form.cementType} onChange={e=>setForm({...form,cementType:e.target.value})} style={{ ...inp, width:130, color: form.cementType ? '#4a148c' : '#999' }} title="Sement turi">
             <option value="">— tur —</option>
@@ -725,6 +786,13 @@ export default function RecvTons({ lang }) {
                 {brandList.map(b=><option key={b} value={b}>{b}</option>)}
               </select>
             </td>
+            <td style={{ paddingLeft:10, paddingRight:5, fontWeight:'bold', fontSize:12 }}>Shartnoma:</td>
+            <td style={{ paddingRight:4 }}>
+              <select value={filterContract} onChange={e=>setFilterContract(e.target.value)} style={{ ...inp }}>
+                <option value="">{L.hammasi[lang]}</option>
+                {contractList.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </td>
             <td style={{ paddingLeft:10, color:'#666', fontSize:11 }}>
               ({filtered.length} ta yozuv)
             </td>
@@ -736,6 +804,7 @@ export default function RecvTons({ lang }) {
                 columns={[
                   { header: 'Sana', value: r => r.date },
                   { header: 'Manbaa (zavod)', value: r => r.source },
+                  { header: 'Shartnoma / Tiket', value: r => r.contractNo || '' },
                   { header: 'Marka', value: r => r.brand || '' },
                   { header: 'Mashina №', value: r => r.vehicleNo || '' },
                   { header: 'Tonna', value: r => Number(r.tons || 0) },
@@ -786,6 +855,7 @@ export default function RecvTons({ lang }) {
                 <th style={{ width:30 }}>#</th>
                 <th style={{ width:85 }}>{L.sana[lang]}</th>
                 <th style={{ width:160 }}>{L.manbaa[lang]}</th>
+                <th style={{ width:110 }}>Shartnoma №</th>
                 <th style={{ width:130 }}>{L.marka[lang]}</th>
                 <th style={{ width:110 }}>Tur</th>
                 <th style={{ width:90 }}>{L.mashina[lang]}</th>
@@ -825,6 +895,9 @@ export default function RecvTons({ lang }) {
                       >
                         {r.source}
                       </button>
+                    </td>
+                    <td style={{ fontSize:11, fontWeight:'bold', color: r.contractNo ? '#00695c' : '#ccc' }}>
+                      {r.contractNo || '—'}
                     </td>
                     <td style={{ color:'#006699', fontWeight:'bold', fontSize:12 }}>{r.brand||'—'}</td>
                     <td style={{ fontSize:11, color: r.cementType ? '#4a148c' : '#bbb', fontWeight: r.cementType ? 'bold' : 'normal' }}>{r.cementType||'—'}</td>
@@ -880,7 +953,7 @@ export default function RecvTons({ lang }) {
                     sozlama o'chiq bo'lsa JAMI raqamlari ikki ustun chapga
                     siljib, tonna "Tur" ustuni tagida turardi. */}
                 <td></td>
-                <td colSpan={6} style={{ textAlign:'right' }}>{L.jami_lbl[lang]}</td>
+                <td colSpan={7} style={{ textAlign:'right' }}>{L.jami_lbl[lang]}</td>
                 <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtT(totalTons)} tn</td>
                 <td></td>
                 <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmt(totalSum)}</td>
@@ -954,6 +1027,10 @@ export default function RecvTons({ lang }) {
               </Field>
               <Field label="Marka">
                 <input value={verifyRow.brand} onChange={e => setVerifyRow({ ...verifyRow, brand: e.target.value })} style={vInp} placeholder="Sement markasi" />
+              </Field>
+              {/* Shartnoma (tiket) — birja solishtiruvi shu raqam bo'yicha ketadi */}
+              <Field label="Shartnoma / Tiket №">
+                <input value={verifyRow.contractNo || ''} onChange={e => setVerifyRow({ ...verifyRow, contractNo: e.target.value })} style={vInp} placeholder="masalan A26007338" />
               </Field>
               <Field label="Sement turi *">
                 <select value={verifyRow.cementType || ''} onChange={e => setVerifyRow({ ...verifyRow, cementType: e.target.value })} style={vInp}>
@@ -1130,7 +1207,7 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
   const ss = v => e => setSf(p => ({ ...p, [v]: e.target.value }));
   const handle = e => {
     e.preventDefault();
-    const recvFields = { source: f.source, brand: f.brand, tons: f.tons, pricePerTon: f.pricePerTon, vehicleNo: f.vehicleNo, cardName: f.cardName, factoryTime: f.factoryTime, paymentChannel: f.paymentChannel, warehouseId: f.warehouseId, izoh: f.izoh, cementType: f.cementType };
+    const recvFields = { source: f.source, brand: f.brand, tons: f.tons, pricePerTon: f.pricePerTon, vehicleNo: f.vehicleNo, cardName: f.cardName, factoryTime: f.factoryTime, paymentChannel: f.paymentChannel, warehouseId: f.warehouseId, izoh: f.izoh, cementType: f.cementType, contractNo: f.contractNo || '' };
     const saleFields = sf ? { customer: sf.customer, pricePerTon: sf.pricePerTon, paymentChannel: sf.paymentChannel, note: sf.note } : null;
     onSave(recvFields, saleFields);
   };
@@ -1157,12 +1234,18 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
               <input value={f.brand||''} onChange={sv('brand')} style={vInp} placeholder="Sement markasi" />
             </Field>
           </div>
-          <Field label="Sement turi">
-            <select value={f.cementType||''} onChange={sv('cementType')} style={vInp}>
-              <option value="">— tanlang —</option>
-              {(cementTypesList || []).map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </Field>
+          <div style={{ display:'flex', gap:10 }}>
+            <Field label="Sement turi">
+              <select value={f.cementType||''} onChange={sv('cementType')} style={vInp}>
+                <option value="">— tanlang —</option>
+                {(cementTypesList || []).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            {/* Shartnoma (tiket) raqami — Birja bo'limidagi solishtiruv kaliti */}
+            <Field label="Shartnoma / Tiket №">
+              <input value={f.contractNo||''} onChange={sv('contractNo')} style={vInp} placeholder="masalan A26007338" />
+            </Field>
+          </div>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Tonna *">
               <input type="number" value={f.tons||''} onChange={sv('tons')} style={vInp} required />
@@ -1184,9 +1267,10 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
               <input value={f.factoryTime||''} onChange={sv('factoryTime')} style={vInp} placeholder="2026-06-24 20:57:13" />
             </Field>
             <Field label="To'lov usuli">
-              <select value={f.paymentChannel||'naqd'} onChange={sv('paymentChannel')} style={vInp}>
-                <option value="naqd">💵 Naqd</option>
+              {/* Zavoddan yuk odatda bank o'tkazmasi bilan olinadi */}
+              <select value={f.paymentChannel||'bank'} onChange={sv('paymentChannel')} style={vInp}>
                 <option value="bank">🏦 Bank</option>
+                <option value="naqd">💵 Naqd</option>
                 <option value="click">📱 Click</option>
               </select>
             </Field>

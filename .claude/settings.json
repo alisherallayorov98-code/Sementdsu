@@ -149,7 +149,8 @@
       "Bash(sed -n '/const updateSkladRow/,/^  };/p' src/context/DataContext.jsx)",
       "Bash(python -c ' *)",
       "Bash(node --test src/lib/rowSource.test.js)",
-      "Bash(python)"
+      "Bash(python)",
+      "Bash(node --test src/lib/birjaRecon.test.js)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

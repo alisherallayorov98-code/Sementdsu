@@ -1756,6 +1756,15 @@ export function DataProvider({ children }) {
   const [driverTrips, setDriverTrips]   = useState(() => load('driver_trips', []));
   const [driverTariffs, setDriverTariffs] = useState(() => load('driver_tariffs', DEFAULT_TARIFFS));
   const [tickets, setTickets]             = useState(() => load('tickets', []));
+  // ── Birja oborotkasi ───────────────────────────────────────────────────────
+  // Sement birjadan TIKET (shartnoma) bilan sotib olinadi. Birja oborotkasi
+  // Excel bo'lib yuklanadi va zavoddan kelgan yuk bilan tiket bo'yicha
+  // solishtiriladi (lib/birjaRecon.js). Zavod ko'pincha kam/ortiq yuboradi.
+  const [birjaRows, setBirjaRows]     = useState(() => load('birja_rows', []));
+  // Solishtiruvi tugagan (ikkala taraf teng) tiketlar: [{ ticket, closedAt, worker }]
+  const [birjaClosed, setBirjaClosed] = useState(() => load('birja_closed', []));
+  useEffect(() => save('birja_rows', birjaRows), [birjaRows]);
+  useEffect(() => save('birja_closed', birjaClosed), [birjaClosed]);
   useEffect(() => save('drivers', drivers), [drivers]);
   useEffect(() => save('driver_trips', driverTrips), [driverTrips]);
   useEffect(() => save('driver_tariffs', driverTariffs), [driverTariffs]);
@@ -1780,6 +1789,42 @@ export function DataProvider({ children }) {
   const deleteTicket = (id) => setTickets(p => p.filter(t => t.id !== id));
   // Bot usedTonna ni to'g'ridan-to'g'ri state ga yozadi (db.useTicketTonna).
   // Frontend keyingi sync da yangi qiymatni oladi.
+
+  // ── Birja: import / o'chirish / tiketni yopish ────────────────────────────
+  // Bir xil oborotka ikki marta yuklansa qatorlar IKKILANIB, tiket bo'yicha
+  // "sotib olingan" tonna ikki barobar ko'rinardi. Shuning uchun bir xil
+  // (tiket + sana + tonna + summa) qatorlar tashlab ketiladi va nechtasi
+  // o'tkazib yuborilgani qaytariladi.
+  const importBirjaRows = (rows) => {
+    const sig = (r) => [String(r.ticket || '').trim().toUpperCase(), r.date || '', Number(r.tons || 0), Number(r.summa || 0)].join('|');
+    const have = new Set(birjaRows.map(sig));
+    const fresh = [];
+    let dup = 0;
+    for (const r of rows || []) {
+      if (have.has(sig(r))) { dup++; continue; }
+      have.add(sig(r));
+      const id = uid() + Math.floor(Math.random() * 1000);
+      fresh.push({ id, createdAt: id, worker: currentWorker, ...r });
+    }
+    if (fresh.length) setBirjaRows(p => [...p, ...fresh]);
+    return { added: fresh.length, duplicates: dup };
+  };
+  const deleteBirjaRow = (id) => setBirjaRows(p => p.filter(r => r.id !== id));
+  // Tiketning barcha birja qatorlarini o'chirish (noto'g'ri fayl yuklansa)
+  const deleteBirjaTicket = (key) => {
+    const k = String(key || '').toUpperCase();
+    setBirjaRows(p => p.filter(r => String(r.ticket || '').trim().toUpperCase().replace(/[\s\-_.,/\\]+/g, '') !== k));
+    setBirjaClosed(p => p.filter(c => String(c.ticket || '').toUpperCase().replace(/[\s\-_.,/\\]+/g, '') !== k));
+  };
+  const closeBirjaTicket = (ticket) => setBirjaClosed(p => {
+    const k = String(ticket || '').trim().toUpperCase();
+    if (p.some(c => String(c.ticket || '').trim().toUpperCase() === k)) return p;
+    return [...p, { ticket: String(ticket || '').trim(), closedAt: Date.now(), worker: currentWorker }];
+  });
+  const reopenBirjaTicket = (ticket) => setBirjaClosed(p => {
+    const k = String(ticket || '').trim().toUpperCase();
+    return p.filter(c => String(c.ticket || '').trim().toUpperCase() !== k);
+  });
 
   const addDriverTariff    = (name) => setDriverTariffs(p => [...p, { id: uid(), name: name.trim(), prices: [] }]);
   // Tarif o'chsa, unga biriktirilgan haydovchilarda "egasiz" tariffId qolib,
@@ -1980,6 +2025,8 @@ export function DataProvider({ children }) {
     sklad_rows:         setSkladRows,
     cement_types:       setCementTypes,
     tickets:            setTickets,
+    birja_rows:         setBirjaRows,
+    birja_closed:       setBirjaClosed,
   };
 
   // Holatning joriy "suratini" yig'ish (serverga shu jo'natiladi)
@@ -2018,6 +2065,8 @@ export function DataProvider({ children }) {
     sklad_rows:         skladRows,
     cement_types:       cementTypes,
     tickets:            tickets,
+    birja_rows:         birjaRows,
+    birja_closed:       birjaClosed,
   };
 
   // Holatdagi har bir qatorli bo'lim uchun id to'plami
@@ -2317,6 +2366,8 @@ export function DataProvider({ children }) {
     cementBalanceByType, skladKgByType, skladKgUntyped,
     // Tiketlar (zayavka uchun)
     tickets, addTicket, closeTicket, reopenTicket, deleteTicket,
+    birjaRows, birjaClosed, importBirjaRows, deleteBirjaRow, deleteBirjaTicket,
+    closeBirjaTicket, reopenBirjaTicket,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

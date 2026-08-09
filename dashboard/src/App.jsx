@@ -21,6 +21,7 @@ import UmumiyMalumot from './pages/UmumiyMalumot';
 import Income        from './pages/Income';
 import Expense       from './pages/Expense';
 import SoldTons      from './pages/SoldTons';
+import Birja           from './pages/Birja';
 import RecvTons      from './pages/RecvTons';
 import Debts         from './pages/Debts';
 import Advances      from './pages/Advances';
@@ -39,6 +40,9 @@ const FULL_MENU = [
   { path: '/',               latn: "🏠 Bosh sahifa",        cyrl: "🏠 Бош саҳифа",        roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/gen_info',       latn: "📊 Umumiy ma'lumot",     cyrl: "📊 Умумий маълумот",    roles: ['admin', 'sotuvchi', 'omborchi'] },
   { path: '/recv_tons',      latn: "Olingan tonna",         cyrl: "Олинган тонна",        roles: ['admin', 'omborchi'] },
+  // Birja: tiket (shartnoma) bo'yicha sotib olingan tonna va zavod bilan
+  // avtomatik solishtiruv — zavod kam/ortiq yuborganini shu yerda ko'rinadi.
+  { path: '/birja',          latn: "📈 Birja (tiketlar)",     cyrl: "📈 Биржа (тикетлар)",    roles: ['admin', 'omborchi'] },
   { path: '/debts',          latn: "Qarzlar",               cyrl: "Қарзлар",              roles: ['admin', 'sotuvchi'] },
   // Avanslar ilgari menyudan olib tashlangan edi (Kassir uni almashtirgan,
   // Bosh sahifada faqat ko'rish uchun qolgan). Endi avanslar Excel'dan
@@ -186,6 +190,7 @@ function App() {
                   bo'limida, ulgurji sotuv esa "Olingan tonna" (taqsimlash) ichida
                   amalga oshiriladi — alohida ro'yxat ortiqcha edi. */}
               <Route path="/recv_tons"      element={<RecvTons       lang={lang} />} />
+              <Route path="/birja"          element={<Birja />} />
               <Route path="/debts"          element={<Debts          lang={lang} />} />
               <Route path="/advances"       element={<Advances       lang={lang} />} />
               <Route path="/kassir"         element={<Kassir         lang={lang} />} />

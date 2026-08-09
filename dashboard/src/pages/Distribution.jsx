@@ -23,7 +23,7 @@ const CHANNELS = [
 ];
 
 export default function Distribution() {
-  const { salesRows, addSaleRow, deleteSaleRow, updateSaleRow, recvRows, totalCementBalance, currentWorker,
+  const { salesRows, addSaleRow, updateSaleRow, recvRows, currentWorker,
           warehouses, whOf, defaultWhId, currentUser, cementBalanceOf, whName } = useData();
   const myWh = currentUser?.warehouseId || defaultWhId;
 
@@ -277,13 +277,13 @@ export default function Distribution() {
                           style={{ cursor: 'pointer', background: '#f5f5f5', border: '1px solid #bbb', color: '#555', borderRadius: 3, padding: '2px 7px' }}>✕</button>
                       </>
                     ) : (
-                      <>
-                        <button onClick={() => startEdit(r)} title="Tahrirlash"
-                          style={{ cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', color: '#1565c0', borderRadius: 3, padding: '2px 7px', marginRight: 4 }}>✎</button>
-                        <button onClick={() => { if (window.confirm("O'chirasizmi? (Sement qoldig'i qaytadi)")) deleteSaleRow(r.id); }}
-                          title="O'chirish"
-                          style={{ cursor: 'pointer', background: 'none', border: 'none', color: '#c62828' }}>✕</button>
-                      </>
+                      /* O'chirish ATAYLAB yo'q: taqsimot qatorlari tez-tez va
+                         ko'p kiritiladi, tasodifiy o'chirilsa sement qoldig'i
+                         va mijoz qarzi jimgina buziladi. Xato bo'lsa qator
+                         tahrirlanadi; rostdan o'chirish kerak bo'lsa mijoz
+                         kartochkasidagi "🔎 manba" oynasidan qilinadi. */
+                      <button onClick={() => startEdit(r)} title="Tahrirlash"
+                        style={{ cursor: 'pointer', background: '#e3f2fd', border: '1px solid #1976d2', color: '#1565c0', borderRadius: 3, padding: '2px 7px' }}>✎</button>
                     )}
                   </td>
                 </tr>
