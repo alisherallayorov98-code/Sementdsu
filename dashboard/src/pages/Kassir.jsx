@@ -89,6 +89,40 @@ function Field({ label, children }) {
     </div>
   );
 }
+// ── Mijozning joriy holati (qarz / avans / sof balans) ───────────────────────
+// Kassirning eng muhim himoyasi: mijoz "qarzim yo'q" desa ham, ekranda
+// haqiqiy raqam turadi. Shuning uchun kichik yozuv emas — ko'zga tashlanadigan
+// panel, va KIRIM, CHIQIM, SOTISH (kg) — uchalasida ham bir xil ko'rinadi.
+function CustStateBar({ state, name }) {
+  if (!state) return null;
+  const { debt, adv, balans } = state;
+  const qarzdor = debt > 0;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+      margin: '2px 0 12px', padding: '8px 12px', borderRadius: 6,
+      border: `2px solid ${qarzdor ? '#e53935' : adv > 0 ? '#00838f' : '#c8e6c9'}`,
+      background: qarzdor ? '#ffebee' : adv > 0 ? '#e0f7fa' : '#f1f8e9',
+    }}>
+      <span style={{ fontSize: 12, color: '#555', fontWeight: 'bold' }}>👤 {name}</span>
+      <span style={{ fontSize: 13, color: qarzdor ? '#c62828' : '#9e9e9e', fontWeight: 'bold' }}>
+        ⚠️ Qarz: <span style={{ fontFamily: 'monospace', fontSize: 15 }}>{fmt(debt)}</span> so'm
+      </span>
+      <span style={{ fontSize: 13, color: adv > 0 ? '#00838f' : '#9e9e9e', fontWeight: 'bold' }}>
+        🅰️ Avans: <span style={{ fontFamily: 'monospace', fontSize: 15 }}>{fmt(adv)}</span> so'm
+      </span>
+      <span style={{
+        marginLeft: 'auto', fontSize: 12, padding: '3px 10px', borderRadius: 12, fontWeight: 'bold',
+        background: balans < 0 ? '#c62828' : balans > 0 ? '#00838f' : '#9e9e9e', color: '#fff',
+      }}>
+        {balans < 0 ? `Bizga qarzdor: ${fmt(-balans)} so'm`
+          : balans > 0 ? `Puli bizda: ${fmt(balans)} so'm`
+          : 'Hisob toza'}
+      </span>
+    </div>
+  );
+}
+
 function SaveBtn({ color, label }) {
   return (
     <div style={{ marginTop: 12 }}>
@@ -116,6 +150,7 @@ export default function Kassir() {
     appSettings, currentWorker, setCurrentWorker, workers,
     addSkladSotuv, totalSkladKg, skladRows, updateSkladRow, deleteSkladSotuv,
     cementTypes, skladKgByType, skladKgUntyped, currentUser, custRef,
+    customers,
   } = data;
   const isAdmin = currentUser?.role === 'admin';
 
@@ -142,11 +177,25 @@ export default function Kassir() {
   const [skladPage,   setSkladPage]   = useState(1);
   useEffect(() => { setSkladPage(1); }, [skladSearch, skladRange.from, skladRange.to]);
 
-  // ── Mijoz holati (kirim tab) ──────────────────────────────────────────────────
-  const custDebt = kirim.customer
-    ? custRows(debtRows, custRef(kirim.customer)).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
-    : 0;
-  const custAdv = kirim.customer ? advanceBalanceOf(kirim.customer) : 0;
+  // ── Mijoz holati ──────────────────────────────────────────────────────────────
+  // Kassir HAR QANDAY amalda (kirim, chiqim, chakana sotuv) mijozning joriy
+  // qarzi/avansini ko'rib turishi shart: aks holda mijoz "qarzim yo'q" deb
+  // pul yoki yuk olib ketishi mumkin. Ilgari bu faqat "Kirim" tabida bor edi.
+  const custState = (name) => {
+    const n = String(name || '').trim();
+    if (!n) return null;
+    const debt = custRows(debtRows, custRef(n)).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0);
+    const adv  = advanceBalanceOf(n);
+    // Chiqimda bu maydon xarajat GURUHI ham bo'lishi mumkin ("Ishxona
+    // xarajatlari") — bazada mijoz emas va qarz/avansi ham yo'q: panel
+    // ko'rsatilmaydi. Lekin bazaga kiritilmagan, ammo QARZI bor nomda
+    // (import qilingan eski qoldiq) panel baribir chiqadi — aks holda
+    // aynan eng muhim holat yashirin qolardi.
+    if (!findCust(customers, n) && debt === 0 && adv === 0) return null;
+    return { debt, adv, balans: adv - debt };
+  };
+  const custDebt = custState(kirim.customer)?.debt ?? 0;
+  const custAdv  = custState(kirim.customer)?.adv  ?? 0;
   // Sklad (kg) sotuvida "avansdan" tanlanganda ko'rsatiladigan qoldiq
   const skladCustAdv = sklad.customer ? advanceBalanceOf(sklad.customer) : 0;
 
@@ -468,16 +517,8 @@ export default function Kassir() {
                 <CustomerSelect value={kirim.customer} onChange={v => setKirim({ ...kirim, customer: v })}
                   placeholder="Mijoz (izlash...)" accentColor="#2e7d32" />
               </Field>
-              {kirim.customer && (
-                <Field label="Mijoz holati">
-                  <div style={{ padding: '6px 10px', background: '#fff', border: '1px solid #ccc', borderRadius: 4, fontSize: 12, lineHeight: 1.6 }}>
-                    {custDebt > 0 && <div style={{ color: '#c62828', fontWeight: 'bold' }}>Qarz: {fmt(custDebt)} so'm</div>}
-                    {custAdv  > 0 && <div style={{ color: '#2e7d32', fontWeight: 'bold' }}>Avans: {fmt(custAdv)} so'm</div>}
-                    {custDebt === 0 && custAdv === 0 && <div style={{ color: '#888' }}>Qarz/avans yo'q</div>}
-                  </div>
-                </Field>
-              )}
             </FRow>
+            <CustStateBar state={custState(kirim.customer)} name={kirim.customer} />
             <FRow>
               <Field label="Summa *">
                 <input type="number" value={kirim.amount} onChange={e => setKirim({ ...kirim, amount: e.target.value })}
@@ -549,6 +590,9 @@ export default function Kassir() {
                 )}
               </FRow>
             )}
+            {/* Chiqimda ham holat ko'rinsin: mijozga pul qaytarilayotganda
+                yoki avans berilayotganda uning qarzi bor-yo'qligi bilinsin. */}
+            {!chiqim.isTransfer && <CustStateBar state={custState(chiqim.customer)} name={chiqim.customer} />}
             <FRow>
               <Field label="Izoh">
                 <input value={chiqim.note} onChange={e => setChiqim({ ...chiqim, note: e.target.value })}
@@ -611,6 +655,9 @@ export default function Kassir() {
                   placeholder="0" style={{ ...inp, width: 140 }} required />
               </Field>
             </FRow>
+            {/* Chakana sotuvda ham holat: "qarzim yo'q" deb yuk olib
+                ketilmasin — kassir joriy qoldiqni ko'rib tursin. */}
+            <CustStateBar state={custState(sklad.customer)} name={sklad.customer} />
             {sklad.kg && sklad.pricePerKg && (
               <div style={{ marginBottom: 10, padding: '8px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bcaaa4', fontSize: 14 }}>
                 💰 Jami: <b style={{ color: '#4e342e', fontSize: 16 }}>{fmt(Number(sklad.kg) * Number(sklad.pricePerKg))} so'm</b>
