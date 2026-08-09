@@ -1136,6 +1136,14 @@ export function DataProvider({ children }) {
 
     if (!needsRelink) {                       // izoh, mashina raqami va h.k.
       setSalesRows(p => p.map(r => r.id === id ? next : r));
+      // Sana o'zgargan bo'lsa — undan yaratilgan qarz/kassa yozuvlari ham
+      // ko'chsin. Aks holda sotuv bir kunga, uning qarzi boshqa kunga tushib,
+      // kunlik hisobotlar mos kelmasdi (sanani keyin tuzatish odatiy hol).
+      if (old.date !== next.date) {
+        const shift = (rows) => rows.map(r =>
+          (r.auto && r.sourceType === 'sale' && r.sourceId === id) ? { ...r, date: next.date } : r);
+        setCashRows(shift); setBankRows(shift); setClickRows(shift); setDebtRows(shift);
+      }
       return true;
     }
 

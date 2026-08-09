@@ -9,6 +9,7 @@ import { customerSummary } from '../lib/customerSummary';
 import { activityStatus } from '../lib/monitoring';
 import { exportAktSverka } from '../lib/excelExport';
 import NotifyModal from './NotifyModal';
+import SourceModal from './SourceModal';
 import { findCust } from '../lib/customerRef';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -41,6 +42,14 @@ export default function CustomerCard({ name, onClose }) {
 
   const [notify,  setNotify]  = useState(false);
   const [showAkt, setShowAkt] = useState(false);
+  // "Bu yozuv qayerdan keldi?" oynasi — har qatordagi 🔎 tugmasi ochadi.
+  // Xato ko'ringan qatorning manbasini topib, o'sha yerda tuzatish uchun.
+  const [source, setSource] = useState(null); // { kind, row }
+  // Sotuv qatori qaysi ro'yxatdan kelgan: yangi ulgurji, eski "Sotilgan
+  // tonna" yoki chakana (sklad kg → tonnaga aylantirilgan) — bularning
+  // tahrirlash joyi ham har xil.
+  const kindOfSale = (r) => r._sklad ? 'sklad'
+    : (data.salesRows || []).some(x => x.id === r.id) ? 'sale' : 'sold';
   const aktRef = useRef();
   const defaultMsg = s.qolganQarz > 0
     ? `Hurmatli ${name}! Sizning qoldiq qarzingiz: ${fmt(s.qolganQarz)} so'm. To'lov uchun rahmat.`
@@ -118,6 +127,7 @@ export default function CustomerCard({ name, onClose }) {
         </div>
 
         {notify && <NotifyModal name={name} phone={cust?.phone || ''} defaultText={defaultMsg} onClose={() => setNotify(false)} />}
+        {source && <SourceModal kind={source.kind} row={source.row} onClose={() => setSource(null)} />}
         {showAkt && (
           <AktSverkaModal
             name={name} s={s} aktRef={aktRef}
@@ -182,7 +192,7 @@ export default function CustomerCard({ name, onClose }) {
           <Section title={`Xaridlar / Sotuvlar (${s.sales.length})`}>
             {s.sales.length === 0 ? <Empty /> : (
               <table className="data-table" style={{ width: '100%' }}>
-                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Tonna</th><th style={{ textAlign: 'right' }}>Narx/tn</th><th style={{ textAlign: 'right' }}>Summa</th><th>Izoh</th></tr></thead>
+                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Tonna</th><th style={{ textAlign: 'right' }}>Narx/tn</th><th style={{ textAlign: 'right' }}>Summa</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
                   {[...s.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => (
                     <tr key={r.id}>
@@ -191,6 +201,7 @@ export default function CustomerCard({ name, onClose }) {
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.pricePerTon)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
                       <td style={{ fontSize: 12, color: '#555' }}>{r.note || '—'}</td>
+                      <td><SrcBtn onClick={() => setSource({ kind: kindOfSale(r), row: r })} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -202,7 +213,7 @@ export default function CustomerCard({ name, onClose }) {
           <Section title={`Qarzlar (${s.debts.length})`}>
             {s.debts.length === 0 ? <Empty /> : (
               <table className="data-table" style={{ width: '100%' }}>
-                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Qarz</th><th style={{ textAlign: 'right' }}>To'landi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th></tr></thead>
+                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Qarz</th><th style={{ textAlign: 'right' }}>To'landi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
                   {[...s.debts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
                     const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
@@ -213,6 +224,7 @@ export default function CustomerCard({ name, onClose }) {
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(r.paid)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: qoldiq > 0 ? '#c62828' : '#888' }}>{fmt(qoldiq)}</td>
                         <td style={{ fontSize: 12, color: '#555' }}>{r.note || '—'}</td>
+                        <td><SrcBtn onClick={() => setSource({ kind: 'debt', row: r })} /></td>
                       </tr>
                     );
                   })}
@@ -225,7 +237,7 @@ export default function CustomerCard({ name, onClose }) {
           <Section title={`Avanslar (${s.advs.length})`}>
             {s.advs.length === 0 ? <Empty /> : (
               <table className="data-table" style={{ width: '100%' }}>
-                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Avans</th><th style={{ textAlign: 'right' }}>Ishlatildi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th></tr></thead>
+                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Avans</th><th style={{ textAlign: 'right' }}>Ishlatildi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
                   {[...s.advs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
                     const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.used || 0));
@@ -236,6 +248,7 @@ export default function CustomerCard({ name, onClose }) {
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#ef6c00' }}>{fmt(r.used)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#1565c0' }}>{fmt(qoldiq)}</td>
                         <td style={{ fontSize: 12, color: '#555' }}>{r.note || '—'}</td>
+                        <td><SrcBtn onClick={() => setSource({ kind: 'advance', row: r })} /></td>
                       </tr>
                     );
                   })}
@@ -255,7 +268,7 @@ export default function CustomerCard({ name, onClose }) {
                 Jami: kirim <b>{fmt(s.unlinkedIn)}</b> · chiqim <b>{fmt(s.unlinkedOut)}</b> so'm.
               </div>
               <table className="data-table" style={{ width: '100%' }}>
-                <thead><tr><th>Sana</th><th>Kanal</th><th>Izoh</th><th style={{ textAlign: 'right' }}>Summa</th></tr></thead>
+                <thead><tr><th>Sana</th><th>Kanal</th><th>Izoh</th><th style={{ textAlign: 'right' }}>Summa</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
                   {[...s.unlinked].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
                     const chLbl = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[r._ch] || r._ch;
@@ -268,6 +281,7 @@ export default function CustomerCard({ name, onClose }) {
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: pos ? '#2e7d32' : '#c62828' }}>
                           {pos ? '+' : '-'}{fmt(Math.abs(Number(r.amount)))}
                         </td>
+                        <td><SrcBtn onClick={() => setSource({ kind: r._ch === 'bank' ? 'bank' : r._ch === 'click' ? 'click' : 'cash', row: r })} /></td>
                       </tr>
                     );
                   })}
@@ -577,6 +591,18 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
 const aktBtn = (bg) => ({ padding: '5px 14px', background: bg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold', fontSize: 12 });
 const aTh = { border: '1px solid #000', padding: '4px 6px', fontSize: 11, fontWeight: 'bold', background: '#f0f0f0' };
 const aTd = { border: '1px solid #ccc', padding: '3px 6px', fontSize: 11 };
+
+// "Bu yozuv qayerdan keldi?" tugmasi — har bir qatorning oxirida.
+// Hisobotda ko'ringan raqamning manbasini topish uchun yagona kirish nuqtasi.
+function SrcBtn({ onClick }) {
+  return (
+    <button onClick={onClick} title="Bu yozuv qayerdan keldi? (manba va tahrirlash)"
+      style={{ cursor: 'pointer', background: '#eef3f8', border: '1px solid #b0bec5',
+               borderRadius: 3, color: '#01579b', fontSize: 12, padding: '1px 6px', lineHeight: 1.4 }}>
+      🔎
+    </button>
+  );
+}
 
 function Section({ title, children }) {
   return (

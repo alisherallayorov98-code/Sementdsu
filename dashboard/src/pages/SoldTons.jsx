@@ -9,6 +9,7 @@ import ExcelExport from '../components/ExcelExport';
 import Paginator from '../components/Paginator';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import { useFocusRow, FOCUS_STYLE } from '../lib/useFocusRow';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -170,6 +171,9 @@ Davom etamizmi?`
   useEffect(() => { setPage(1); }, [range.from, range.to]);
   const reversedView = [...viewRows].reverse();
   const paged = reversedView.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Mijoz kartochkasidagi 'manba' oynasidan kelinganda (?focus=id) shu sotuv
+  // qatori ajratib ko'rsatiladi.
+  const { rowRef: focusRef, isFocused } = useFocusRow(reversedView, PAGE_SIZE, setPage);
 
   // ── Akt Sverka chop etish ─────────────────────────────────────────────────
   const handlePrint = () => {
@@ -522,7 +526,9 @@ Davom etamizmi?`
               const custDebt = isNasiya ? getCustomerDebt(r.customer) : 0;
               const rowBg    = isNasiya ? '#fff5ee' : (i%2===0?'#fff':'#f9f9f9');
               return (
-                <tr key={r.id} style={{ background:rowBg }}>
+                <tr key={r.id}
+                  ref={isFocused(r.id) ? focusRef : null}
+                  style={isFocused(r.id) ? FOCUS_STYLE : { background:rowBg }}>
                   <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{viewRows.length - ((page - 1) * PAGE_SIZE + i)}</td>
                   <td style={{ fontSize:12 }}>{r.date}</td>
                   <td style={{ fontWeight:'bold', color:'#003366' }}>

@@ -6,6 +6,7 @@ import CustomerCard from '../components/CustomerCard';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import { nameKey } from '../lib/customerRef';
+import { useFocusRow, FOCUS_STYLE } from '../lib/useFocusRow';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -104,6 +105,9 @@ export default function Advances({ lang }) {
 
   useEffect(() => { setPage(1); }, [search, filter, range.from, range.to]);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Mijoz kartochkasidagi 'manba' oynasidan kelinganda (?focus=id) shu avans
+  // qatori ajratib ko'rsatiladi.
+  const { rowRef: focusRef, isFocused } = useFocusRow(filtered, PAGE_SIZE, setPage);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -274,7 +278,9 @@ export default function Advances({ lang }) {
               const st        = getStatus(r.amount, r.used);
               const ss        = STATUS_STYLE[st];
               return (
-                <tr key={r.id} style={{ background: ss.bg }}>
+                <tr key={r.id}
+                  ref={isFocused(r.id) ? focusRef : null}
+                  style={isFocused(r.id) ? FOCUS_STYLE : { background: ss.bg }}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
                   <td style={{ fontSize: 12 }}>{r.date}</td>
                   <td onClick={() => setCard(r.customer)} title="Mijoz ma'lumotlarini ochish"

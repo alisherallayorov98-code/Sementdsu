@@ -146,7 +146,9 @@
       "Bash(node --test src/lib/moneyFlow.test.js)",
       "Bash(node --test src/lib/archiveRun.test.js)",
       "Bash(sed -n '/const deleteSkladSotuv/,/^  };/p' src/context/DataContext.jsx)",
-      "Bash(sed -n '/const updateSkladRow/,/^  };/p' src/context/DataContext.jsx)"
+      "Bash(sed -n '/const updateSkladRow/,/^  };/p' src/context/DataContext.jsx)",
+      "Bash(python -c ' *)",
+      "Bash(node --test src/lib/rowSource.test.js)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

@@ -11,6 +11,7 @@ import SupplierSelect from '../components/SupplierSelect';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
+import { useFocusRow, FOCUS_STYLE } from '../lib/useFocusRow';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(3); };
@@ -337,6 +338,9 @@ export default function RecvTons({ lang }) {
   useEffect(() => { setPage(1); setSelected(new Set()); }, [filterSource, filterBrand, range.from, range.to]);
   const reversedFiltered = [...filtered].reverse();
   const paged = reversedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Mijoz kartochkasidagi "manba" oynasidan kelingan bo'lsa (?focus=id) —
+  // kerakli sahifaga o'tiladi va qator sariq bilan ajratiladi.
+  const { rowRef: focusRef, isFocused } = useFocusRow(reversedFiltered, PAGE_SIZE, setPage);
 
   const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const allPageSelected = paged.length > 0 && paged.every(r => selected.has(r.id));
@@ -799,8 +803,13 @@ export default function RecvTons({ lang }) {
                 const s = Number(r.tons||0) * Number(r.pricePerTon||0);
                 const absIdx = (page - 1) * PAGE_SIZE + i;
                 const isSelected = selected.has(r.id);
+                const focused = isFocused(r.id);
                 return (
-                  <tr key={r.id} style={{ background: isSelected ? '#fff3e0' : r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
+                  <tr key={r.id}
+                    ref={focused ? focusRef : null}
+                    style={focused
+                      ? FOCUS_STYLE
+                      : { background: isSelected ? '#fff3e0' : r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
                     <td style={{ textAlign:'center' }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)} />
                     </td>
