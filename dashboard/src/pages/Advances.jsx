@@ -7,7 +7,8 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import { filterByRange } from '../lib/dateRange';
 import { nameKey } from '../lib/customerRef';
 
-const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 
 // ─── Tarjimonlar ─────────────────────────────────────────────────────────────
 const L = {
@@ -61,6 +62,7 @@ export default function Advances({ lang }) {
   const {
     advanceRows,
     totalAdvances, totalAdvancesUsed, totalAdvancesAll,
+    salesRows, soldRows, skladRows,
   } = useData();
 
   const [search, setSearch]   = useState('');
@@ -69,6 +71,19 @@ export default function Advances({ lang }) {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
   const [history, setHistory] = useState(null);
+
+  // Avans sarfi qaysi sotuvdan kelgan — uchala sotuv turida ham qidiramiz
+  // (ulgurji "Sotish", eski "Sotilgan tonna", chakana sklad kg).
+  const srcOf = (saleId) => {
+    if (saleId == null) return '—';
+    const s1 = (salesRows || []).find(r => r.id === saleId);
+    if (s1) return `📦 Sotuv: ${fmtT(s1.tons)} tn × ${fmt(s1.pricePerTon)}`;
+    const s2 = (soldRows || []).find(r => r.id === saleId);
+    if (s2) return `📦 Sotuv (eski): ${fmtT(s2.tons)} tn × ${fmt(s2.pricePerTon)}`;
+    const s3 = (skladRows || []).find(r => r.id === saleId);
+    if (s3) return `🏗 Sklad: ${Math.abs(Number(s3.kg || 0))} kg`;
+    return `— (sotuv o'chirilgan)`;
+  };
   const [card, setCard]       = useState(null); // ochilgan mijoz kartochkasi (ismi)
 
   // ── Filtrlash ───────────────────────────────────────────────────────────────
@@ -112,8 +127,11 @@ export default function Advances({ lang }) {
       }}>
         ℹ️ Bu bo'lim <b>faqat ko'rish uchun</b>. Avans <b>Kassir → Kirim</b> orqali qabul qilinadi
         (mijoz tanlanadi: qarzi bo'lsa avval qarz yopiladi, ortig'i avansga yoziladi).
-        Avans <b>Sotish</b>da "avans" to'lov turi tanlanganda avtomatik ishlatiladi —
-        eng eski avansdan boshlab.
+        <br />
+        Avans <b>“🅰️ Avansdan”</b> to'lov turi tanlanganda avtomatik ishlatiladi — eng eski
+        avansdan boshlab. Bu tur quyidagi joylarda bor: <b>Sotish</b> · <b>Taqsimlash</b> ·
+        <b> Kassir → Sotish (kg)</b> · <b>Sotilgan tonna</b> · <b>Olingan tonna → mijozga sotish</b>.
+        Avans yetmasa, qolgan qismi qarzga yoziladi.
       </div>
 
       {/* ── SANA ORALIG'I FILTRI ──────────────────────────────────────────── */}
@@ -189,6 +207,7 @@ export default function Advances({ lang }) {
                           <th style={th}>#</th>
                           <th style={th}>{L.sana[lang]}</th>
                           <th style={{ ...th, textAlign: 'right' }}>{L.miqdor[lang]}</th>
+                          <th style={th}>Nimaga ishlatildi</th>
                           <th style={th}>{L.izoh[lang]}</th>
                           <th style={th}>{L.xodim[lang]}</th>
                         </tr>
@@ -199,14 +218,18 @@ export default function Advances({ lang }) {
                             <td style={td}>{i + 1}</td>
                             <td style={td}>{u.date}</td>
                             <td style={{ ...td, textAlign: 'right', color: '#e65100', fontWeight: 'bold' }}>{fmt(u.amount)}</td>
+                            {/* Sarf qaysi sotuvdan kelganini ko'rsatamiz — ilgari
+                                faqat "Sotuvga ishlatildi" degan umumiy izoh
+                                turardi va qaysi sotuv ekanini topib bo'lmasdi. */}
+                            <td style={{ ...td, fontSize: 12 }}>{srcOf(u.saleId)}</td>
                             <td style={td}>{u.note || '—'}</td>
                             <td style={td}>{u.worker || '—'}</td>
                           </tr>
                         ))}
                         <tr style={{ background: '#fff3e0', fontWeight: 'bold' }}>
                           <td colSpan={2} style={td}>Jami ishlatildi:</td>
-                          <td style={{ ...td, textAlign: 'right', color: '#e65100' }}>{fmt(usages.reduce((s, u) => s + u.amount, 0))}</td>
-                          <td colSpan={2} style={td}></td>
+                          <td style={{ ...td, textAlign: 'right', color: '#e65100' }}>{fmt(usages.reduce((s, u) => s + Number(u.amount || 0), 0))}</td>
+                          <td colSpan={3} style={td}></td>
                         </tr>
                       </tbody>
                     </table>

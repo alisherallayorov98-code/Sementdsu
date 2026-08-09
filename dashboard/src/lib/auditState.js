@@ -84,6 +84,33 @@ export function auditState(state = {}) {
       advOver.slice(0, 5).map(r => `${r.customer || '—'}: avans ${money(r.amount)}, sarflangan ${money(r.used)}`)));
   }
 
+  // ── 3b. Sotuvdagi "avansdan to'landi" avans sarfiga mos keladimi ──────────
+  // Sotuv/sklad sotuvi avansdan to'langanda ikki joyga yoziladi: sotuvda
+  // `advanceUsed`, avansda esa `usages[].saleId`. Ikkalasi teng bo'lishi
+  // shart. Farq bo'lsa — sotuv o'chirilganda avans qaytmagan yoki aksincha
+  // avans qaytgan-u sotuv "to'langan" bo'lib qolgan: mijoz puli yo ikki
+  // marta ishlatilgan, yo umuman yo'qolgan.
+  const usedBySale = new Map();
+  advanceRows.forEach(a => (a.usages || []).forEach(u => {
+    if (u && u.saleId != null) usedBySale.set(u.saleId, (usedBySale.get(u.saleId) || 0) + num(u.amount));
+  }));
+  const advLinkBad = [];
+  const checkLink = (rows, label) => (rows || []).forEach(r => {
+    const declared = num(r.advanceUsed);
+    const actual   = usedBySale.get(r.id) || 0;
+    if (Math.abs(declared - actual) > EPS) {
+      advLinkBad.push(`${label} · ${r.customer || '—'}: sotuvda ${money(declared)}, avansda ${money(actual)}`);
+    }
+  });
+  checkLink(salesRows, 'Sotuv');
+  checkLink(soldRows, 'Sotuv (eski)');
+  checkLink((skladRows || []).filter(r => r.type === 'chiqim'), 'Sklad');
+  if (advLinkBad.length) {
+    out.push(F('xato', 'advance-sale-mismatch',
+      `${advLinkBad.length} ta sotuvda "avansdan to'landi" summasi avans sarfiga mos emas`,
+      advLinkBad.slice(0, 5)));
+  }
+
   // ── 4. Xodim oyligi: paid = to'lovlar yig'indisi ─────────────────────────
   const paidByWorker = new Map();
   salaryPayments.forEach(p => {

@@ -357,21 +357,32 @@ export function DataProvider({ children }) {
     // Nasiya bo'lsa — BOG'LANGAN qarz yaratamiz (sourceType 'sold'). Ilgari qarz
     // SoldTons sahifasida qo'lda yaratilardi va sotuv o'chirilганда osilib qolardi
     // (arvoh qarz). Endi sotuv bilan birga o'chadi.
-    if ((entry.paymentChannel || 'naqd') === 'nasiya') {
-      const amt = Number(row.tons || 0) * Number(row.pricePerTon || 0);
-      if (amt > 0) {
-        setDebtRows(p => [...p, {
-          id: uid(), createdAt: ts, worker: currentWorker, date: row.date,
-          customer: row.customer, customerId: row.customerId, amount: amt, paid: 0, payments: [],
-          note: `🔗 Eski sotuv (nasiya): ${row.customer} — ${fmtTons(row.tons)} tn`,
-          auto: true, sourceType: 'sold', sourceId: ts,
-        }]);
-      }
+    const ch  = entry.paymentChannel || 'naqd';
+    const amt = Number(row.tons || 0) * Number(row.pricePerTon || 0);
+    const mkDebt = (sum, tag) => setDebtRows(p => [...p, {
+      id: uid(), createdAt: ts, worker: currentWorker, date: row.date,
+      customer: row.customer, customerId: row.customerId, amount: sum, paid: 0, payments: [],
+      note: tag, auto: true, sourceType: 'sold', sourceId: ts,
+    }]);
+
+    if (ch === 'nasiya' && amt > 0) {
+      mkDebt(amt, `🔗 Eski sotuv (nasiya): ${row.customer} — ${fmtTons(row.tons)} tn`);
+    } else if (ch === 'avans' && amt > 0) {
+      // AVANSDAN: pul allaqachon olingan — kassaga yozilmaydi (_soldByCh ham
+      // faqat naqd/bank/click ni sanaydi). Yetmagan qismi qarzga o'tadi.
+      // Ilgari bu bo'limda "avansdan" varianti umuman yo'q edi.
+      row.advanceUsed = consumeAdvance(row.customer, amt, ts);
+      const rem = amt - row.advanceUsed;
+      if (rem > 0) mkDebt(rem, `🔗 Eski sotuv (avans yetmadi): ${row.customer} — ${fmtTons(row.tons)} tn`);
     }
     return row; // SoldTons.jsx qaytган qatorни tekshiradi
   };
   const deleteSoldRow = (id) => {
     if (blockIfDebtPaid(debtRows, 'sold', id)) return false;
+    // Avansdan to'langan bo'lsa — avansni qaytaramiz (ulgurji sotuv bilan
+    // bir xil), aks holda sotuv o'chib, avans ishlatilgan bo'lib qolardi.
+    const sold = soldRows.find(r => r.id === id);
+    if (sold && Number(sold.advanceUsed) > 0) restoreAdvanceForSale(id);
     setSoldRows(p => p.filter(r => r.id !== id));
     // Bog'langan nasiya qarzini ham o'chiramiz
     setDebtRows(p => p.filter(r => !(r.auto && r.sourceType === 'sold' && r.sourceId === id)));
@@ -831,12 +842,22 @@ export function DataProvider({ children }) {
   const totalDebtsAll  = debtRows.reduce((s, r) => s + Number(r.amount), 0);
 
   // ── 12. Avanslar ──────────────────────────────────────────────────────────
-  const [advanceRows, setAdvanceRows] = useState(() => load('advance_rows', []));
+  const [advanceRows, _setAdvanceRows] = useState(() => load('advance_rows', []));
   useEffect(() => save('advance_rows', advanceRows), [advanceRows]);
   // advanceRows ning sinxron nusxasi — consumeAdvance bir tikda bir necha marta
   // chaqirilganda (taqsimlash) har chaqiruv oldingisining natijasini ko'rishi uchun.
+  //
+  // SETTER O'RALGAN (debtRef bilan bir xil sabab): ilgari ref ba'zi joylarda
+  // qo'lda yangilanar, ba'zilarida (addAdvanceRow, deleteAdvanceRow) umuman
+  // yangilanmasdi — ya'ni avans qo'shilgandan keyin darhol qilingan sotuv uni
+  // KO'RMAY qolishi mumkin edi. Bundan tashqari qo'lda yangilashda `apply`
+  // funksiyasi IKKI MARTA chaqirilib, ichidagi uid() har safar boshqa id
+  // berardi: ref bilan state bir-biridan uzilardi.
   const advanceRef = useRef(advanceRows);
-  useEffect(() => { advanceRef.current = advanceRows; }, [advanceRows]);
+  const setAdvanceRows = (upd) => {
+    advanceRef.current = typeof upd === 'function' ? upd(advanceRef.current) : upd;
+    _setAdvanceRows(advanceRef.current);
+  };
   const addAdvanceRow = (customer, amount, note = '', channel = 'naqd') => {
     const sum = parseNum(amount);
     // Manfiy/nol avansda quyidagi `if (sum > 0)` sharti ishlamay, kassaga
@@ -872,10 +893,6 @@ export function DataProvider({ children }) {
     const { prepared, fresh } = prepareImportRows(rows, (base) => ({ ...base, used: 0, usages: [] }));
     if (fresh.length) setCustomers(p => [...p, ...fresh]);
     setAdvanceRows(p => [...p, ...prepared]);
-    // Sinxron nusxani ham yangilaymiz: import qilingandan keyin darhol sotuv
-    // qilinsa, consumeAdvance advanceRef.current ni o'qiydi va yangi
-    // avanslarni ko'rmay qolardi (state keyingi renderda yangilanadi).
-    advanceRef.current = [...advanceRef.current, ...prepared];
     return { added: prepared.length, newCustomers: fresh.length };
   };
 
@@ -901,7 +918,6 @@ export function DataProvider({ children }) {
       advances = advanceRows.filter(r => r.date === from).length;
       if (advances) {
         setAdvanceRows(swap);
-        advanceRef.current = swap(advanceRef.current);
       }
     }
     return { debts, advances };
@@ -946,8 +962,7 @@ export function DataProvider({ children }) {
       return { ...r, used: Number(r.used) + use,
         usages: [...(r.usages || []), { id: uid(), saleId, date: today, amount: use, note: 'Sotuvga ishlatildi', worker: currentWorker }] };
     });
-    advanceRef.current = apply(advanceRef.current); // darhol — keyingi chaqiruv uchun
-    setAdvanceRows(apply);
+    setAdvanceRows(apply); // o'ralgan setter advanceRef ni ham darhol yangilaydi
     return applied;
   };
   // Sotuv o'chirilsa — ishlatilgan avansni qaytarish (saleId bo'yicha)
@@ -958,7 +973,6 @@ export function DataProvider({ children }) {
       const back = mine.reduce((s, u) => s + Number(u.amount || 0), 0);
       return { ...r, used: Math.max(0, Number(r.used) - back), usages: (r.usages || []).filter(u => u.saleId !== saleId) };
     });
-    advanceRef.current = restore(advanceRef.current);
     setAdvanceRows(restore);
   };
 
@@ -1200,13 +1214,24 @@ export function DataProvider({ children }) {
     const tag  = `🏗 Sklad: ${customer} (${kgN} kg)`;
     const cf   = custFields(customers, customer);
     const link = { auto: true, sourceType: 'sklad_sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: td, ...cf };
+    let advanceUsed = 0;
     if (sum > 0) {
       if      (channel === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'nasiya') setDebtRows(p  => [...p, { ...link, id: uid(), amount: sum, paid: 0, note: tag, payments: [] }]);
+      else if (channel === 'avans') {
+        // AVANSDAN: pul allaqachon olingan, kassaga yozilmaydi. Yetmagan
+        // qismi qarzga o'tadi — ulgurji sotuv (addSaleRow) bilan bir xil
+        // qoida. Ilgari sklad sotuvida "avansdan" varianti umuman yo'q edi:
+        // avansi bor mijozga chakana sement sotilsa, uni qarzga yozishdan
+        // boshqa yo'l yo'q edi va avans o'z holicha qolib ketardi.
+        advanceUsed = consumeAdvance(customer, sum, ts);
+        const rem = sum - advanceUsed;
+        if (rem > 0) setDebtRows(p => [...p, { ...link, id: uid(), amount: rem, paid: 0, note: `${tag} (avans yetmadi)`, payments: [] }]);
+      }
     }
-    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, ...cf, pricePerKg: Number(pricePerKg), amount: sum, channel, note: note || '', worker: currentWorker, cementType: cementType || '' };
+    const row = { id: ts, createdAt: ts, date: td, type: 'chiqim', kg: -kgN, ...cf, pricePerKg: Number(pricePerKg), amount: sum, channel, advanceUsed, note: note || '', worker: currentWorker, cementType: cementType || '' };
     setSkladRows(p => [...p, row]);
     return row;
   };
@@ -1228,6 +1253,11 @@ export function DataProvider({ children }) {
 
   const deleteSkladSotuv = (id) => {
     if (blockIfDebtPaid(debtRows, 'sklad_sale', id)) return false;
+    // Avansdan to'langan bo'lsa — avansni QAYTARAMIZ. Aks holda sotuv
+    // o'chadi-yu, mijozning avansi ishlatilgan bo'lib qolardi (pul ham,
+    // sement ham unda ko'rinmasdi). Ulgurji sotuvda bu allaqachon bor edi.
+    const sk = skladRows.find(r => r.id === id);
+    if (sk && Number(sk.advanceUsed) > 0) restoreAdvanceForSale(id);
     setSkladRows(p => p.filter(r => r.id !== id));
     const rm = (rows) => rows.filter(r => !(r.auto && r.sourceType === 'sklad_sale' && r.sourceId === id));
     setCashRows(rm); setBankRows(rm); setClickRows(rm);
@@ -1569,7 +1599,6 @@ export function DataProvider({ children }) {
       setCashRows(swap); setBankRows(swap); setClickRows(swap);
       setBankIncomeRows(swap); setBankExpenseRows(swap);
       setTgOrders(swap);
-      advanceRef.current = swap(advanceRef.current);
     }
     setCustomers(p => p.map(c => c.id === id ? { ...c, ...data } : c));
     return true;

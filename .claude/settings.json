@@ -144,7 +144,9 @@
       "Bash(node src/lib/auditState.test.js)",
       "Bash(node -e \"require\\('./src/services/telegram.service.js'\\)\")",
       "Bash(node --test src/lib/moneyFlow.test.js)",
-      "Bash(node --test src/lib/archiveRun.test.js)"
+      "Bash(node --test src/lib/archiveRun.test.js)",
+      "Bash(sed -n '/const deleteSkladSotuv/,/^  };/p' src/context/DataContext.jsx)",
+      "Bash(sed -n '/const updateSkladRow/,/^  };/p' src/context/DataContext.jsx)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

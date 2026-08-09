@@ -258,3 +258,45 @@ test("o‘chirilgan zavod to‘lovi va haydovchi avansi ham topiladi", () => {
   assert.ok(hit);
   assert.ok(hit.title.startsWith('2 '), hit.title);
 });
+
+// ── Avans ↔ sotuv bog'lanishi ───────────────────────────────────────────────
+
+test("sotuvdagi avansUsed avans sarfiga mos bo\u2018lmasa topiladi", () => {
+  // Sotuv "avansdan 500 000 to'landi" deydi, avansda esa hech qanday sarf yo'q
+  // — mijoz puli yo ikki marta ishlatilgan, yo umuman yo'qolgan.
+  const f = auditState({
+    salesRows: [{ id: 1, customer: 'Ali', advanceUsed: 500000, tons: 1, pricePerTon: 500000 }],
+    advanceRows: [{ id: 9, customer: 'Ali', amount: 1000000, used: 0, usages: [] }],
+  });
+  assert.ok(f.find(x => x.code === 'advance-sale-mismatch'));
+});
+
+test('avans sarfi sotuv bilan mos bo\u2018lsa xato yo\u2018q', () => {
+  const f = auditState({
+    salesRows: [{ id: 1, customer: 'Ali', advanceUsed: 500000 }],
+    advanceRows: [{
+      id: 9, customer: 'Ali', amount: 1000000, used: 500000,
+      usages: [{ id: 91, saleId: 1, amount: 500000 }],
+    }],
+  });
+  assert.equal(f.find(x => x.code === 'advance-sale-mismatch'), undefined);
+});
+
+test('sklad va eski sotuv uchun ham tekshiriladi', () => {
+  const f = auditState({
+    soldRows:  [{ id: 2, customer: 'Vali', advanceUsed: 300000 }],
+    skladRows: [{ id: 3, type: 'chiqim', customer: 'Vali', advanceUsed: 200000, kg: -100 }],
+    advanceRows: [{ id: 9, customer: 'Vali', amount: 1000000, used: 0, usages: [] }],
+  });
+  const hit = f.find(x => x.code === 'advance-sale-mismatch');
+  assert.ok(hit);
+  assert.ok(hit.title.startsWith('2 '), hit.title);
+});
+
+test('avansdan to\u2018lanmagan sotuv tekshiruvga tushmaydi', () => {
+  const f = auditState({
+    salesRows: [{ id: 1, customer: 'Ali', paymentChannel: 'naqd' }],
+    advanceRows: [],
+  });
+  assert.equal(f.find(x => x.code === 'advance-sale-mismatch'), undefined);
+});

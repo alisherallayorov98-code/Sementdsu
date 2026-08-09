@@ -932,6 +932,10 @@ export default function RecvTons({ lang }) {
                               <option value="bank">🏦 Bank</option>
                               <option value="click">📱 Click</option>
                               <option value="nasiya">⚠️ Nasiya</option>
+                              {/* Avansdan: mijozning oldindan bergan pulidan
+                                  yechiladi. addSaleRow buni allaqachon
+                                  qo'llab-quvvatlaydi, faqat variant yo'q edi. */}
+                              <option value="avans">🅰️ Avansdan</option>
                             </select>
                           </Field>
                         </>
@@ -1087,6 +1091,7 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
                     <option value="bank">🏦 Bank</option>
                     <option value="click">📱 Click</option>
                     <option value="nasiya">⚠️ Nasiya</option>
+                    <option value="avans">🅰️ Avansdan</option>
                   </select>
                 </Field>
                 <Field label="Izoh">

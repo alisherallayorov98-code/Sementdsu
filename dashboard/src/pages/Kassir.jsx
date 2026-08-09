@@ -147,6 +147,8 @@ export default function Kassir() {
     ? custRows(debtRows, custRef(kirim.customer)).reduce((s, r) => s + Math.max(0, Number(r.amount) - Number(r.paid)), 0)
     : 0;
   const custAdv = kirim.customer ? advanceBalanceOf(kirim.customer) : 0;
+  // Sklad (kg) sotuvida "avansdan" tanlanganda ko'rsatiladigan qoldiq
+  const skladCustAdv = sklad.customer ? advanceBalanceOf(sklad.customer) : 0;
 
   const addRow = (channel, amount, desc, customer = '', extra = {}) => {
     const fn = { naqd: addCashRow, bank: addBankRow, click: addClickRow }[channel];
@@ -293,8 +295,13 @@ export default function Kassir() {
           date: created.date, worker: currentWorker,
         }, { appName: appSettings?.appName || 'SEMENT', phone: appSettings?.companyPhone || '', address: appSettings?.companyAddress || '', qolganQarz: q });
       }
-      // Mijozga Telegram xabari (nasiya bo'lsa yangi qarzni ham qo'shamiz — state hali yangilanmagan)
-      const extraDebt = sklad.channel === 'nasiya' ? kgAbs * prcWant : 0;
+      // Mijozga Telegram xabari. Nasiyada butun summa, avansda esa faqat
+      // avans YETMAGAN qismi qarzga yoziladi (state hali yangilanmagan,
+      // shuning uchun qo'lda qo'shamiz).
+      const saleSum = kgAbs * prcWant;
+      const extraDebt = sklad.channel === 'nasiya' ? saleSum
+                      : sklad.channel === 'avans'  ? Math.max(0, saleSum - Number(created.advanceUsed || 0))
+                      : 0;
       api.notifyCustomerSale(created.customer, kgAbs, sklad.cementType, prcWant, sklad.channel, Math.max(0, q + extraDebt)).catch(() => {});
     }
     setSklad({ customer: '', kg: '', pricePerKg: '', channel: 'naqd', note: '', cementType: '' });
@@ -617,10 +624,21 @@ export default function Kassir() {
               </Field>
             </FRow>
             <Field label="To'lov turi">
+              {/* "Avansdan" qo'shildi: ilgari chakana sotuvda mijozning
+                  avansidan yechish imkoni umuman yo'q edi — avansi bor
+                  mijozga sement sotilsa ham qarz yozishdan boshqa yo'l
+                  yo'q edi va avans o'z holicha qolib ketardi. */}
               <ChanBtns value={sklad.channel} onChange={v => setSklad({ ...sklad, channel: v })} extra={[
                 { v: 'nasiya', icon: '⚠️', label: 'Nasiya', color: '#c62828' },
+                { v: 'avans',  icon: '🅰️', label: 'Avansdan', color: '#00838f' },
               ]} />
             </Field>
+            {sklad.customer && sklad.channel === 'avans' && (
+              <div style={{ fontSize: 12, marginTop: -4, marginBottom: 6, color: skladCustAdv > 0 ? '#00695c' : '#c62828' }}>
+                Mavjud avans: <b>{fmt(skladCustAdv)} so'm</b>
+                {skladCustAdv <= 0 && " — yetmaydi, qolgani qarzga yoziladi"}
+              </div>
+            )}
             <SaveBtn color="#4e342e" label="✓ Sotish (Chek chiqadi)" />
           </form>
         )}

@@ -28,6 +28,10 @@ const TOLOV = [
   { v:'bank',   latn:'Bank',          cyrl:'Банк'         },
   { v:'click',  latn:'Click',         cyrl:'Клик'         },
   { v:'nasiya', latn:'Nasiya (qarz)', cyrl:'Насия (қарз)' },
+  // "Avansdan" — mijozning oldindan bergan pulidan yechiladi. Ilgari bu
+  // bo'limda umuman yo'q edi: avansi bor mijozga sotuv qilinsa, avans
+  // o'z holicha qolib, sotuv qarzga yozilardi.
+  { v:'avans',  latn:'Avansdan',      cyrl:'Авансдан'      },
 ];
 
 const L = {
@@ -75,9 +79,9 @@ export default function SoldTons({ lang }) {
   const data = useData();
   const {
     soldRows, addSoldRow, deleteSoldRow,
-    debtRows, addDebtRow, payDebt, deleteDebtRow,
+    debtRows, payDebt, deleteDebtRow,
     currentWorker, setCurrentWorker, appSettings, custRef,
-    totalCementBalance,
+    totalCementBalance, advanceBalanceOf,
   } = data;
 
   // Tonna ko'rsatish: butun bo'lsa kasrsiz, aks holda 2 xona
@@ -120,6 +124,22 @@ export default function SoldTons({ lang }) {
       if (!window.confirm(
         `Diqqat! Omborda ${fmtTons(totalCementBalance)} tn sement bor.\n` +
         `Sotmoqchi: ${fmtTons(tonsN)} tn.\n\nBaribir sotasizmi?`
+      )) return;
+    }
+    // Avansdan sotuvda qoldiqni ogohlantiramiz — yetmasa qolgani qarzga
+    // yoziladi va mijoz buni kutmagan bo'lishi mumkin.
+    if (form.tolov === 'avans') {
+      const have = advanceBalanceOf(form.mijoz);
+      const need = tonsN * priceN;
+      if (have < need && !window.confirm(
+        `"${form.mijoz}" ning avansi: ${fmt(have)} so'm
+` +
+        `Sotuv summasi: ${fmt(need)} so'm
+
+` +
+        `Yetmagan ${fmt(need - have)} so'm QARZGA yoziladi.
+
+Davom etamizmi?`
       )) return;
     }
     const created = addSoldRow({
