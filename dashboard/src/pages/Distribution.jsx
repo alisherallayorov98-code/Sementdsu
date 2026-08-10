@@ -8,7 +8,8 @@ import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { parseNum } from '../lib/parseNum';
 import CustomerSelect from '../components/CustomerSelect';
-import { todayISO, isoToRu, shiftISO } from '../lib/dateRange';
+import { todayISO, isoToRu, shiftISO, inRange, isEmptyRange, sortByDateDesc } from '../lib/dateRange';
+import DateRangeFilter from '../components/DateRangeFilter';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -34,6 +35,9 @@ export default function Distribution() {
   // Qaysi kun ko'rilmoqda. Ilgari sahifa qattiq "bugun" ga bog'langan edi —
   // kechagi taqsimotni ko'rish uchun boshqa bo'limga o'tishga to'g'ri kelardi.
   const [day, setDay] = useState(todayISO());
+  // Ko'rish rejimi: 'day' — bitta kun, 'range' — sanadan sanagacha
+  const [mode, setMode] = useState('day');
+  const [range, setRange] = useState({ from: todayISO(), to: todayISO() });
 
   // Tez kiritish formasi
   const [row, setRow] = useState({ customer: '', tons: '', price: '' });
@@ -82,11 +86,22 @@ export default function Distribution() {
   };
 
   const t = isoToRu(day);            // tanlangan kun "kk.oo.yyyy" ko'rinishida
-  const isToday = day === todayISO();
-  const kunNomi = isToday ? 'Bugun' : t;
-  // Tanlangan sklad va KUN bo'yicha
-  const todaySales = salesRows.filter(r => r.date === t && whOf(r) === wh);
-  const bugunOlingan      = recvRows.filter(r => r.date === t && whOf(r) === wh).reduce((s, r) => s + Number(r.tons || 0), 0);
+  const isRange = mode === 'range';
+  // Kiritish faqat BUGUNGI kun ko'rilayotganda ochiq (oraliq rejimida hech qachon)
+  const isToday = !isRange && day === todayISO();
+  // Statistika sarlavhalaridagi davr nomi
+  const kunNomi = isRange
+    ? (isEmptyRange(range)
+        ? 'Hammasi'
+        : (range.from && range.to)
+          ? `${isoToRu(range.from)} – ${isoToRu(range.to)}`
+          : range.from ? `${isoToRu(range.from)} dan` : `${isoToRu(range.to)} gacha`)
+    : (day === todayISO() ? 'Bugun' : t);
+
+  // Tanlangan sklad va DAVR bo'yicha (bir kun yoki sanadan–sanagacha)
+  const inSel = (r) => isRange ? inRange(r.date, range) : r.date === t;
+  const todaySales = salesRows.filter(r => whOf(r) === wh && inSel(r));
+  const bugunOlingan      = recvRows.filter(r => whOf(r) === wh && inSel(r)).reduce((s, r) => s + Number(r.tons || 0), 0);
   const bugunTaqsimlangan = todaySales.reduce((s, r) => s + Number(r.tons || 0), 0);
   const qolgan = bugunOlingan - bugunTaqsimlangan;
   const whQoldiq = cementBalanceOf(wh);
@@ -142,20 +157,29 @@ export default function Distribution() {
         </div>
       )}
 
-      {/* ── KUN TANLASH ────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 'bold', color: '#01579b' }}>📅 Kun:</span>
-        <button onClick={() => setDay(shiftISO(day, -1))} title="Oldingi kun" style={navBtn}>◀</button>
-        <input type="date" value={day} max={todayISO()} onChange={e => setDay(e.target.value || todayISO())}
-          style={{ padding: '6px 8px', fontSize: 13, border: '1px solid #0288d1', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' }} />
-        <button onClick={() => setDay(shiftISO(day, 1))} disabled={isToday} title="Keyingi kun"
-          style={{ ...navBtn, opacity: isToday ? 0.4 : 1, cursor: isToday ? 'default' : 'pointer' }}>▶</button>
-        {!isToday && (
-          <button onClick={() => setDay(todayISO())} style={{ ...navBtn, padding: '6px 14px', fontWeight: 'bold', background: '#01579b', color: '#fff', borderColor: '#01579b' }}>
-            Bugunga qaytish
-          </button>
-        )}
+      {/* ── DAVR TANLASH: bitta kun yoki sanadan–sanagacha ─────────────────── */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+        <button onClick={() => setMode('day')}   style={modeBtn(mode === 'day')}>📅 Bitta kun</button>
+        <button onClick={() => setMode('range')} style={modeBtn(mode === 'range')}>🗓 Sanadan–sanagacha</button>
       </div>
+
+      {mode === 'day' ? (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 'bold', color: '#01579b' }}>Kun:</span>
+          <button onClick={() => setDay(shiftISO(day, -1))} title="Oldingi kun" style={navBtn}>◀</button>
+          <input type="date" value={day} max={todayISO()} onChange={e => setDay(e.target.value || todayISO())}
+            style={{ padding: '6px 8px', fontSize: 13, border: '1px solid #0288d1', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' }} />
+          <button onClick={() => setDay(shiftISO(day, 1))} disabled={isToday} title="Keyingi kun"
+            style={{ ...navBtn, opacity: isToday ? 0.4 : 1, cursor: isToday ? 'default' : 'pointer' }}>▶</button>
+          {!isToday && (
+            <button onClick={() => setDay(todayISO())} style={{ ...navBtn, padding: '6px 14px', fontWeight: 'bold', background: '#01579b', color: '#fff', borderColor: '#01579b' }}>
+              Bugunga qaytish
+            </button>
+          )}
+        </div>
+      ) : (
+        <DateRangeFilter value={range} onChange={setRange} color="#01579b" />
+      )}
 
       {/* ── JONLI QOLDIQ ───────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -171,8 +195,8 @@ export default function Distribution() {
           ketardi va xodim buni sezmasdi. O'tgan kun — faqat ko'rish rejimi. */}
       {!isToday && (
         <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff8e1', border: '1px solid #ffb300', borderRadius: 6, fontSize: 13, color: '#8d6e00' }}>
-          👁 <b>{t}</b> — o'tgan kun ko'rilmoqda, faqat o'qish uchun. Yangi taqsimot kiritish uchun
-          {' '}<b>"Bugunga qaytish"</b> tugmasini bosing.
+          👁 <b>{kunNomi}</b> — {isRange ? 'oraliq' : "o'tgan kun"} ko'rilmoqda, faqat o'qish uchun.
+          {' '}Yangi taqsimot kiritish uchun <b>"📅 Bitta kun"</b> rejimida bugungi sanani tanlang.
         </div>
       )}
 
@@ -230,21 +254,23 @@ export default function Distribution() {
       </form>
       </>)}
 
-      {/* ── TANLANGAN KUN TAQSIMOTI ────────────────────────────────────────── */}
+      {/* ── TANLANGAN DAVR TAQSIMOTI ───────────────────────────────────────── */}
       <div style={{ fontWeight: 'bold', fontSize: 14, color: '#01579b', marginBottom: 8 }}>
-        📋 {isToday ? 'Bugungi taqsimot' : `${t} taqsimoti`} ({todaySales.length} ta · {fmtT(bugunTaqsimlangan)} tn)
+        📋 {isToday ? 'Bugungi taqsimot' : `${kunNomi} taqsimoti`} ({todaySales.length} ta · {fmtT(bugunTaqsimlangan)} tn)
       </div>
       {todaySales.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic' }}>
           {isToday
             ? 'Bugun hali taqsimot kiritilmagan. Yuqoridan boshlang.'
-            : `${t} kuni bu skladdan taqsimot bo'lmagan.`}
+            : `${kunNomi} — bu skladdan taqsimot bo'lmagan.`}
         </p>
       ) : (
-        <table className="data-table" style={{ width: '100%', maxWidth: 820 }}>
+        <table className="data-table" style={{ width: '100%', maxWidth: 900 }}>
           <thead>
             <tr>
               <th style={{ width: 30 }}>#</th>
+              {/* Oraliqda bir necha kun aralashadi — sana ustuni kerak */}
+              {isRange && <th style={{ width: 84 }}>Sana</th>}
               <th style={{ width: 60 }}>Vaqt</th>
               <th>Mijoz</th>
               <th style={{ textAlign: 'right', width: 90 }}>Tonna</th>
@@ -255,13 +281,16 @@ export default function Distribution() {
             </tr>
           </thead>
           <tbody>
-            {[...todaySales].sort((a, b) => b.createdAt - a.createdAt).map((r, i) => {
+            {/* Oraliqda avval SANA bo'yicha (yangi → eski), bir kun ichida
+                kiritilish vaqti bo'yicha tartiblanadi. */}
+            {(isRange ? sortByDateDesc(todaySales) : [...todaySales].sort((a, b) => b.createdAt - a.createdAt)).map((r, i) => {
               const sum = Number(r.tons || 0) * Number(r.pricePerTon || 0);
               const isNasiya = r.paymentChannel === 'nasiya';
               const isEdit = editId === r.id;
               return (
                 <tr key={r.id} style={{ background: isEdit ? '#fffde7' : (i % 2 === 0 ? '#fff' : '#f7fbfd') }}>
                   <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{todaySales.length - i}</td>
+                  {isRange && <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#555' }}>{r.date}</td>}
                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{timeOf(r.createdAt)}</td>
                   <td style={{ fontWeight: 'bold', color: '#01579b' }}>
                     {isEdit ? (
@@ -327,7 +356,8 @@ export default function Distribution() {
               );
             })}
             <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-              <td colSpan={3} style={{ textAlign: 'right' }}>JAMI</td>
+              {/* Sana ustuni qo'shilsa JAMI ham bir katak kengroq bo'lishi kerak */}
+              <td colSpan={isRange ? 4 : 3} style={{ textAlign: 'right' }}>JAMI</td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtT(bugunTaqsimlangan)} tn</td>
               <td></td>
               <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(todaySales.reduce((s, r) => s + Number(r.tons || 0) * Number(r.pricePerTon || 0), 0))}</td>
@@ -342,6 +372,12 @@ export default function Distribution() {
 
 // Kun tanlash tugmalari (◀ ▶ va "Bugunga qaytish")
 const navBtn = { padding: '6px 10px', cursor: 'pointer', border: '1px solid #0288d1', background: '#fff', color: '#01579b', borderRadius: 4, fontSize: 13 };
+// Rejim tugmalari: "Bitta kun" / "Sanadan–sanagacha"
+const modeBtn = (active) => ({
+  padding: '6px 16px', cursor: 'pointer', borderRadius: 6, fontSize: 13, fontWeight: 'bold',
+  border: `2px solid ${active ? '#01579b' : '#ccc'}`,
+  background: active ? '#01579b' : '#fff', color: active ? '#fff' : '#333',
+});
 
 // Jadval ichidagi tahrir maydonlari — qator balandligi o'zgarmasin uchun kichik
 const editInp = { width: 78, padding: '2px 4px', fontSize: 13, border: '1px solid #0288d1', borderRadius: 3, fontFamily: 'monospace', textAlign: 'right' };
