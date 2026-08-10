@@ -14,6 +14,24 @@ import { findCust } from '../lib/customerRef';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
+// Zavod vaqtidan faqat soat:daqiqa ("2026-08-09 14:35:12" → "14:35").
+// Sana maydoni tizim bo'yicha "kk.oo.yyyy" — soat/daqiqa faqat factoryTime'da
+// saqlanadi, shuning uchun kartochkada sana yonida alohida ko'rsatiladi.
+const ftClock = (ft) => { const m = String(ft || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
+// Bu tuzatishdan OLDIN yozilgan qarz/kassa qatorlarida factoryTime yo'q —
+// ular uchun vaqt o'zi kelib chiqqan sotuvdan olinadi (sourceId orqali).
+const ftOf = (row, sales) => row.factoryTime
+  || (row.sourceType === 'sale' ? (sales.find(x => x.id === row.sourceId)?.factoryTime || '') : '');
+const DateCell = ({ row, sales = [] }) => {
+  const ft = ftOf(row, sales);
+  const t  = ftClock(ft);
+  return (
+    <td style={{ fontSize: 12 }}>
+      <div>{row.date || '—'}</div>
+      {t && <div style={{ fontSize: 10, fontWeight: 'bold', color: '#e65100' }} title={`Zavod vaqti: ${ft}`}>🕒 {t}</div>}
+    </td>
+  );
+};
 
 export default function CustomerCard({ name, onClose }) {
   const data = useData();
@@ -196,7 +214,7 @@ export default function CustomerCard({ name, onClose }) {
                 <tbody>
                   {[...s.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => (
                     <tr key={r.id}>
-                      <td style={{ fontSize: 12 }}>{r.date}</td>
+                      <DateCell row={r} />
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtT(r.tons)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.pricePerTon)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
@@ -219,7 +237,7 @@ export default function CustomerCard({ name, onClose }) {
                     const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
                     return (
                       <tr key={r.id}>
-                        <td style={{ fontSize: 12 }}>{r.date}</td>
+                        <DateCell row={r} sales={s.sales} />
                         <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.amount)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(r.paid)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: qoldiq > 0 ? '#c62828' : '#888' }}>{fmt(qoldiq)}</td>
@@ -479,7 +497,10 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                     return (
                       <tr key={r.id} style={{ background: i % 2 === 0 ? '#fff8f8' : '#fff' }}>
                         <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
-                        <td style={{ ...aTd, fontWeight: 'bold' }}>{r.date || '—'}</td>
+                        <td style={{ ...aTd, fontWeight: 'bold' }}>
+                          {r.date || '—'}
+                          {ftClock(ftOf(r, s.sales)) && <div style={{ fontSize: 9, fontWeight: 'normal', color: '#555' }}>{ftClock(ftOf(r, s.sales))}</div>}
+                        </td>
                         <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
                         <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>
                         <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold', color: left > 0 ? '#c00' : '#006600' }}>{fmt(left)}</td>

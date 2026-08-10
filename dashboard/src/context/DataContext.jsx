@@ -1059,7 +1059,11 @@ export function DataProvider({ children }) {
       // ataylab bo'sh — customerSummary shu bo'shliqqa qarab "bog'lanmagan pul"ni
       // ajratadi. customerId qo'shilsa, sotuvdan tushgan naqd u yerga ikkinchi
       // marta kirib, mijoz kartochkasidagi summa ikkilanardi.
-      const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date };
+      // factoryTime ham ko'chiriladi: sale.date faqat "kk.oo.yyyy" (filtrlar shuni
+      // talab qiladi), soat/daqiqa esa YO'QOLARDI — qarz qatorida yukning aniq
+      // vaqti ko'rinmay, bir kunda ikki mashina kelganda qaysi biri ekani
+      // noaniq bo'lardi.
+      const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date, factoryTime: sale.factoryTime || '' };
       const channel = sale.paymentChannel || 'naqd';
       if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
@@ -1164,7 +1168,7 @@ export function DataProvider({ children }) {
 
     if (sum > 0) {
       const tag  = `🔗 Sotuv: ${next.customer} (${fmtTons(next.tons)} tn)${next.vehicleNo ? ` | 🚛 ${next.vehicleNo}` : ''}`;
-      const link = { auto: true, sourceType: 'sale', sourceId: id, createdAt: next.createdAt || id, worker: currentWorker, date: next.date };
+      const link = { auto: true, sourceType: 'sale', sourceId: id, createdAt: next.createdAt || id, worker: currentWorker, date: next.date, factoryTime: next.factoryTime || '' };
       if      (ch === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (ch === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (ch === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);

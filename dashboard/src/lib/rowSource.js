@@ -59,6 +59,7 @@ export function rowFields(kind, row) {
     if (num(row.advanceUsed) > 0) add('Avansdan yechilgan', `${fmt(row.advanceUsed)} so'm`);
     add('Izoh', row.note || row.izoh);
     add('Mashina №', row.vehicleNo);
+    add('Zavod vaqti', row.factoryTime);
   } else if (kind === 'sklad') {
     add('Mijoz', row.customer);
     add('Miqdor', `${fmt(Math.abs(num(row.kg)))} kg`);
@@ -82,6 +83,7 @@ export function rowFields(kind, row) {
     add("To'langan", `${fmt(row.paid)} so'm`);
     add('Qoldiq', `${fmt(Math.max(0, num(row.amount) - num(row.paid)))} so'm`);
     add("To'lovlar soni", (row.payments || []).length || undefined);
+    add('Zavod vaqti', row.factoryTime);
     add('Izoh', row.note);
   } else if (kind === 'advance') {
     add('Mijoz', row.customer);
