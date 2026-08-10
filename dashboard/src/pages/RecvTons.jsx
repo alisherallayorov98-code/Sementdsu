@@ -104,6 +104,13 @@ export default function RecvTons({ lang }) {
   } = useData();
   // Sotuvchi mijozning avansi/qarzini yoddan bilmaydi — taqsimlash oynasida
   // mijoz tanlangan zahoti shu ikki raqam ko'rsatiladi (pastda "CustBalance").
+  // Ommaviy o'chirish faqat Sozlamalarda ruxsat berilgan bo'lsa ishlaydi.
+  // Admin bu ruxsatni yopganda tugma ham, belgilash ustuni ham yo'qoladi.
+  const bulkOn = !!appSettings?.allowBulkDelete;
+  // Ruxsat yopilsa, ilgari belgilangan qatorlar "osilib" qolmasin —
+  // aks holda ruxsat qayta ochilganda eski tanlov bilan o'chirilib ketardi.
+  useEffect(() => { if (!bulkOn) setSelected(new Set()); }, [bulkOn]);
+
   // Ombor nomi (taqsimlanmagan tonna qayerda qolishini aytish uchun)
   const whNameOf = (id) => (warehouses.find(w => w.id === id) || {}).name || 'Asosiy ombor';
   const debtBalanceOf = (name) => custRows(debtRows, custRef(name))
@@ -389,6 +396,9 @@ export default function RecvTons({ lang }) {
   };
 
   const handleBulkDelete = () => {
+    // Ikkinchi to'siq: ruxsat yopiq bo'lsa, tugma ko'rinmasa ham funksiya
+    // ishlamasin (eski tanlov yoki tasodifiy chaqiruvdan himoya).
+    if (!appSettings?.allowBulkDelete) { alert("Ommaviy o'chirishga ruxsat yo'q (Sozlamalardan yoqiladi)."); return; }
     if (selected.size === 0) return;
     // Sotuvi bor yuklarni oldindan ajratamiz — aks holda har biri uchun
     // alohida ogohlantirish oynasi chiqib ketardi.
@@ -829,7 +839,12 @@ export default function RecvTons({ lang }) {
         <p style={{ color:'#666', fontStyle:'italic' }}>{L.yoq[lang]}</p>
       ) : (
         <>
-        {/* ── Ommaviy o'chirish paneli ── */}
+        {/* ── Ommaviy o'chirish paneli ──
+            Sozlamalardagi "Ommaviy o'chirishga ruxsat" bandiga BOG'LANGAN.
+            Ilgari panel ham, belgilash ustuni ham har doim chizilardi va
+            sozlama hech narsani boshqarmasdi (o'chirilgan bo'lsa ham
+            xodim yozuvlarni belgilab o'chira olardi). */}
+        {bulkOn && (
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6, padding:'6px 10px', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:6 }}>
           <span style={{ fontSize:12, color:'#e65100', fontWeight:'bold' }}>☑ Ommaviy o'chirish:</span>
           {selected.size > 0 ? (
@@ -847,13 +862,16 @@ export default function RecvTons({ lang }) {
             <span style={{ fontSize:11, color:'#888' }}>Qatorlarni belgilang (chap ustun)</span>
           )}
         </div>
+        )}
         <div style={{ overflowX:'auto' }}>
           <table className="data-table" style={{ width:'100%', minWidth:1000 }}>
             <thead>
               <tr>
-                <th style={{ width:30, textAlign:'center' }}>
-                  <input type="checkbox" checked={allPageSelected} onChange={toggleAllPage} title="Sahifadagi hammasini belgilash" />
-                </th>
+                {bulkOn && (
+                  <th style={{ width:30, textAlign:'center' }}>
+                    <input type="checkbox" checked={allPageSelected} onChange={toggleAllPage} title="Sahifadagi hammasini belgilash" />
+                  </th>
+                )}
                 <th style={{ width:30 }}>#</th>
                 <th style={{ width:85 }}>{L.sana[lang]}</th>
                 <th style={{ width:160 }}>{L.manbaa[lang]}</th>
@@ -883,9 +901,11 @@ export default function RecvTons({ lang }) {
                     style={focused
                       ? FOCUS_STYLE
                       : { background: isSelected ? '#fff3e0' : r.pending ? '#fff8c4' : (i%2===0?'#fff':'#f5f5f5') }}>
-                    <td style={{ textAlign:'center' }}>
-                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)} />
-                    </td>
+                    {bulkOn && (
+                      <td style={{ textAlign:'center' }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)} />
+                      </td>
+                    )}
                     <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>
                       {r.pending ? <span title="Tekshirilmagan" style={{ color:'#e65100' }}>⚠</span> : filtered.length-absIdx}
                     </td>
@@ -956,12 +976,9 @@ export default function RecvTons({ lang }) {
                 );
               })}
               <tr style={{ background:'#ffff00', fontWeight:'bold' }}>
-                {/* Belgilash ustuni HAR DOIM chiziladi (sarlavha va qatorlarda
-                    ham), shuning uchun jami qatorida ham bo'lishi shart.
-                    Ilgari u appSettings.allowBulkDelete ga bog'langan edi va
-                    sozlama o'chiq bo'lsa JAMI raqamlari ikki ustun chapga
-                    siljib, tonna "Tur" ustuni tagida turardi. */}
-                <td></td>
+                {/* Belgilash ustuni bo'lganda jami qatorida ham bo'sh katak
+                    kerak — aks holda raqamlar bir ustun chapga siljiydi. */}
+                {bulkOn && <td></td>}
                 <td colSpan={7} style={{ textAlign:'right' }}>{L.jami_lbl[lang]}</td>
                 <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtT(totalTons)} tn</td>
                 <td></td>
