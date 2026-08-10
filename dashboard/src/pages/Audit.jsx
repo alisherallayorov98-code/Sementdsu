@@ -11,14 +11,17 @@ const ACTION = {
   update: { label: 'O\'zgartirildi', color: '#ef6c00', icon: '✎' },
   delete: { label: 'O\'chirildi', color: '#c62828', icon: '🗑' },
 };
-const SEV = { high: { bg: '#ffebee', border: '#c62828', color: '#c62828', label: 'Yuqori' },
+const SEV = { critical: { bg: '#b71c1c', border: '#7f0000', color: '#fff', label: 'ENG XAVFLI' },
+              high: { bg: '#ffebee', border: '#c62828', color: '#c62828', label: 'Yuqori' },
               medium: { bg: '#fff8e1', border: '#ef6c00', color: '#ef6c00', label: 'O\'rta' } };
+// Eng yuqori toifa: yopilgan kunga qaytib yozilgan tonna yoki pul chiqimi.
+const isCritical = (e) => (e.flags || []).some(f => f.severity === 'critical');
 
 export default function Audit() {
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr]       = useState('');
-  const [tab, setTab]       = useState('suspicious'); // suspicious | all
+  const [tab, setTab]       = useState('critical'); // critical | suspicious | all
   const [q, setQ]           = useState('');
 
   const refresh = () => {
@@ -33,7 +36,9 @@ export default function Audit() {
   const entries = data?.entries || [];
   const suspicious = useMemo(() => entries.filter(e => e.flags?.length), [entries]);
 
-  const list = (tab === 'suspicious' ? suspicious : entries).filter(e =>
+  const critical = useMemo(() => entries.filter(isCritical), [entries]);
+
+  const list = (tab === 'critical' ? critical : tab === 'suspicious' ? suspicious : entries).filter(e =>
     !q || (e.userName || '').toLowerCase().includes(q.toLowerCase())
        || (e.label || '').toLowerCase().includes(q.toLowerCase())
        || (e.text || '').toLowerCase().includes(q.toLowerCase())
@@ -54,9 +59,26 @@ export default function Audit() {
       {/* Izoh */}
       <div style={{ background: '#e3f2fd', border: '1px solid #bbdefb', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#1565c0', lineHeight: 1.6 }}>
         🔒 <strong>Nazorat jurnali</strong> — har bir o'zgarish <strong>server vaqti</strong> bilan yoziladi.
-        Kassir qaysi "sana"ni qo'ymasin, server haqiqiy vaqtni biladi — shu sababli
+        Xodim qaysi "sana"ni qo'ymasin, server haqiqiy vaqtni biladi — shu sababli
         <strong> orqaga sana</strong> bilan yozilgan xarajatlar, eski yozuvlarni tahrirlash/o'chirish darrov bilinadi.
         Bu sahifa faqat sizga (admin) ko'rinadi.
+      </div>
+
+      {/* "Eng xavfli" toifaning izohi. Ayblov emas — nazoratning MA'NOSI
+          tushuntiriladi: hamma bitta hisobdan ishlagani uchun jurnal yagona
+          ishonchli guvoh bo'lib qoladi. */}
+      <div style={{ background: '#fff5f5', border: '1px solid #ef9a9a', borderLeft: '5px solid #b71c1c', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#7f0000', lineHeight: 1.7 }}>
+        🚨 <strong>"Eng xavfli" nima uchun alohida ajratilgan?</strong><br />
+        Yopilgan kunga qaytib <strong>tonna</strong> yoki <strong>pul chiqimi</strong> yozilsa, u yozuv
+        bugungi kassa va qoldiqda ko'rinmaydi — o'sha kunning hisoboti esa allaqachon tekshirilib bo'lingan bo'ladi.
+        Natijada farq o'z vaqtida sezilmay qoladi va keyin uni qayerdan izlashni topish qiyin bo'ladi.
+        Bu har doim ataylab qilinganini anglatmaydi: ko'pincha kechikib kiritilgan yuk yoki unutilgan xarajat bo'ladi.
+        Muhimi — bunday yozuv <strong>ko'zdan qochmasin</strong> va o'sha kuniyoq izohlansin.
+        Hammangiz bitta hisobdan ishlaganingiz uchun, kim va qachon kiritgani faqat shu jurnalda saqlanadi.
+        <div style={{ marginTop: 6, color: '#555' }}>
+          Qoida: 3 kun va undan uzoq orqaga sana bilan kiritilgan tonna yoki chiqim, hamda sanasi orqaga surilgan yozuv shu ro'yxatga tushadi.
+          Kechagi va bugungi yozuv odatiy hol — belgilanmaydi.
+        </div>
       </div>
 
       {/* Statistika */}
@@ -64,6 +86,7 @@ export default function Audit() {
         <Stat label="Jami o'zgarishlar" value={entries.length} color="#283593" bg="#e8eaf6" />
         <Stat label="Shubhali harakatlar" value={suspicious.length} color="#ef6c00" bg="#fff3e0" />
         <Stat label="Yuqori xavf" value={highCount} color="#c62828" bg="#ffebee" />
+        <Stat label="🚨 Eng xavfli" value={critical.length} color="#b71c1c" bg="#ffcdd2" />
         <button onClick={refresh} style={{ marginLeft: 'auto', alignSelf: 'center', padding: '8px 16px', cursor: 'pointer', background: '#1565c0', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold' }}>
           🔄 Yangilash
         </button>
@@ -71,6 +94,9 @@ export default function Audit() {
 
       {/* Tabs + qidiruv */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button onClick={() => setTab('critical')} style={tabBtn(tab === 'critical', '#b71c1c')}>
+          🚨 Eng xavfli ({critical.length})
+        </button>
         <button onClick={() => setTab('suspicious')} style={tabBtn(tab === 'suspicious', '#c62828')}>
           ⚠️ Shubhali harakatlar ({suspicious.length})
         </button>
@@ -92,6 +118,9 @@ export default function Audit() {
             { header: 'Izoh', value: e => e.text || '' },
             { header: 'Yozuv sanasi', value: e => e.recordDate || '' },
             { header: 'Summa', value: e => Number(e.amount || 0) },
+            { header: 'Daraja', value: e => (isCritical(e) ? 'ENG XAVFLI'
+                : (e.flags || []).some(f => f.severity === 'high') ? 'Yuqori'
+                : (e.flags || []).length ? "O'rta" : '') },
             { header: 'Ogohlantirish', value: e => (e.flags || []).map(f => f.text).join('; ') },
           ]}
           rows={list}
@@ -102,7 +131,9 @@ export default function Audit() {
        : err ? <p style={{ color: '#c62828' }}>Xato: {err}</p>
        : list.length === 0 ? (
         <p style={{ color: '#888', fontStyle: 'italic', marginTop: 20 }}>
-          {tab === 'suspicious' ? '✅ Shubhali harakat topilmadi.' : 'Hali o\'zgarishlar yo\'q.'}
+          {tab === 'critical' ? '✅ Yopilgan kunga qaytib yozilgan tonna yoki chiqim yo\'q — hammasi o\'z kunida kiritilgan.'
+            : tab === 'suspicious' ? '✅ Shubhali harakat topilmadi.'
+            : 'Hali o\'zgarishlar yo\'q.'}
         </p>
       ) : (
         <table className="data-table" style={{ width: '100%' }}>
@@ -120,10 +151,13 @@ export default function Audit() {
           <tbody>
             {paged.map((e, i) => {
               const act = ACTION[e.action] || { label: e.action, color: '#555', icon: '•' };
-              const topSev = e.flags?.some(f => f.severity === 'high') ? 'high' : e.flags?.length ? 'medium' : null;
-              const rowBg = topSev === 'high' ? '#fff5f5' : topSev === 'medium' ? '#fffdf5' : (i % 2 ? '#fafafa' : '#fff');
+              // Eng xavflisi qatorning o'zidan ham bilinib tursin: qizil chiziq
+              // va to'q fon — ro'yxatni varaqlaganda ko'zdan qochmaydi.
+              const crit = isCritical(e);
+              const topSev = crit ? 'critical' : e.flags?.some(f => f.severity === 'high') ? 'high' : e.flags?.length ? 'medium' : null;
+              const rowBg = topSev === 'critical' ? '#ffebee' : topSev === 'high' ? '#fff5f5' : topSev === 'medium' ? '#fffdf5' : (i % 2 ? '#fafafa' : '#fff');
               return (
-                <tr key={i} style={{ background: rowBg }}>
+                <tr key={i} style={{ background: rowBg, borderLeft: crit ? '5px solid #b71c1c' : undefined }}>
                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{fmtDateTime(e.ts)}</td>
                   <td style={{ fontWeight: 'bold' }}>{e.userName} <span style={{ fontSize: 10, color: '#999' }}>({e.role})</span></td>
                   <td style={{ color: act.color, fontWeight: 'bold' }}>{act.icon} {act.label}</td>

@@ -58,6 +58,16 @@ const isMoneyOut = (e) =>
   MONEY_OUT.has(e.coll) ||
   (CHANNEL_ROWS.has(e.coll) && Number(e.amount || 0) < 0);
 
+// TOVAR HARAKATI — tonna ham pul kabi: sotuv yozilsa qoldiq kamayadi,
+// yuk yozilsa ko'payadi. Shuning uchun sana bilan o'ynash pulnikidek jiddiy.
+const GOODS = new Set(['sales_rows', 'sold_rows', 'recv_rows', 'sklad_rows']);
+const isGoods = (e) => GOODS.has(e.coll);
+
+// Eng yuqori daraja ("critical") shu kundan boshlab qo'yiladi. Kechagi yoki
+// bugungi yuk/chiqim odatiy hol — xodim ertalab kechagini kiritishi mumkin.
+// Undan uzoq orqaga qaytish esa oddiy kechikish bilan izohlanmaydi.
+const BACKDATE_CRIT_DAYS = 3;
+
 // Ochilish qoldig'i (obyekt) — to'g'ridan-to'g'ri qoldiqqa ta'sir qiladi, firibgarlik vektori
 const OPENINGS = {
   cash_opening:   'Naqd ochilish qoldig\'i',
@@ -175,12 +185,20 @@ function analyze(e) {
   const recDay = parseDate(e.recordDate);
   const gapDays = recDay ? Math.round((serverDay.getTime() - recDay) / DAY) : 0;
 
-  // 1) ORQAGA SANA: yozuv bugun yaratildi, lekin sanasi o'tmishda
+  // 1) ORQAGA SANA: yozuv bugun yaratildi, lekin sanasi o'tmishda.
+  // Eng jiddiy holat — PUL CHIQIMI yoki TONNA o'tgan kun bilan kiritilishi:
+  // bunday yozuv bugungi kassa/qoldiqda ko'rinmaydi, kunlik hisobot esa
+  // allaqachon yopilgan bo'ladi — ya'ni farq o'z vaqtida sezilmay qoladi.
   if (e.action === 'create' && recDay && gapDays > 1) {
+    const risky = isMoneyOut(e) || isGoods(e);
     flags.push({
-      type: 'backdate',
-      severity: isMoneyOut(e) ? 'high' : (gapDays > 7 ? 'high' : 'medium'),
-      text: `Orqaga sana: ${gapDays} kun oldingi sana bilan kiritildi`,
+      type: risky ? 'backdate-value' : 'backdate',
+      severity: risky
+        ? (gapDays >= BACKDATE_CRIT_DAYS ? 'critical' : 'high')
+        : (gapDays > 7 ? 'high' : 'medium'),
+      text: risky
+        ? `${gapDays} kun oldingi sana bilan kiritildi — bugungi kassa/qoldiqda ko'rinmaydi`
+        : `Orqaga sana: ${gapDays} kun oldingi sana bilan kiritildi`,
     });
   }
   // 2) ESKI YOZUVNI TAHRIRLASH/O'CHIRISH
@@ -209,7 +227,19 @@ function analyze(e) {
       flags.push({ type: 'amount-down', severity: 'medium', text: `Summa kamaytirildi: ${amt.from} → ${amt.to}` });
     }
     const dt = e.changes.find(c => c.field === 'date');
-    if (dt) flags.push({ type: 'date-changed', severity: 'high', text: `Sana o'zgartirildi: ${dt.from} → ${dt.to}` });
+    if (dt) {
+      // Sanani ORQAGA surish — yuqoridagi bilan bir xil natija beradi:
+      // yozuv bugungi hisobotdan chiqib, yopilgan kunga o'tib ketadi.
+      const back = parseDate(dt.from) && parseDate(dt.to) && parseDate(dt.to) < parseDate(dt.from);
+      const risky = isMoneyOut(e) || isGoods(e);
+      flags.push({
+        type: back ? 'date-moved-back' : 'date-changed',
+        severity: back && risky ? 'critical' : 'high',
+        text: back
+          ? `Sana orqaga surildi: ${dt.from} → ${dt.to}`
+          : `Sana o'zgartirildi: ${dt.from} → ${dt.to}`,
+      });
+    }
   }
   // 5) Xavfsizlik: rol yoki parol o'zgarishi
   if (e.coll === 'workers' && e.changes) {
@@ -238,4 +268,6 @@ function read(account, { limit = 1000 } = {}) {
   }
 }
 
-module.exports = { recordChanges, read };
+// analyze testlar uchun ham eksport qilinadi (nazorat qoidalari o'zgarsa
+// darrov bilinishi kerak).
+module.exports = { recordChanges, read, analyze };

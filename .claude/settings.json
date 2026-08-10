@@ -159,7 +159,8 @@
       "Bash(kartochkada 'korsatiladigani bilan bir xil, testlangan *)",
       "Bash(qarz/kassa qatoriga contractNo 'bolib yoziladi \\(izlash uchun\\) *)",
       "Bash(npx node *)",
-      "Bash(node --test src/lib/cementBrand.test.js)"
+      "Bash(node --test src/lib/cementBrand.test.js)",
+      "Bash(node --test src/lib/saleTicket.test.js)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
