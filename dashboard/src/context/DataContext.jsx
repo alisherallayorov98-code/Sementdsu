@@ -3,6 +3,7 @@ import { api } from '../api';
 import { sameCust, custRows, custFields, findCust, custKey, sameName, uniqueNames } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
 import { planDebtPayment, planAdvanceSpend } from '../lib/debtAllocation';
+import { takenAt } from '../lib/saleTime';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
@@ -1033,13 +1034,13 @@ export function DataProvider({ children }) {
   //   · tiket (shartnoma №) — qarz qaysi tiketdagi yukdan chiqqani.
   // Ilgari faqat "mijoz (tonna) | mashina" yozilardi va qarzga qarab yukni
   // topib bo'lmasdi.
-  const clockOf = (ft) => { const m = String(ft || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
+  // Vaqt mantiqi lib/saleTime.js da (ko'rsatish bilan bir xil, testlangan):
+  // zavod vaqti bo'lsa o'sha, bo'lmasa yozuv kiritilgan payt.
   const saleTag = (sale, ts) => {
-    const ftClk = clockOf(sale.factoryTime);
-    const clk   = ftClk || new Date(Number(ts) || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const t     = takenAt({ ...sale, createdAt: sale.createdAt || ts });
     const tiket = String(sale.contractNo || '').trim();
     return `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)`
-      + ` | 🕒 ${clk}${ftClk ? '' : ' (kiritildi)'}`
+      + (t ? ` | 🕒 ${t.time}${t.factory ? '' : ' (kiritildi)'}` : '')
       + (tiket ? ` | 🎫 ${tiket}` : '')
       + (sale.vehicleNo ? ` | 🚛 ${sale.vehicleNo}` : '');
   };

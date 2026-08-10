@@ -152,7 +152,12 @@
       "Bash(python)",
       "Bash(node --test src/lib/birjaRecon.test.js)",
       "Bash(sed -n '/Hech narsa taqsimlanmagan/,+3p' pages/RecvTons.jsx)",
-      "Bash(sed -n '/const total = Number\\(verifyRow.tons\\)/,+12p' pages/RecvTons.jsx)"
+      "Bash(sed -n '/const total = Number\\(verifyRow.tons\\)/,+12p' pages/RecvTons.jsx)",
+      "Bash(Endi sotuvdan 'tugilgan qarz/kassa izohi: *)",
+      "Bash(payt \"\\(kiritildi\\)\" belgisi bilan)",
+      "Bash(mantiq lib/saleTime.js dagi takenAt —)",
+      "Bash(kartochkada 'korsatiladigani bilan bir xil, testlangan *)",
+      "Bash(qarz/kassa qatoriga contractNo 'bolib yoziladi \\(izlash uchun\\) *)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
