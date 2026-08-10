@@ -12,6 +12,10 @@ const CEMENT_MARKS = [
   '42.5N в россып', '42.5N в мешках',
 ];
 
+// Bitta tiket bo'yicha ko'rsatiladigan zayavka soni: eski tiketda yuzlab
+// zayavka bo'lishi mumkin, oyna esa hammasini birdan chizardi.
+const LOG_MAX = 100;
+
 export default function Tiketlar() {
   const { tickets, addTicket, closeTicket, reopenTicket, deleteTicket, appSettings } = useData();
   const color = appSettings.themeColor || '#1565c0';
@@ -22,6 +26,7 @@ export default function Tiketlar() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null); // o'chirish tasdiqlash
   const [detailTicket, setDetailTicket]       = useState(null); // { ticket, log, loading }
 
+  const CLOSED_MAX = 50;   // yopilgan tiketlardan bir vaqtda ko'rsatiladigani
   const openTickets   = tickets.filter(t => t.status === 'open');
   const closedTickets = tickets.filter(t => t.status !== 'open');
 
@@ -143,7 +148,10 @@ export default function Tiketlar() {
           </button>
           {showClosed && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filtered(closedTickets).map(t => (
+              {/* Yopilganlari yildan yilga to'planadi — hammasi kartochka
+                  bo'lib chizilsa sahifa og'irlashadi. Oxirgi CLOSED_MAX tasi
+                  ko'rsatiladi, qolganini qidiruv orqali topiladi. */}
+              {filtered(closedTickets).slice(0, CLOSED_MAX).map(t => (
                 <TicketCard key={t.id} ticket={t} color="#888" closed
                   onDetail={() => openDetail(t)}
                   onReopen={() => reopenTicket(t.id)}
@@ -153,6 +161,11 @@ export default function Tiketlar() {
                   onDeleteConfirm={() => confirmDelete(t.id)}
                 />
               ))}
+              {filtered(closedTickets).length > CLOSED_MAX && (
+                <div style={{ fontSize: 12, color: '#e65100', background: '#fff8e1', padding: '8px 12px', borderRadius: 6, textAlign: 'center' }}>
+                  … yana {filtered(closedTickets).length - CLOSED_MAX} ta yopilgan tiket — kerakligini yuqoridagi qidiruvdan toping.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -321,7 +334,7 @@ function TicketDetailModal({ ticket, log, loading, onClose, color }) {
                 </tr>
               </thead>
               <tbody>
-                {log.map((z, i) => {
+                {log.slice(0, LOG_MAX).map((z, i) => {
                   const tonna = Number(z.values?.tonna || z.values?.ton || 0);
                   // values dan mashina va haydovchi ma'lumotlarini chiqarish
                   const infoFields = Object.entries(z.values || {})

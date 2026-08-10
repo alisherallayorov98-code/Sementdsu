@@ -8,11 +8,12 @@
 // Faqat NAZORATGA belgilangan mijozlar tekshiriladi. Muddatni global yoki har bir
 // mijozga alohida (10 kun / 2 hafta / 1 oy) qo'yish mumkin.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { customerSummaryAll } from '../lib/customerSummary';
 import { activityStatus, effectiveDays } from '../lib/monitoring';
 import CustomerCard from '../components/CustomerCard';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -69,6 +70,14 @@ export default function Monitoring() {
     if (filter === 'alert') return m.act.status.key === 'alert' || m.act.status.key === 'never';
     return m.act.status.key === filter;
   });
+  // Nazoratdagi mijozlar soni o'sib boradi va ro'yxat to'liq chizilardi.
+  // Boshqa bo'limlardagi kabi 100 tadan; filtr o'zgarsa birinchi sahifaga.
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [filter]);
+  const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const curPage = Math.min(page, totalPages);
+  const paged = shown.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
   const saveDays = (id) => {
     setMonitor(id, true, Number(daysVal) || null);
@@ -138,7 +147,8 @@ export default function Monitoring() {
             </tr>
           </thead>
           <tbody>
-            {shown.map((m, i) => {
+            {paged.map((m, i0) => {
+              const i = (curPage - 1) * PAGE_SIZE + i0;
               const { c, s, act } = m;
               const st = act.status;
               return (
@@ -197,6 +207,7 @@ export default function Monitoring() {
           </tbody>
         </table>
       )}
+      <Paginator total={shown.length} page={curPage} setPage={setPage} pageSize={PAGE_SIZE} />
 
       {card && <CustomerCard name={card} onClose={() => setCard(null)} />}
     </div>

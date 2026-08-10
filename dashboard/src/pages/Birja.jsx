@@ -17,6 +17,7 @@ import { parseNum } from '../lib/parseNum';
 import { excelDateToStr } from '../lib/excelDate';
 import ExcelExport from '../components/ExcelExport';
 import { useFocusRow, FOCUS_STYLE } from '../lib/useFocusRow';
+import Paginator from '../components/Paginator';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -69,7 +70,15 @@ export default function Birja() {
     if (only === 'yopilgan') return r.closed;
     return true;
   });
-  const { rowRef: focusRef, isFocused } = useFocusRow(view, 1000, null);
+  // Tiketlar yildan yilga to'planadi va hammasi birdan chizilardi. Endi
+  // 100 tadan ko'rsatiladi; JAMI qatori esa filtrga tushgan BARCHA tiket
+  // bo'yicha hisoblanadi (sahifa bo'yicha emas) — solishtiruv buzilmasin.
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
+  const curPage = Math.min(page, totalPages);      // filtr qisqarsa oxirgi sahifada qolib ketmaslik
+  const paged = view.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+  const { rowRef: focusRef, isFocused } = useFocusRow(view, PAGE_SIZE, setPage);
 
   // ── Excel o'qish ───────────────────────────────────────────────────────────
   const handleFile = (e) => {
@@ -309,7 +318,8 @@ export default function Birja() {
             </tr>
           </thead>
           <tbody>
-            {view.map((r, i) => {
+            {paged.map((r, i0) => {
+              const i = (curPage - 1) * PAGE_SIZE + i0;   // raqamlash uzluksiz
               const st = STATUS_LABEL[r.status] || { text: r.status, color: '#333', bg: '#f5f5f5' };
               const open = detail === r.key;
               return (
@@ -430,6 +440,7 @@ export default function Birja() {
           </tbody>
         </table>
       )}
+      <Paginator total={view.length} page={curPage} setPage={setPage} pageSize={PAGE_SIZE} />
     </div>
   );
 }

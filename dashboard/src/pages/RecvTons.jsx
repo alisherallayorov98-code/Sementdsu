@@ -140,6 +140,7 @@ export default function RecvTons({ lang }) {
   const [filterContract, setFilterContract] = useState(''); // shartnoma (tiket) №
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 100;
+  const PREVIEW_MAX = 200;   // Excel preview'da ko'rsatiladigan eng ko'p qator
   const [importRows,   setImportRows]   = useState(null); // Excel preview
   const [bulkContract, setBulkContract] = useState('');   // preview: barchasiga tiket №
   const [modalSource,  setModalSource]  = useState(null); // Akt Sverka
@@ -697,7 +698,11 @@ export default function RecvTons({ lang }) {
                 </tr>
               </thead>
               <tbody>
-                {importRows.map((r, i) => (
+                {/* Katta fayl (mingdan ortiq qator) to'liq chizilsa brauzer
+                    qotib qolardi. Ko'rish uchun birinchi 200 qator yetarli —
+                    JAMI qatori baribir butun fayl bo'yicha hisoblanadi va
+                    import ham hamma qatorni oladi. */}
+                {importRows.slice(0, PREVIEW_MAX).map((r, i) => (
                   <tr key={i} style={{ background: i%2===0?'#f0fff0':'#fff' }}>
                     <td style={{ textAlign:'center', color:'#888', fontSize:11 }}>{i+1}</td>
                     <td style={{ fontWeight:'bold', color:'#003366', fontSize:11 }}>{r.source}</td>
@@ -713,6 +718,13 @@ export default function RecvTons({ lang }) {
                     <td style={{ fontSize:10 }}>{r.cardName}</td>
                   </tr>
                 ))}
+                {importRows.length > PREVIEW_MAX && (
+                  <tr>
+                    <td colSpan={10} style={{ textAlign:'center', fontSize:12, color:'#e65100', background:'#fff8e1', padding:'8px' }}>
+                      … yana {importRows.length - PREVIEW_MAX} ta qator ko'rsatilmadi (hammasi import qilinadi)
+                    </td>
+                  </tr>
+                )}
                 <tr style={{ background:'#ffff00', fontWeight:'bold' }}>
                   <td colSpan={5} style={{ textAlign:'right' }}>JAMI:</td>
                   <td style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtT(totTn)} tn</td>

@@ -57,6 +57,24 @@ export default function CustomerCard({ name, onClose }) {
     );
   };
 
+  // Uzoq ishlagan mijozda har bo'lim yuzlab qatorga yetadi va kartochka
+  // ochilishi sekinlashardi (hammasi birdan chizilardi). Endi oxirgi CAP tasi
+  // ko'rsatiladi, qolganini bir bosishda ochish mumkin — yig'indi kartochkalari
+  // baribir BARCHA yozuv bo'yicha hisoblanadi.
+  const CAP = 50;
+  const [openAll, setOpenAll] = useState({});
+  const cap = (key, list) => (openAll[key] ? list : list.slice(0, CAP));
+  const moreRow = (key, list, cols) => (list.length > CAP && !openAll[key] ? (
+    <tr>
+      <td colSpan={cols} style={{ textAlign: 'center', padding: '8px', background: '#fff8e1' }}>
+        <button onClick={() => setOpenAll(p => ({ ...p, [key]: true }))}
+          style={{ background: 'none', border: '1px solid #e65100', color: '#e65100', borderRadius: 4, padding: '3px 12px', cursor: 'pointer', fontSize: 12 }}>
+          … yana {list.length - CAP} ta — hammasini ko'rsatish
+        </button>
+      </td>
+    </tr>
+  ) : null);
+
   const [notify,  setNotify]  = useState(false);
   const [showAkt, setShowAkt] = useState(false);
   // "Bu yozuv qayerdan keldi?" oynasi — har qatordagi 🔎 tugmasi ochadi.
@@ -211,7 +229,7 @@ export default function CustomerCard({ name, onClose }) {
               <table className="data-table" style={{ width: '100%' }}>
                 <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Tonna</th><th style={{ textAlign: 'right' }}>Narx/tn</th><th style={{ textAlign: 'right' }}>Summa</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
-                  {[...s.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => (
+                  {cap('sales', [...s.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => (
                     <tr key={r.id}>
                       <DateCell row={r} />
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtT(r.tons)}</td>
@@ -221,6 +239,7 @@ export default function CustomerCard({ name, onClose }) {
                       <td><SrcBtn onClick={() => setSource({ kind: kindOfSale(r), row: r })} /></td>
                     </tr>
                   ))}
+                  {moreRow('sales', s.sales, 6)}
                 </tbody>
               </table>
             )}
@@ -232,7 +251,7 @@ export default function CustomerCard({ name, onClose }) {
               <table className="data-table" style={{ width: '100%' }}>
                 <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Qarz</th><th style={{ textAlign: 'right' }}>To'landi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
-                  {[...s.debts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
+                  {cap('debts', [...s.debts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => {
                     const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
                     return (
                       <tr key={r.id}>
@@ -245,6 +264,7 @@ export default function CustomerCard({ name, onClose }) {
                       </tr>
                     );
                   })}
+                  {moreRow('debts', s.debts, 6)}
                 </tbody>
               </table>
             )}
@@ -256,7 +276,7 @@ export default function CustomerCard({ name, onClose }) {
               <table className="data-table" style={{ width: '100%' }}>
                 <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Avans</th><th style={{ textAlign: 'right' }}>Ishlatildi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
-                  {[...s.advs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
+                  {cap('advs', [...s.advs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => {
                     const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.used || 0));
                     return (
                       <tr key={r.id}>
@@ -269,6 +289,7 @@ export default function CustomerCard({ name, onClose }) {
                       </tr>
                     );
                   })}
+                  {moreRow('advs', s.advs, 6)}
                 </tbody>
               </table>
             )}
@@ -287,7 +308,7 @@ export default function CustomerCard({ name, onClose }) {
               <table className="data-table" style={{ width: '100%' }}>
                 <thead><tr><th>Sana</th><th>Kanal</th><th>Izoh</th><th style={{ textAlign: 'right' }}>Summa</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
-                  {[...s.unlinked].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(r => {
+                  {cap('unlinked', [...s.unlinked].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => {
                     const chLbl = { naqd: '💵 Naqd', bank: '🏦 Bank', click: '📱 Click' }[r._ch] || r._ch;
                     const pos = Number(r.amount) > 0;
                     return (
@@ -302,6 +323,7 @@ export default function CustomerCard({ name, onClose }) {
                       </tr>
                     );
                   })}
+                  {moreRow('unlinked', s.unlinked, 5)}
                 </tbody>
               </table>
             </Section>
@@ -313,7 +335,7 @@ export default function CustomerCard({ name, onClose }) {
               <table className="data-table" style={{ width: '100%' }}>
                 <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Tonna</th><th>Holati</th><th>Izoh</th></tr></thead>
                 <tbody>
-                  {[...s.orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(o => (
+                  {cap('orders', [...s.orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(o => (
                     <tr key={o.id}>
                       <td style={{ fontSize: 12 }}>{o.date}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtT(o.tons)}</td>
@@ -321,6 +343,7 @@ export default function CustomerCard({ name, onClose }) {
                       <td style={{ fontSize: 12, color: '#555' }}>{o.note || '—'}</td>
                     </tr>
                   ))}
+                  {moreRow('orders', s.orders, 4)}
                 </tbody>
               </table>
             </Section>

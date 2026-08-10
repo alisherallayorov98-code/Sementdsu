@@ -42,6 +42,9 @@ const COLOR_MODES = [
   { k: 'status', l: '🔔 Holat' }, { k: 'debt', l: '💳 Qarz' }, { k: 'activity', l: '📅 Davr faolligi' },
 ];
 
+// Pastdagi ro'yxatda ko'rsatiladigan eng ko'p mijoz (xaritaga chegara yo'q)
+const LIST_MAX = 200;
+
 export default function MapPage() {
   const data = useData();
   const { customers, appSettings, tgLocationFor, salesRows = [], soldRows = [] } = data;
@@ -218,7 +221,10 @@ export default function MapPage() {
             <th style={{ width: 110 }}>Holat</th><th style={{ width: 80 }}>Yo'l</th>
           </tr></thead>
           <tbody>
-            {[...located].sort((a, b) => b.totalTon - a.totalTon).map((m, i) => (
+            {/* Xaritaga barcha nuqta chiziladi, pastdagi ro'yxat esa eng ko'p
+                oluvchi LIST_MAX ta mijoz bilan cheklanadi — mijozlar soni
+                o'sganda sahifa sekinlashmasin. */}
+            {[...located].sort((a, b) => b.totalTon - a.totalTon).slice(0, LIST_MAX).map((m, i) => (
               <tr key={m.c.id} style={{ background: m.qarz > 0 ? '#fff9f0' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
                 <td style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>{i + 1}</td>
                 <td><button onClick={() => setCard(m.c.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#283593', fontWeight: 'bold', textDecoration: 'underline', padding: 0 }}>{m.c.name}</button></td>
@@ -230,6 +236,11 @@ export default function MapPage() {
                 <td><a href={`https://www.google.com/maps/dir/?api=1&destination=${m.loc.lat},${m.loc.lon}`} target="_blank" rel="noreferrer" style={{ background: '#1565c0', color: '#fff', padding: '3px 10px', borderRadius: 4, textDecoration: 'none', fontSize: 12 }}>📍</a></td>
               </tr>
             ))}
+            {located.length > LIST_MAX && (
+              <tr><td colSpan={8} style={{ textAlign: 'center', fontSize: 12, color: '#e65100', background: '#fff8e1', padding: '8px' }}>
+                … yana {located.length - LIST_MAX} ta mijoz ro'yxatda ko'rsatilmadi (xaritada hammasi bor)
+              </td></tr>
+            )}
           </tbody>
         </table>
       )}

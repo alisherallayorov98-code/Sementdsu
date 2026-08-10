@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
 import ExcelExport from '../components/ExcelExport';
+import Paginator from '../components/Paginator';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtDateTime = (ts) => new Date(ts).toLocaleString('ru-RU');
@@ -37,6 +38,13 @@ export default function Audit() {
        || (e.label || '').toLowerCase().includes(q.toLowerCase())
        || (e.text || '').toLowerCase().includes(q.toLowerCase())
   );
+  // Jurnal har bir amaldan keyin o'sadi (serverdan 2000 tagacha keladi) va
+  // hammasi birdan chizilardi — sahifa sekinlashib, kerakli qatorni topish
+  // qiyin bo'lardi. Boshqa bo'limlardagi kabi 100 tadan ko'rsatiladi.
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [tab, q]);   // filtr o'zgarsa boshidan
+  const paged = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const highCount = suspicious.filter(e => e.flags.some(f => f.severity === 'high')).length;
 
@@ -110,7 +118,7 @@ export default function Audit() {
             </tr>
           </thead>
           <tbody>
-            {list.map((e, i) => {
+            {paged.map((e, i) => {
               const act = ACTION[e.action] || { label: e.action, color: '#555', icon: '•' };
               const topSev = e.flags?.some(f => f.severity === 'high') ? 'high' : e.flags?.length ? 'medium' : null;
               const rowBg = topSev === 'high' ? '#fff5f5' : topSev === 'medium' ? '#fffdf5' : (i % 2 ? '#fafafa' : '#fff');
@@ -146,6 +154,7 @@ export default function Audit() {
           </tbody>
         </table>
       )}
+      <Paginator total={list.length} page={page} setPage={setPage} pageSize={PAGE_SIZE} />
     </div>
   );
 }

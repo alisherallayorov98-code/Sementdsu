@@ -19,6 +19,9 @@ import ExcelExport from './ExcelExport';
 import { filterByRange } from '../lib/dateRange';
 import { isTransferRow } from '../lib/transferRow';
 
+// Bir tur ostida birdan ko'rsatiladigan yozuv soni (ochib ko'rilganda)
+const ROWS_MAX = 100;
+
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
 const UNGROUPED = '(guruhsiz)';
@@ -181,7 +184,10 @@ export default function ExpenseReport({ cashRows = [], bankRows = [], clickRows 
                           {tOpen && (
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: '#fafafa' }}>
                               <tbody>
-                                {t.rows.map(r => (
+                                {/* Uzun davr tanlansa bitta tur ostida yuzlab
+                                    yozuv bo'ladi — birinchi ROWS_MAX tasi
+                                    ko'rsatiladi, yig'indi to'liq qoladi. */}
+                                {t.rows.slice(0, ROWS_MAX).map(r => (
                                   <tr key={r.id} style={{ borderTop: '1px solid #eee' }}>
                                     <td style={{ padding: '5px 14px 5px 56px', color: '#666', whiteSpace: 'nowrap' }}>{r.date}</td>
                                     <td style={{ padding: '5px 8px', textAlign: 'center' }}>{CH_LBL[r._ch] || ''}</td>
@@ -191,6 +197,11 @@ export default function ExpenseReport({ cashRows = [], bankRows = [], clickRows 
                                     </td>
                                   </tr>
                                 ))}
+                                {t.rows.length > ROWS_MAX && (
+                                  <tr><td colSpan={4} style={{ padding: '6px 14px 6px 56px', fontSize: 11, color: '#e65100', background: '#fff8e1' }}>
+                                    … yana {t.rows.length - ROWS_MAX} ta yozuv (yig'indi to'liq hisoblangan)
+                                  </td></tr>
+                                )}
                               </tbody>
                             </table>
                           )}
