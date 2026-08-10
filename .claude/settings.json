@@ -160,7 +160,8 @@
       "Bash(qarz/kassa qatoriga contractNo 'bolib yoziladi \\(izlash uchun\\) *)",
       "Bash(npx node *)",
       "Bash(node --test src/lib/cementBrand.test.js)",
-      "Bash(node --test src/lib/saleTicket.test.js)"
+      "Bash(node --test src/lib/saleTicket.test.js)",
+      "Bash(awk 'NR>=374' CustomerCard.jsx)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

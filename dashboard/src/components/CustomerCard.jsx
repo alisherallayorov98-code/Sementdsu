@@ -179,7 +179,7 @@ export default function CustomerCard({ name, onClose }) {
         {source && <SourceModal kind={source.kind} row={source.row} onClose={() => setSource(null)} />}
         {showAkt && (
           <AktSverkaModal
-            name={name} s={s} aktRef={aktRef}
+            name={name} s={s} aktRef={aktRef} recvRows={recvRows}
             onClose={() => setShowAkt(false)}
             onExcel={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, advs: s.advs, summary: s, recvRows })}
           />
@@ -371,7 +371,11 @@ export default function CustomerCard({ name, onClose }) {
 }
 
 // ── Akt Sverka modali ────────────────────────────────────────────────────────
-function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
+// recvRows PROP sifatida keladi: akt ichidagi "Tiket №" ustuni sotuv qatorida
+// tiket bo'lmasa uni zavod yukidan topadi. Ilgari bu ro'yxat modalga
+// uzatilmagan edi — komponent ichida `recvRows` umuman e'lon qilinmagani
+// uchun akt ochilishi bilan sahifa oqarib qolardi (render xatosi).
+function AktSverkaModal({ name, s, aktRef, recvRows = [], onClose, onExcel }) {
   const today = new Date().toLocaleDateString('ru-RU');
   const salesSorted  = [...s.sales].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const totalSaleTon = salesSorted.reduce((acc, r) => acc + Number(r.tons || 0), 0);
