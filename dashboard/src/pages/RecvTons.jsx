@@ -100,7 +100,7 @@ export default function RecvTons({ lang }) {
     warehouses, defaultWhId, currentUser, appSettings,
     skladRows, addSkladKirim,
     salesRows, skladSourceIds,
-    cementTypes,
+    cementTypes, cementTypeOfBrand, learnBrandType,
     advanceBalanceOf, debtRows, custRef,
   } = useData();
   // Sotuvchi mijozning avansi/qarzini yoddan bilmaydi — taqsimlash oynasida
@@ -166,6 +166,7 @@ export default function RecvTons({ lang }) {
       contractNo: form.contractNo || '',
     });
     if (!created) return; // rad etilsa forma tozalanmaydi
+    learnBrandType(form.brand, form.cementType); // marka ↔ tur biriktirilishi eslab qolinadi
     setForm({ source:'', brand:'', vehicleNo:'', tons:'', pricePerTon:'',
               paymentChannel:'bank', cardName:'', factoryTime:'', izoh:'', warehouseId:'',
               cementType:'', contractNo: form.contractNo });
@@ -237,6 +238,10 @@ export default function RecvTons({ lang }) {
           // zavod fayllarida tiket aynan o'sha yerda "A26010163 (7)" ko'rinishida
           // keladi. Ikkalasi ham bo'lmasa, preview oynasida qo'lda qo'yiladi.
           contractNo: String(row[8] || '').trim() || ticketFromCard(row[7]),
+          // Sement turi zavod markasidan avtomat aniqlanadi (Sozlamalardagi
+          // "Marka → tur" jadvali bo'yicha). Ilgari import qilingan yuklarning
+          // turi umuman bo'sh qolardi va sotuvchi har birini qo'lda tanlardi.
+          cementType: cementTypeOfBrand(String(row[1] || '').trim()).type,
           izoh: '',
         });
       }
@@ -266,7 +271,9 @@ export default function RecvTons({ lang }) {
   const openVerify = (r) => {
     // Tiket raqami yozilmagan bo'lsa — "Karta nomi" dan avtomatik olib qo'yamiz.
     // Xodim uni qo'lda ko'chirib yozishi shart emas; kerak bo'lsa tahrirlaydi.
-    setVerifyRow({ ...r, contractNo: contractOf(r) });
+    // Sement turi ham shu yerda markadan to'ldiriladi — sotuvchi "— tanlang —"
+    // ni ko'rmaydi, tayyor turni faqat tasdiqlaydi (kerak bo'lsa o'zgartiradi).
+    setVerifyRow({ ...r, contractNo: contractOf(r), cementType: r.cementType || cementTypeOfBrand(r.brand).type });
     setSplits([]);
   };
   const closeVerify = () => { setVerifyRow(null); setSplits([]); };
@@ -293,6 +300,16 @@ export default function RecvTons({ lang }) {
     if (!verifyRow.source) { alert('Zavod nomini kiriting'); return; }
     const tons = parseNum(verifyRow.tons);
     if (!(tons > 0)) { alert("Tonna 0 dan katta bo'lishi kerak."); return; }
+    // Sement turi SHART. Bo'sh o'tsa yuk "turi noma'lum" bo'lib skladga kiradi
+    // va tur bo'yicha qoldiq (Kassir sahifasi) yolg'on ko'rsatadi.
+    if (!verifyRow.cementType) {
+      alert("Sement turini tanlang.\n\nMarka bo'yicha avtomat aniqlanmadi — tanlaganingiz shu marka uchun eslab qolinadi va boshqa so'ralmaydi.");
+      return;
+    }
+    // Marka ↔ tur biriktirilishini eslab qolamiz (taxmin tasdiqlangani ham
+    // shu yerda qat'iylashadi) — bir xil yuk keyingi safar ham bir xil turga
+    // tushadi, ikki xil nomlanish yo'qoladi.
+    learnBrandType(verifyRow.brand, verifyRow.cementType);
     // ── Taqsimlash validatsiyasi ────────────────────────────────────────────
     // Har bir qator MUSBAT bo'lishi shart. Ilgari `!Number(sp.tons)` faqat
     // nol/bo'shni ushlardi: manfiy tonna o'tib ketib, quyida addSaleRow /
@@ -750,8 +767,14 @@ export default function RecvTons({ lang }) {
           <input placeholder="Shartnoma / Tiket №" value={form.contractNo}
             onChange={e=>setForm({...form,contractNo:e.target.value})}
             style={{ ...inp, width:150, fontWeight:'bold', color:'#00695c' }} title="Birja shartnomasi (tiket) raqami" />
-          <input placeholder={L.marka[lang]}   value={form.brand}     onChange={e=>setForm({...form,brand:e.target.value})}     style={{ ...inp, width:130 }} />
-          <select value={form.cementType} onChange={e=>setForm({...form,cementType:e.target.value})} style={{ ...inp, width:130, color: form.cementType ? '#4a148c' : '#999' }} title="Sement turi">
+          {/* Marka yozilganda sement turi o'zi qo'yiladi (Sozlamalardagi
+              "Marka → tur" jadvali). Xodim turni qo'lda o'zgartirsa —
+              typeTouched — keyin markaga qarab qayta yozilmaydi. */}
+          <input placeholder={L.marka[lang]}   value={form.brand}
+            onChange={e=>{ const brand = e.target.value;
+              setForm(f => ({ ...f, brand, cementType: f.typeTouched ? f.cementType : cementTypeOfBrand(brand).type })); }}
+            style={{ ...inp, width:130 }} />
+          <select value={form.cementType} onChange={e=>setForm({...form,cementType:e.target.value,typeTouched:true})} style={{ ...inp, width:130, color: form.cementType ? '#4a148c' : '#999' }} title="Sement turi">
             <option value="">— tur —</option>
             {cementTypes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -1064,6 +1087,8 @@ export default function RecvTons({ lang }) {
           warehouses={warehouses}
           myWh={myWh}
           cementTypesList={cementTypes}
+          resolveBrandType={cementTypeOfBrand}
+          onLearnBrandType={learnBrandType}
           linkedSale={salesRows.find(s => s.recvId === editRecv.id) || null}
           onSave={(recvFields, saleFields) => {
             updateRecvRow(editRecv.id, recvFields);
@@ -1090,17 +1115,46 @@ export default function RecvTons({ lang }) {
                 <input value={verifyRow.source} onChange={e => setVerifyRow({ ...verifyRow, source: e.target.value })} style={vInp} placeholder="Zavod nomi" />
               </Field>
               <Field label="Marka">
-                <input value={verifyRow.brand} onChange={e => setVerifyRow({ ...verifyRow, brand: e.target.value })} style={vInp} placeholder="Sement markasi" />
+                {/* Marka o'zgarsa sement turi ham qayta aniqlanadi — ikkalasi
+                    bir narsani bildiradi, qo'lda mos qilib o'tirish shart emas.
+                    Xodim turni ataylab boshqacha qilgan bo'lsa (typeTouched)
+                    tegilmaydi. */}
+                <input value={verifyRow.brand}
+                  onChange={e => {
+                    const brand = e.target.value;
+                    setVerifyRow(v => ({ ...v, brand, cementType: v.typeTouched ? v.cementType : cementTypeOfBrand(brand).type }));
+                  }}
+                  style={vInp} placeholder="Sement markasi" />
               </Field>
               {/* Shartnoma (tiket) — birja solishtiruvi shu raqam bo'yicha ketadi */}
               <Field label="Shartnoma / Tiket №">
                 <input value={verifyRow.contractNo || ''} onChange={e => setVerifyRow({ ...verifyRow, contractNo: e.target.value })} style={vInp} placeholder="masalan A26007338" />
               </Field>
+              {/* Sement turi markadan avtomat keladi. Qayerdan kelgani ochiq
+                  yozib qo'yiladi: jadvaldan (ishonchli) yoki taxmindan
+                  (tasdiqlansa jadvalga yoziladi). Marka umuman tanilmasa —
+                  qizil ogohlantirish: aynan shu holatda xodim adashardi. */}
               <Field label="Sement turi *">
-                <select value={verifyRow.cementType || ''} onChange={e => setVerifyRow({ ...verifyRow, cementType: e.target.value })} style={vInp}>
+                <select value={verifyRow.cementType || ''}
+                  onChange={e => setVerifyRow({ ...verifyRow, cementType: e.target.value, typeTouched: true })}
+                  style={{ ...vInp, borderColor: verifyRow.cementType ? '#ccc' : '#c62828', fontWeight: 'bold' }}>
                   <option value="">— tanlang —</option>
                   {cementTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+                {(() => {
+                  const src = cementTypeOfBrand(verifyRow.brand);
+                  if (!verifyRow.cementType) {
+                    return <div style={{ fontSize: 11, color: '#c62828', marginTop: 3 }}>
+                      ⚠️ "{verifyRow.brand || 'marka yo‘q'}" markasi hech qaysi turga biriktirilmagan — tanlang, keyingi safar avtomat qo'yiladi.
+                    </div>;
+                  }
+                  if (verifyRow.typeTouched || src.type !== verifyRow.cementType) {
+                    return <div style={{ fontSize: 11, color: '#e65100', marginTop: 3 }}>✍️ Qo'lda tanlandi — tasdiqlansa shu marka uchun eslab qolinadi.</div>;
+                  }
+                  return <div style={{ fontSize: 11, color: src.source === 'map' ? '#2e7d32' : '#ef6c00', marginTop: 3 }}>
+                    {src.source === 'map' ? '✓ Markadan avtomat' : '≈ Markadan taxmin qilindi — to‘g‘ri bo‘lsa tasdiqlang'} ({verifyRow.brand})
+                  </div>;
+                })()}
               </Field>
               <div style={{ display:'flex', gap:10 }}>
                 <Field label="Tonna *"><input type="number" value={verifyRow.tons} onChange={e => setVerifyRow({ ...verifyRow, tons: e.target.value })} style={vInp} /></Field>
@@ -1285,9 +1339,15 @@ function Field({ label, children }) {
 const vInp = { width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize:13, border:'1px solid #ccc', borderRadius:4, fontFamily:'Tahoma, sans-serif' };
 
 // ── RecvRow tahrirlash modali ─────────────────────────────────────────────────
-export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSale, cementTypesList }) {
+export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSale, cementTypesList, resolveBrandType, onLearnBrandType }) {
   // Tiket bo'sh bo'lsa "Karta nomi" dan avtomatik to'ldiriladi (tahrirlash mumkin)
-  const [f, setF]   = useState({ ...row, contractNo: String(row?.contractNo || '').trim() || ticketFromCard(row?.cardName) });
+  // Turi yozilmagan eski yozuvlarda ham marka bo'yicha tur taklif qilinadi —
+  // tahrirlash oynasi shu bo'shliqni to'ldirishning eng qulay joyi.
+  const [f, setF]   = useState({
+    ...row,
+    contractNo: String(row?.contractNo || '').trim() || ticketFromCard(row?.cardName),
+    cementType: row?.cementType || (resolveBrandType ? resolveBrandType(row?.brand).type : ''),
+  });
   const [sf, setSf] = useState(linkedSale ? { ...linkedSale } : null);
   const sv = v => e => setF(p => ({ ...p, [v]: e.target.value }));
   const ss = v => e => setSf(p => ({ ...p, [v]: e.target.value }));
@@ -1295,6 +1355,7 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
     e.preventDefault();
     const recvFields = { source: f.source, brand: f.brand, tons: f.tons, pricePerTon: f.pricePerTon, vehicleNo: f.vehicleNo, cardName: f.cardName, factoryTime: f.factoryTime, paymentChannel: f.paymentChannel, warehouseId: f.warehouseId, izoh: f.izoh, cementType: f.cementType, contractNo: f.contractNo || '' };
     const saleFields = sf ? { customer: sf.customer, pricePerTon: sf.pricePerTon, paymentChannel: sf.paymentChannel, note: sf.note } : null;
+    if (onLearnBrandType) onLearnBrandType(f.brand, f.cementType);
     onSave(recvFields, saleFields);
   };
   return createPortal(
@@ -1317,12 +1378,15 @@ export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSa
               <input value={f.source||''} onChange={sv('source')} style={vInp} placeholder="Zavod nomi" required />
             </Field>
             <Field label="Marka">
-              <input value={f.brand||''} onChange={sv('brand')} style={vInp} placeholder="Sement markasi" />
+              <input value={f.brand||''}
+                onChange={e => { const brand = e.target.value;
+                  setF(p => ({ ...p, brand, cementType: p.typeTouched ? p.cementType : (resolveBrandType ? resolveBrandType(brand).type : p.cementType) })); }}
+                style={vInp} placeholder="Sement markasi" />
             </Field>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <Field label="Sement turi">
-              <select value={f.cementType||''} onChange={sv('cementType')} style={vInp}>
+              <select value={f.cementType||''} onChange={e => setF(p => ({ ...p, cementType: e.target.value, typeTouched: true }))} style={vInp}>
                 <option value="">— tanlang —</option>
                 {(cementTypesList || []).map(t => <option key={t} value={t}>{t}</option>)}
               </select>

@@ -157,7 +157,9 @@
       "Bash(payt \"\\(kiritildi\\)\" belgisi bilan)",
       "Bash(mantiq lib/saleTime.js dagi takenAt —)",
       "Bash(kartochkada 'korsatiladigani bilan bir xil, testlangan *)",
-      "Bash(qarz/kassa qatoriga contractNo 'bolib yoziladi \\(izlash uchun\\) *)"
+      "Bash(qarz/kassa qatoriga contractNo 'bolib yoziladi \\(izlash uchun\\) *)",
+      "Bash(npx node *)",
+      "Bash(node --test src/lib/cementBrand.test.js)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

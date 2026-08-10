@@ -133,3 +133,23 @@ test("uch xodim ketma-ket: hech kimning to'lovi yo'qolmaydi", () => {
   assert.strictEqual(sumPaid(serverState.debt_rows), 6000000);
   assert.strictEqual(row.paid, 6000000);
 });
+
+test('marka → tur jadvali kalitlar bo\'yicha birlashadi', () => {
+  // Ikki qurilmada har xil marka biriktirilsa, ikkalasi ham saqlanishi kerak:
+  // butunlay ustiga yozilsa, boshqa xodim qo'shgan biriktirish yo'qolardi.
+  const server = { brand_type_map: { a: '450 Qoplik', b: '550 Qoplik' } };
+  const client = { brand_type_map: { b: '550 Rasipnoy', c: 'Sulfatsement' } };
+  const out = mergeStates(server, client, []);
+  assert.deepStrictEqual(out.brand_type_map, {
+    a: '450 Qoplik',        // faqat serverda bor — saqlanadi
+    b: '550 Rasipnoy',      // to'qnashuvda client g'olib
+    c: 'Sulfatsement',      // faqat clientda bor
+  });
+});
+
+test("boshqa obyekt bo'limlar birlashtirilmaydi (client g'olib)", () => {
+  const server = { app_settings: { themeColor: 'red', x: 1 } };
+  const client = { app_settings: { themeColor: 'blue' } };
+  const out = mergeStates(server, client, []);
+  assert.deepStrictEqual(out.app_settings, { themeColor: 'blue' });
+});

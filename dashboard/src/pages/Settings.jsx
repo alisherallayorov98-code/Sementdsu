@@ -9,6 +9,7 @@ import ExcelImport from '../components/ExcelImport';
 // ya'ni "1 378 756,50" → 137875650 bo'lib summa 100 barobar oshardi.
 import { parseNum } from '../lib/parseNum';
 import { cleanImportRows } from '../lib/importRows';
+import { brandRows } from '../lib/cementBrand';
 
 // Parol yacheykasi: yangi parolni kiriting, eski hashni ko'rsatmaydi
 function PasswordCell({ workerId, onSave }) {
@@ -526,6 +527,64 @@ function CementTypeAdder({ addCementType, cementTypes, themeColor }) {
   );
 }
 
+
+// ── Zavod markasi → sement turi jadvali ──────────────────────────────────────
+// Zavod o'z markasini yozadi ("32.5H包装-меш"), bizda esa o'zbekcha tur
+// ("450 Qoplik"). Ilgari ikkalasi bog'lanmagan edi va sotuvchi har yukda
+// turni qo'lda tanlardi — bir xil sement ikki xil turga tushib ketardi.
+// Bu jadval — moslikning yagona manbai: tur shu yerdan avtomat qo'yiladi.
+function BrandTypeTable() {
+  const { recvRows, cementTypes, brandTypeMap, setBrandType } = useData();
+  const rows = brandRows(recvRows, brandTypeMap, cementTypes);
+  const bosh = rows.filter(r => r.source !== 'map').length;
+  const cell = { padding: '7px 10px', fontSize: 13, borderBottom: '1px solid #eee' };
+  return (
+    <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #eee', marginTop: 16 }}>
+      <h3 style={{ marginTop: 0, color: '#00695c' }}>Zavod markasi → sement turi</h3>
+      <p style={{ fontSize: 13, color: '#555', marginBottom: 12 }}>
+        Yuk qabul qilinganda sement turi shu jadval bo'yicha <b>avtomat</b> qo'yiladi —
+        sotuvchi qo'lda tanlamaydi. Biriktirilmagan marka uchun tur taxmin qilinadi
+        (<span style={{ color: '#ef6c00' }}>≈</span>) va tasdiqlangach shu yerga yoziladi.
+      </p>
+      {bosh > 0 && (
+        <div style={{ fontSize: 12, color: '#e65100', background: '#fff3e0', padding: '7px 10px', borderRadius: 4, marginBottom: 10 }}>
+          ⚠️ {bosh} ta marka hali biriktirilmagan — quyida turini tanlang.
+        </div>
+      )}
+      {rows.length === 0
+        ? <div style={{ color: '#999', fontSize: 13, fontStyle: 'italic' }}>Hozircha marka yo'q — birinchi yuk kelganda paydo bo'ladi.</div>
+        : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #ddd' }}>
+            <thead>
+              <tr style={{ background: '#eceff1' }}>
+                <th style={{ ...cell, textAlign: 'left' }}>Zavod markasi</th>
+                <th style={{ ...cell, textAlign: 'right', width: 80 }}>Yuklar</th>
+                <th style={{ ...cell, textAlign: 'left', width: 220 }}>Sement turi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.key}>
+                  <td style={{ ...cell, fontWeight: 'bold' }}>{r.brand}</td>
+                  <td style={{ ...cell, textAlign: 'right', color: '#777', fontFamily: 'monospace' }}>{r.count || '—'}</td>
+                  <td style={cell}>
+                    <select value={r.source === 'map' ? r.type : ''} onChange={e => setBrandType(r.brand, e.target.value)}
+                      style={{ width: '100%', padding: '5px 8px', fontSize: 13, borderRadius: 4,
+                               border: `1px solid ${r.source === 'map' ? '#ccc' : '#e65100'}`,
+                               fontWeight: 'bold', color: r.source === 'map' ? '#4a148c' : '#999' }}>
+                      <option value="">{r.type ? `≈ ${r.type} (taxmin)` : '— biriktirilmagan —'}</option>
+                      {cementTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+    </div>
+  );
+}
+
 export default function Settings({ lang }) {
   const {
     workers, updateWorker, deleteWorker, addWorker, appSettings, updateAppSettings,
@@ -842,7 +901,7 @@ export default function Settings({ lang }) {
 
       {/* SEMENT TURLARI TABI */}
       {tab === 'cement' && (
-        <div style={{ maxWidth: 560 }}>
+        <div style={{ maxWidth: 780 }}>
           <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #eee' }}>
             <h3 style={{ marginTop: 0, color: appSettings.themeColor }}>Sement turlari boshqaruvi</h3>
             <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>
@@ -872,6 +931,9 @@ export default function Settings({ lang }) {
             {/* Yangi tur qo'shish */}
             <CementTypeAdder addCementType={addCementType} cementTypes={cementTypes} themeColor={appSettings.themeColor} />
           </div>
+
+          {/* Zavod markasi → sement turi */}
+          <BrandTypeTable />
         </div>
       )}
 

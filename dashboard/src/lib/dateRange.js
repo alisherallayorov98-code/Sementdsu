@@ -65,6 +65,21 @@ export const todayISO = () => {
   ].join('-');
 };
 
+// "yyyy-oo-kk" → "kk.oo.yyyy" (yozuvlar shu ko'rinishda saqlanadi)
+export const isoToRu = (iso) => {
+  const p = String(iso || '').split('-');
+  return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : '';
+};
+
+// ISO sanani N kun oldinga/orqaga suradi ("yyyy-oo-kk")
+export const shiftISO = (iso, days) => {
+  const p = String(iso || '').split('-').map(Number);
+  if (p.length !== 3) return iso;
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  d.setDate(d.getDate() + days);
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+};
+
 // Bugundan N kun oldingi sana ISO formatida
 export const daysAgoISO = (n) => {
   const d = new Date();

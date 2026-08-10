@@ -33,6 +33,11 @@ const ROW_LISTS = {
   advance_rows: [{ list: 'usages',   sum: 'used' }],
 };
 
+// Qatorli emas, "kalit → qiymat" ko'rinishidagi bo'limlar: kalitlar bo'yicha
+// birlashtiriladi (o'chirish kamdan-kam va qo'lda bo'lgani uchun tombstone
+// kerak emas — kalit qayta biriktirilsa client qiymati ustun turadi).
+const MERGE_MAPS = new Set(['brand_type_map']);
+
 const TOMBSTONE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 kun
 
 const isRow = (x) => x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined;
@@ -40,6 +45,8 @@ const isRow = (x) => x && typeof x === 'object' && !Array.isArray(x) && x.id !==
 function isRowArray(v) {
   return Array.isArray(v) && v.every(isRow);
 }
+
+const isPlainMap = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
 const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
 
@@ -133,6 +140,11 @@ function mergeStates(serverState, clientState, tombstones = []) {
     const serverVal = serverState[key];
     if (isRowArray(clientVal) && isRowArray(serverVal)) {
       out[key] = mergeRows(serverVal, clientVal, ROW_LISTS[key], deletedByKey.get(key) || emptySet);
+    } else if (MERGE_MAPS.has(key) && isPlainMap(clientVal) && isPlainMap(serverVal)) {
+      // "kalit → qiymat" jadvallari (masalan marka → sement turi): butunlay
+      // ustiga yozilsa, boshqa qurilmada qo'shilgan biriktirish YO'QOLARDI.
+      // Kalitlar birlashtiriladi, to'qnashuvda client qiymati g'olib.
+      out[key] = { ...serverVal, ...clientVal };
     }
   }
   // Clientda umuman yo'q bo'limlar serverdan saqlanib qoladi

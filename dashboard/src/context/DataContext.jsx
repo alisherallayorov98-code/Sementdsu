@@ -4,6 +4,7 @@ import { sameCust, custRows, custFields, findCust, custKey, sameName, uniqueName
 import { parseNum } from '../lib/parseNum';
 import { planDebtPayment, planAdvanceSpend } from '../lib/debtAllocation';
 import { takenAt } from '../lib/saleTime';
+import { resolveType, withBrandType, brandKey } from '../lib/cementBrand';
 
 const DataContext = createContext();
 export const useData = () => useContext(DataContext);
@@ -1218,8 +1219,24 @@ export function DataProvider({ children }) {
   const totalSalesTons = salesRows.reduce((s, r) => s + Number(r.tons || 0), 0);
 
   // ── Sement turlari (admin tomonidan boshqariladi) ─────────────────────────────
-  const [cementTypes, setCementTypes] = useState(() => load('cement_types', ['450 Qoplik', '550 Qoplik', '450 Rasipnoy', '550 Rasipnoy']));
+  const [cementTypes, setCementTypes] = useState(() => load('cement_types', ['450 Qoplik', '550 Qoplik', '450 Rasipnoy', '550 Rasipnoy', 'Sulfatsement']));
   useEffect(() => save('cement_types', cementTypes), [cementTypes]);
+  // ── Zavod markasi → sement turi jadvali ───────────────────────────────────
+  // Zavod o'z markasini yozadi ("32.5H包装-меш"), bizda esa o'zbekcha tur
+  // ("450 Qoplik"). Ikkalasi qo'lda bog'langanda bir xil yuk har safar
+  // boshqa turga tushib, tur bo'yicha qoldiq yolg'on chiqardi. Endi moslik
+  // shu jadvalda — tur markadan avtomat aniqlanadi (lib/cementBrand.js).
+  const [brandTypeMap, setBrandTypeMap] = useState(() => load('brand_type_map', {}));
+  useEffect(() => save('brand_type_map', brandTypeMap), [brandTypeMap]);
+  const setBrandType = (brand, type) => setBrandTypeMap(p => withBrandType(p, brand, type));
+  // Marka bo'yicha tur: { type, source: 'map' | 'guess' | '' }
+  const cementTypeOfBrand = (brand) => resolveType(brand, brandTypeMap, cementTypes);
+  // Sotuvchi tasdiqlaganda tanlovni jadvalga yozib qo'yamiz — o'sha marka
+  // keyingi safar so'ralmaydi (taxmin bo'lgani ham shu yerda tasdiqlanadi).
+  const learnBrandType = (brand, type) => {
+    if (!String(brand || '').trim() || !String(type || '').trim()) return;
+    setBrandTypeMap(p => (p[brandKey(brand)] === type ? p : withBrandType(p, brand, type)));
+  };
   const addCementType = (name) => {
     const t = name.trim();
     if (!t || cementTypes.includes(t)) return;
@@ -2047,6 +2064,7 @@ export function DataProvider({ children }) {
     driver_tariffs:     setDriverTariffs,
     sklad_rows:         setSkladRows,
     cement_types:       setCementTypes,
+    brand_type_map:     setBrandTypeMap,
     tickets:            setTickets,
     birja_rows:         setBirjaRows,
     birja_closed:       setBirjaClosed,
@@ -2087,6 +2105,7 @@ export function DataProvider({ children }) {
     driver_tariffs:     driverTariffs,
     sklad_rows:         skladRows,
     cement_types:       cementTypes,
+    brand_type_map:     brandTypeMap,
     tickets:            tickets,
     birja_rows:         birjaRows,
     birja_closed:       birjaClosed,
@@ -2259,7 +2278,7 @@ export function DataProvider({ children }) {
     // Bular snapshot'ga kiradi, lekin ilgari bu ro'yxatda yo'q edi — ya'ni sklad
     // qo'shish, sement turi qo'shish yoki tarif o'zgartirish serverga SAQLANMASDAN
     // qolib, boshqa qurilmada ochilganda yo'qolib ketardi.
-    warehouses, driverTariffs, cementTypes,
+    warehouses, driverTariffs, cementTypes, brandTypeMap,
   ]);
 
   // 2b) Saqlanmagan o'zgarish bilan sahifani yopishdan ogohlantirish.
@@ -2386,6 +2405,7 @@ export function DataProvider({ children }) {
     skladSourceIds: _skladSourceIds,
     // Sement turlari
     cementTypes, addCementType, removeCementType,
+    brandTypeMap, setBrandType, cementTypeOfBrand, learnBrandType,
     cementBalanceByType, skladKgByType, skladKgUntyped,
     // Tiketlar (zayavka uchun)
     tickets, addTicket, closeTicket, reopenTicket, deleteTicket,

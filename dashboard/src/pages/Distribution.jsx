@@ -8,10 +8,10 @@ import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { parseNum } from '../lib/parseNum';
 import CustomerSelect from '../components/CustomerSelect';
+import { todayISO, isoToRu, shiftISO } from '../lib/dateRange';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
-const today = () => new Date().toLocaleDateString('ru-RU');
 const timeOf = (ts) => { if (!ts || ts < 1e10) return ''; const d = new Date(ts); return [String(d.getHours()).padStart(2,'0'), String(d.getMinutes()).padStart(2,'0')].join(':'); };
 
 const CHANNELS = [
@@ -31,6 +31,9 @@ export default function Distribution() {
   const [defPrice, setDefPrice]     = useState('');
   const [defChannel, setDefChannel] = useState('nasiya');
   const [wh, setWh] = useState(myWh); // qaysi skladdan taqsimlanmoqda
+  // Qaysi kun ko'rilmoqda. Ilgari sahifa qattiq "bugun" ga bog'langan edi —
+  // kechagi taqsimotni ko'rish uchun boshqa bo'limga o'tishga to'g'ri kelardi.
+  const [day, setDay] = useState(todayISO());
 
   // Tez kiritish formasi
   const [row, setRow] = useState({ customer: '', tons: '', price: '' });
@@ -78,8 +81,10 @@ export default function Distribution() {
     setEditId(null);
   };
 
-  const t = today();
-  // Tanlangan sklad bo'yicha
+  const t = isoToRu(day);            // tanlangan kun "kk.oo.yyyy" ko'rinishida
+  const isToday = day === todayISO();
+  const kunNomi = isToday ? 'Bugun' : t;
+  // Tanlangan sklad va KUN bo'yicha
   const todaySales = salesRows.filter(r => r.date === t && whOf(r) === wh);
   const bugunOlingan      = recvRows.filter(r => r.date === t && whOf(r) === wh).reduce((s, r) => s + Number(r.tons || 0), 0);
   const bugunTaqsimlangan = todaySales.reduce((s, r) => s + Number(r.tons || 0), 0);
@@ -137,15 +142,42 @@ export default function Distribution() {
         </div>
       )}
 
-      {/* ── JONLI QOLDIQ ───────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        <Stat label="Bugun olingan (zavoddan)" value={fmtT(bugunOlingan)} unit="tn" color="#1565c0" bg="#e3f2fd" />
-        <Stat label="Bugun taqsimlangan"       value={fmtT(bugunTaqsimlangan)} unit="tn" color="#2e7d32" bg="#e8f5e9" />
-        <Stat label="Bugundan qolgan"          value={fmtT(qolgan)} unit="tn" color={qolgan < 0 ? '#c62828' : '#ef6c00'} bg="#fff3e0" big />
-        <Stat label={warehouses.length > 1 ? `"${whName(wh)}" qoldig'i` : 'Omborda qoldiq'} value={fmtT(whQoldiq)} unit="tn" color="#5d4037" bg="#efebe9" />
+      {/* ── KUN TANLASH ────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 'bold', color: '#01579b' }}>📅 Kun:</span>
+        <button onClick={() => setDay(shiftISO(day, -1))} title="Oldingi kun" style={navBtn}>◀</button>
+        <input type="date" value={day} max={todayISO()} onChange={e => setDay(e.target.value || todayISO())}
+          style={{ padding: '6px 8px', fontSize: 13, border: '1px solid #0288d1', borderRadius: 4, fontFamily: 'Tahoma, sans-serif' }} />
+        <button onClick={() => setDay(shiftISO(day, 1))} disabled={isToday} title="Keyingi kun"
+          style={{ ...navBtn, opacity: isToday ? 0.4 : 1, cursor: isToday ? 'default' : 'pointer' }}>▶</button>
+        {!isToday && (
+          <button onClick={() => setDay(todayISO())} style={{ ...navBtn, padding: '6px 14px', fontWeight: 'bold', background: '#01579b', color: '#fff', borderColor: '#01579b' }}>
+            Bugunga qaytish
+          </button>
+        )}
       </div>
 
+      {/* ── JONLI QOLDIQ ───────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <Stat label={`${kunNomi} olingan (zavoddan)`} value={fmtT(bugunOlingan)} unit="tn" color="#1565c0" bg="#e3f2fd" />
+        <Stat label={`${kunNomi} taqsimlangan`}       value={fmtT(bugunTaqsimlangan)} unit="tn" color="#2e7d32" bg="#e8f5e9" />
+        <Stat label={`${kunNomi}${isToday ? 'dan' : ' bo‘yicha'} qolgan`} value={fmtT(qolgan)} unit="tn" color={qolgan < 0 ? '#c62828' : '#ef6c00'} bg="#fff3e0" big />
+        {/* Bu raqam kunga bog'liq emas — ombordagi HOZIRGI qoldiq */}
+        <Stat label={warehouses.length > 1 ? `"${whName(wh)}" hozirgi qoldig'i` : 'Omborda hozirgi qoldiq'} value={fmtT(whQoldiq)} unit="tn" color="#5d4037" bg="#efebe9" />
+      </div>
+
+      {/* Kiritish faqat BUGUN uchun ochiq: addSaleRow yozuvni bugungi sana bilan
+          yaratadi, o'tgan kun ochiqligida kiritilgan qator boshqa kunga tushib
+          ketardi va xodim buni sezmasdi. O'tgan kun — faqat ko'rish rejimi. */}
+      {!isToday && (
+        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff8e1', border: '1px solid #ffb300', borderRadius: 6, fontSize: 13, color: '#8d6e00' }}>
+          👁 <b>{t}</b> — o'tgan kun ko'rilmoqda, faqat o'qish uchun. Yangi taqsimot kiritish uchun
+          {' '}<b>"Bugunga qaytish"</b> tugmasini bosing.
+        </div>
+      )}
+
       {/* ── STANDART SOZLAMALAR ────────────────────────────────────────────── */}
+      {isToday && (<>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, padding: '10px 14px', background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 6 }}>
         <span style={{ fontWeight: 'bold', color: '#555' }}>⚙️ Standart:</span>
         <span style={{ fontSize: 12, color: '#666' }}>Narx (1 tn):</span>
@@ -196,13 +228,18 @@ export default function Distribution() {
           </span>
         )}
       </form>
+      </>)}
 
-      {/* ── BUGUNGI TAQSIMOT RO'YXATI ──────────────────────────────────────── */}
+      {/* ── TANLANGAN KUN TAQSIMOTI ────────────────────────────────────────── */}
       <div style={{ fontWeight: 'bold', fontSize: 14, color: '#01579b', marginBottom: 8 }}>
-        📋 Bugungi taqsimot ({todaySales.length} ta · {fmtT(bugunTaqsimlangan)} tn)
+        📋 {isToday ? 'Bugungi taqsimot' : `${t} taqsimoti`} ({todaySales.length} ta · {fmtT(bugunTaqsimlangan)} tn)
       </div>
       {todaySales.length === 0 ? (
-        <p style={{ color: '#888', fontStyle: 'italic' }}>Bugun hali taqsimot kiritilmagan. Yuqoridan boshlang.</p>
+        <p style={{ color: '#888', fontStyle: 'italic' }}>
+          {isToday
+            ? 'Bugun hali taqsimot kiritilmagan. Yuqoridan boshlang.'
+            : `${t} kuni bu skladdan taqsimot bo'lmagan.`}
+        </p>
       ) : (
         <table className="data-table" style={{ width: '100%', maxWidth: 820 }}>
           <thead>
@@ -302,6 +339,9 @@ export default function Distribution() {
     </div>
   );
 }
+
+// Kun tanlash tugmalari (◀ ▶ va "Bugunga qaytish")
+const navBtn = { padding: '6px 10px', cursor: 'pointer', border: '1px solid #0288d1', background: '#fff', color: '#01579b', borderRadius: 4, fontSize: 13 };
 
 // Jadval ichidagi tahrir maydonlari — qator balandligi o'zgarmasin uchun kichik
 const editInp = { width: 78, padding: '2px 4px', fontSize: 13, border: '1px solid #0288d1', borderRadius: 3, fontFamily: 'monospace', textAlign: 'right' };
