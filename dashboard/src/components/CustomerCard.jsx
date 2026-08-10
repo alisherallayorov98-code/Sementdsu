@@ -12,11 +12,24 @@ import NotifyModal from './NotifyModal';
 import SourceModal from './SourceModal';
 import { findCust } from '../lib/customerRef';
 import { takenAt } from '../lib/saleTime';
+import { ticketOf } from '../lib/saleTicket';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
 // "Mijoz olgan vaqt" — zavod vaqti (to'q sariq) yoki kiritilgan vaqt (kulrang).
 // Mantiqi lib/saleTime.js da (testlanadi).
+// Tiket (shartnoma) katakchasi. Bitta mijozga bir kunda bir necha tiketdan
+// yuk borishi mumkin — qaysi biridan ekani har qatorda ko'rinib turishi kerak.
+const TicketCell = ({ row, sales = [], print }) => {
+  const tk = ticketOf(row, sales);
+  return (
+    <td style={{ ...(print ? aTd : {}), fontSize: print ? 10 : 11, fontFamily: 'monospace',
+                 fontWeight: 'bold', color: tk ? '#00695c' : '#bbb' }}>
+      {tk || '—'}
+    </td>
+  );
+};
+
 const DateCell = ({ row, sales = [] }) => {
   const t = takenAt(row, sales);
   return (
@@ -227,11 +240,12 @@ export default function CustomerCard({ name, onClose }) {
           <Section title={`Xaridlar / Sotuvlar (${s.sales.length})`}>
             {s.sales.length === 0 ? <Empty /> : (
               <table className="data-table" style={{ width: '100%' }}>
-                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Tonna</th><th style={{ textAlign: 'right' }}>Narx/tn</th><th style={{ textAlign: 'right' }}>Summa</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
+                <thead><tr><th>Sana</th><th style={{ width: 90 }}>Tiket</th><th style={{ textAlign: 'right' }}>Tonna</th><th style={{ textAlign: 'right' }}>Narx/tn</th><th style={{ textAlign: 'right' }}>Summa</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
                   {cap('sales', [...s.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => (
                     <tr key={r.id}>
                       <DateCell row={r} />
+                      <TicketCell row={r} />
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtT(r.tons)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.pricePerTon)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
@@ -239,7 +253,7 @@ export default function CustomerCard({ name, onClose }) {
                       <td><SrcBtn onClick={() => setSource({ kind: kindOfSale(r), row: r })} /></td>
                     </tr>
                   ))}
-                  {moreRow('sales', s.sales, 6)}
+                  {moreRow('sales', s.sales, 7)}
                 </tbody>
               </table>
             )}
@@ -249,13 +263,14 @@ export default function CustomerCard({ name, onClose }) {
           <Section title={`Qarzlar (${s.debts.length})`}>
             {s.debts.length === 0 ? <Empty /> : (
               <table className="data-table" style={{ width: '100%' }}>
-                <thead><tr><th>Sana</th><th style={{ textAlign: 'right' }}>Qarz</th><th style={{ textAlign: 'right' }}>To'landi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
+                <thead><tr><th>Sana</th><th style={{ width: 90 }}>Tiket</th><th style={{ textAlign: 'right' }}>Qarz</th><th style={{ textAlign: 'right' }}>To'landi</th><th style={{ textAlign: 'right' }}>Qoldiq</th><th>Izoh</th><th style={{ width: 34 }}></th></tr></thead>
                 <tbody>
                   {cap('debts', [...s.debts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => {
                     const qoldiq = Math.max(0, Number(r.amount || 0) - Number(r.paid || 0));
                     return (
                       <tr key={r.id}>
                         <DateCell row={r} sales={s.sales} />
+                        <TicketCell row={r} sales={s.sales} />
                         <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.amount)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(r.paid)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: qoldiq > 0 ? '#c62828' : '#888' }}>{fmt(qoldiq)}</td>
@@ -264,7 +279,7 @@ export default function CustomerCard({ name, onClose }) {
                       </tr>
                     );
                   })}
-                  {moreRow('debts', s.debts, 6)}
+                  {moreRow('debts', s.debts, 7)}
                 </tbody>
               </table>
             )}
@@ -462,6 +477,8 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
               <tr style={{ background: '#f0f0f0' }}>
                 <th style={aTh}>#</th>
                 <th style={aTh}>Sana / vaqt</th>
+                {/* Bir kunda bir necha tiketdan yuk kelishi mumkin */}
+                <th style={aTh}>Tiket №</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Tonna</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Narx (1 tn)</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Jami summa</th>
@@ -477,6 +494,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                     {r.date || '—'}
                     {takenAt(r)?.time && <div style={{ color: '#555' }}>{takenAt(r).time}</div>}
                   </td>
+                  <TicketCell row={r} print />
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(r.tons)}</td>
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.pricePerTon)}</td>
                   <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
@@ -485,7 +503,8 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                 </tr>
               ))}
               <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-                <td colSpan={2} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
+                {/* #, Sana, Tiket — uchta katak */}
+                <td colSpan={3} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
                 <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(totalSaleTon)} tn</td>
                 <td style={aTd}></td>
                 <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalSaleSum)}</td>
@@ -510,6 +529,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                   <tr style={{ background: '#f0f0f0' }}>
                     <th style={aTh}>#</th>
                     <th style={aTh}>Sana</th>
+                    <th style={aTh}>Tiket №</th>
                     <th style={{ ...aTh, textAlign: 'right' }}>Qarz summasi</th>
                     <th style={{ ...aTh, textAlign: 'right', color: '#006600' }}>To'landi</th>
                     <th style={{ ...aTh, textAlign: 'right', color: '#c00' }}>Qoldiq</th>
@@ -526,6 +546,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                           {r.date || '—'}
                           {takenAt(r, s.sales)?.time && <div style={{ fontSize: 9, fontWeight: 'normal', color: '#555' }}>{takenAt(r, s.sales).time}</div>}
                         </td>
+                        <TicketCell row={r} sales={s.sales} print />
                         <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
                         <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>
                         <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold', color: left > 0 ? '#c00' : '#006600' }}>{fmt(left)}</td>
@@ -534,7 +555,8 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                     );
                   })}
                   <tr style={{ background: '#ffff00', fontWeight: 'bold' }}>
-                    <td colSpan={2} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
+                    {/* #, Sana, Tiket — uchta katak */}
+                    <td colSpan={3} style={{ ...aTd, textAlign: 'right' }}>JAMI:</td>
                     <td style={{ ...aTd, textAlign: 'right' }}>{fmt(totalDebtSum)}</td>
                     <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(totalDebtPaid)}</td>
                     <td style={{ ...aTd, textAlign: 'right', color: '#c00' }}>{fmt(totalLeft)}</td>
