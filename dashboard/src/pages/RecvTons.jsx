@@ -104,6 +104,8 @@ export default function RecvTons({ lang }) {
   } = useData();
   // Sotuvchi mijozning avansi/qarzini yoddan bilmaydi — taqsimlash oynasida
   // mijoz tanlangan zahoti shu ikki raqam ko'rsatiladi (pastda "CustBalance").
+  // Ombor nomi (taqsimlanmagan tonna qayerda qolishini aytish uchun)
+  const whNameOf = (id) => (warehouses.find(w => w.id === id) || {}).name || 'Asosiy ombor';
   const debtBalanceOf = (name) => custRows(debtRows, custRef(name))
     .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
   const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
@@ -923,6 +925,13 @@ export default function RecvTons({ lang }) {
                       {!r.pending && salesRows.some(s => s.recvId === r.id) && (
                         <span title="Ulgurji sotilgan (birdan sotish)" style={{ fontSize:11, color:'#1565c0', fontWeight:'bold', marginRight:4 }}>🛒✓</span>
                       )}
+                      {/* Tasdiqlangan, lekin na sotilgan, na skladga o'tkazilgan
+                          yuk — u ombor qoldig'ida turibdi. Ilgari bu holat
+                          hech qanday belgiga ega emas edi va "egasiz" tonna
+                          ko'zga tashlanmasdi. */}
+                      {!r.pending && !skladSourceIds.has(r.id) && !salesRows.some(s => s.recvId === r.id) && (
+                        <span title="Taqsimlanmagan — ombor qoldig'ida turibdi" style={{ fontSize:11, color:'#8d6e63', fontWeight:'bold', marginRight:4 }}>🏬</span>
+                      )}
                       <button
                         onClick={() => setEditRecv({ ...r })}
                         title="Tahrirlash"
@@ -1063,7 +1072,18 @@ export default function RecvTons({ lang }) {
                   </div>
                 </div>
                 {splits.length === 0 && (
-                  <div style={{ fontSize:12, color:'#999', textAlign:'center', padding:'8px 0' }}>Hech narsa taqsimlanmagan — faqat tasdiqlash yoziladi</div>
+                  /* Taqsimlanmagan yuk YO'QOLMAYDI — u ulgurji ombor
+                     qoldig'iga qo'shiladi. Ilgari bu yerda shunchaki
+                     "faqat tasdiqlash yoziladi" deb turardi va xodim
+                     tonna qayerga ketganini bilmasdi. */
+                  <div style={{ fontSize:12, color:'#e65100', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:6, padding:'8px 10px', lineHeight:1.6 }}>
+                    Hech narsa taqsimlanmadi — <b>{fmtT(verifyRow.tons)} tn</b> to'liq
+                    <b> "{whNameOf(verifyRow.warehouseId || myWh)}"</b> ombor qoldig'iga qo'shiladi.
+                    <div style={{ fontSize:11, color:'#8d6e63', marginTop:3 }}>
+                      Ya'ni yuk kelgan, lekin hali sotilmagan. Keyin "Yuk taqsimlash" yoki
+                      "Sotish" orqali mijozga chiqariladi.
+                    </div>
+                  </div>
                 )}
                 {splits.map(sp => (
                   <div key={sp.id} style={{ display:'flex', flexDirection:'column', gap:8, border:`1px solid ${sp.type==='mijoz' ? '#b3e5fc' : '#d7ccc8'}`, borderRadius:6, padding:8, marginBottom:8, background: sp.type==='mijoz' ? '#f5fbff' : '#fdf5f3' }}>
@@ -1129,6 +1149,16 @@ export default function RecvTons({ lang }) {
                   return (
                     <div style={{ fontSize:12, padding:'5px 8px', borderRadius:4, background: Math.abs(left) < 0.001 ? '#e8f5e9' : left < 0 ? '#ffebee' : '#fff9c4', color: left < 0 ? '#c00' : '#555' }}>
                       Jami: <b>{total} tn</b> · Taqsimlangan: <b>{used} tn</b> · Qoldi: <b style={{ color: left < 0 ? '#c00' : left < 0.001 ? '#2e7d32' : '#e65100' }}>{left.toFixed(3)} tn</b>
+                      {left > 0.001 && (
+                        <div style={{ fontSize:11, color:'#8d6e63', marginTop:3 }}>
+                          Taqsimlanmagan {left.toFixed(2)} tn → <b>"{whNameOf(verifyRow.warehouseId || myWh)}"</b> ombor qoldig'ida qoladi (hali sotilmagan).
+                        </div>
+                      )}
+                      {left < -0.001 && (
+                        <div style={{ fontSize:11, color:'#c00', marginTop:3 }}>
+                          Yukda boridan {Math.abs(left).toFixed(2)} tn ORTIQ taqsimlanmoqda — ombor qoldig'i manfiyga tushadi.
+                        </div>
+                      )}
                     </div>
                   );
                 })()}

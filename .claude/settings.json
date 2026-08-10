@@ -150,7 +150,9 @@
       "Bash(python -c ' *)",
       "Bash(node --test src/lib/rowSource.test.js)",
       "Bash(python)",
-      "Bash(node --test src/lib/birjaRecon.test.js)"
+      "Bash(node --test src/lib/birjaRecon.test.js)",
+      "Bash(sed -n '/Hech narsa taqsimlanmagan/,+3p' pages/RecvTons.jsx)",
+      "Bash(sed -n '/const total = Number\\(verifyRow.tons\\)/,+12p' pages/RecvTons.jsx)"
     ],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
