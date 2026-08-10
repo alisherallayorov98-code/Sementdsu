@@ -11,24 +11,23 @@ import { exportAktSverka } from '../lib/excelExport';
 import NotifyModal from './NotifyModal';
 import SourceModal from './SourceModal';
 import { findCust } from '../lib/customerRef';
+import { takenAt } from '../lib/saleTime';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
-// Zavod vaqtidan faqat soat:daqiqa ("2026-08-09 14:35:12" → "14:35").
-// Sana maydoni tizim bo'yicha "kk.oo.yyyy" — soat/daqiqa faqat factoryTime'da
-// saqlanadi, shuning uchun kartochkada sana yonida alohida ko'rsatiladi.
-const ftClock = (ft) => { const m = String(ft || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
-// Bu tuzatishdan OLDIN yozilgan qarz/kassa qatorlarida factoryTime yo'q —
-// ular uchun vaqt o'zi kelib chiqqan sotuvdan olinadi (sourceId orqali).
-const ftOf = (row, sales) => row.factoryTime
-  || (row.sourceType === 'sale' ? (sales.find(x => x.id === row.sourceId)?.factoryTime || '') : '');
+// "Mijoz olgan vaqt" — zavod vaqti (to'q sariq) yoki kiritilgan vaqt (kulrang).
+// Mantiqi lib/saleTime.js da (testlanadi).
 const DateCell = ({ row, sales = [] }) => {
-  const ft = ftOf(row, sales);
-  const t  = ftClock(ft);
+  const t = takenAt(row, sales);
   return (
     <td style={{ fontSize: 12 }}>
       <div>{row.date || '—'}</div>
-      {t && <div style={{ fontSize: 10, fontWeight: 'bold', color: '#e65100' }} title={`Zavod vaqti: ${ft}`}>🕒 {t}</div>}
+      {t && (
+        <div title={t.title}
+          style={{ fontSize: 10, fontWeight: t.factory ? 'bold' : 'normal', color: t.factory ? '#e65100' : '#888' }}>
+          🕒 {t.time}
+        </div>
+      )}
     </td>
   );
 };
@@ -439,7 +438,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
             <thead>
               <tr style={{ background: '#f0f0f0' }}>
                 <th style={aTh}>#</th>
-                <th style={aTh}>Vaqt (zavod)</th>
+                <th style={aTh}>Sana / vaqt</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Tonna</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Narx (1 tn)</th>
                 <th style={{ ...aTh, textAlign: 'right' }}>Jami summa</th>
@@ -451,7 +450,10 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
               {salesSorted.map((r, i) => (
                 <tr key={r.id} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
                   <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
-                  <td style={{ ...aTd, fontSize: 10 }}>{r.factoryTime || r.date}</td>
+                  <td style={{ ...aTd, fontSize: 10 }}>
+                    {r.date || '—'}
+                    {takenAt(r)?.time && <div style={{ color: '#555' }}>{takenAt(r).time}</div>}
+                  </td>
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(r.tons)}</td>
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.pricePerTon)}</td>
                   <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
@@ -499,7 +501,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                         <td style={{ ...aTd, textAlign: 'center', color: '#888' }}>{i + 1}</td>
                         <td style={{ ...aTd, fontWeight: 'bold' }}>
                           {r.date || '—'}
-                          {ftClock(ftOf(r, s.sales)) && <div style={{ fontSize: 9, fontWeight: 'normal', color: '#555' }}>{ftClock(ftOf(r, s.sales))}</div>}
+                          {takenAt(r, s.sales)?.time && <div style={{ fontSize: 9, fontWeight: 'normal', color: '#555' }}>{takenAt(r, s.sales).time}</div>}
                         </td>
                         <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
                         <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>

@@ -5,7 +5,7 @@
 // topish qiyin bo'ladi.
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseRu, isEmptyRange, inRange, filterByRange, todayISO, daysAgoISO } from './dateRange.js';
+import { parseRu, isEmptyRange, inRange, filterByRange, sortByDateDesc, todayISO, daysAgoISO } from './dateRange.js';
 
 const R = (from, to) => ({ from, to });
 
@@ -102,4 +102,50 @@ test('oy chegarasida daysAgoISO to\'g\'ri ishlaydi', () => {
   assert.match(iso, /^\d{4}-\d{2}-\d{2}$/);
   const back = daysAgoISO(400);          // bir yildan ko'p
   assert.ok(Number(back.slice(0, 4)) < Number(iso.slice(0, 4)) + 1);
+});
+
+// ── sortByDateDesc ───────────────────────────────────────────────────────────
+// Xatosi: eski sanali Excel fayl keyin yuklansa, ro'yxatda yangi yuklar
+// ustida turib qoladi — mijoz sanalar ketma-ketligini yo'qotadi.
+test('sortByDateDesc — yangi sana yuqorida, kiritilish tartibiga qaramay', () => {
+  const rows = [
+    { id: 1, createdAt: 1, date: '06.08.2026' },  // birinchi yuklangan
+    { id: 2, createdAt: 2, date: '09.08.2026' },
+    { id: 3, createdAt: 3, date: '07.08.2026' },  // keyin yuklangan, eski sana
+  ];
+  assert.deepStrictEqual(sortByDateDesc(rows).map(r => r.id), [2, 3, 1]);
+});
+
+test('sortByDateDesc — bir xil sanada zavod vaqti hal qiladi', () => {
+  const rows = [
+    { id: 1, createdAt: 1, date: '06.08.2026', factoryTime: '2026-08-06 08:10:00' },
+    { id: 2, createdAt: 2, date: '06.08.2026', factoryTime: '2026-08-06 19:45:00' },
+  ];
+  assert.deepStrictEqual(sortByDateDesc(rows).map(r => r.id), [2, 1]);
+});
+
+test('sortByDateDesc — vaqt yo\'q bo\'lsa kiritilish tartibi (yangisi tepada)', () => {
+  const rows = [
+    { id: 1, createdAt: 1, date: '06.08.2026' },
+    { id: 2, createdAt: 2, date: '06.08.2026' },
+  ];
+  assert.deepStrictEqual(sortByDateDesc(rows).map(r => r.id), [2, 1]);
+});
+
+test('sortByDateDesc — sanasi buzuq yozuv yo\'qolmaydi (tepada qoladi)', () => {
+  const rows = [
+    { id: 1, createdAt: 1, date: '06.08.2026' },
+    { id: 2, createdAt: 2, date: '' },
+    { id: 3, createdAt: 3, date: '09.08.2026' },
+  ];
+  const got = sortByDateDesc(rows).map(r => r.id);
+  assert.strictEqual(got.length, 3);
+  assert.strictEqual(got[0], 2);
+  assert.deepStrictEqual(got.slice(1), [3, 1]);
+});
+
+test('sortByDateDesc — asl massivni o\'zgartirmaydi', () => {
+  const rows = [{ id: 1, date: '06.08.2026' }, { id: 2, date: '09.08.2026' }];
+  sortByDateDesc(rows);
+  assert.deepStrictEqual(rows.map(r => r.id), [1, 2]);
 });

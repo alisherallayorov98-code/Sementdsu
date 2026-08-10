@@ -10,8 +10,9 @@ import { parseNum } from '../lib/parseNum';
 import SupplierSelect from '../components/SupplierSelect';
 import CustomerSelect from '../components/CustomerSelect';
 import DateRangeFilter from '../components/DateRangeFilter';
-import { filterByRange } from '../lib/dateRange';
+import { filterByRange, sortByDateDesc } from '../lib/dateRange';
 import { useFocusRow, FOCUS_STYLE } from '../lib/useFocusRow';
+import { ticketFromCard, ticketKey } from '../lib/birjaRecon';
 
 const fmt  = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(3); };
@@ -113,6 +114,10 @@ export default function RecvTons({ lang }) {
 
   // Ombor nomi (taqsimlanmagan tonna qayerda qolishini aytish uchun)
   const whNameOf = (id) => (warehouses.find(w => w.id === id) || {}).name || 'Asosiy ombor';
+  // Qatorning tiket (shartnoma) raqami. Eski yozuvlarda contractNo bo'sh, lekin
+  // tiket "Karta nomi" ichida turadi — shuning uchun ko'rsatish, filtrlash va
+  // eksportda hamma joyda shu yordamchi ishlatiladi (bazaga tegmaydi).
+  const contractOf = (r) => String(r?.contractNo || '').trim() || ticketFromCard(r?.cardName);
   const debtBalanceOf = (name) => custRows(debtRows, custRef(name))
     .reduce((s, r) => s + Math.max(0, Number(r.amount || 0) - Number(r.paid || 0)), 0);
   const [editRecv, setEditRecv] = useState(null); // tahrirlash uchun
@@ -228,8 +233,10 @@ export default function RecvTons({ lang }) {
           // ham, yetkazib beruvchi bilan hisob-kitob ham noto'g'ri chiqardi.
           paymentChannel: 'bank',
           // Shartnoma (tiket) raqami — birja bilan solishtirish kaliti.
-          // Faylda bo'lmasa, preview oynasida barchasiga birdan qo'yiladi.
-          contractNo: String(row[8] || '').trim(),
+          // I ustunda bo'lmasa, "Karta nomi" (H) ichidan avtomatik ajratiladi:
+          // zavod fayllarida tiket aynan o'sha yerda "A26010163 (7)" ko'rinishida
+          // keladi. Ikkalasi ham bo'lmasa, preview oynasida qo'lda qo'yiladi.
+          contractNo: String(row[8] || '').trim() || ticketFromCard(row[7]),
           izoh: '',
         });
       }
@@ -257,7 +264,9 @@ export default function RecvTons({ lang }) {
 
   // ── Tasdiqlash (+ ixtiyoriy birdan sotish) ───────────────────────────────
   const openVerify = (r) => {
-    setVerifyRow({ ...r });
+    // Tiket raqami yozilmagan bo'lsa — "Karta nomi" dan avtomatik olib qo'yamiz.
+    // Xodim uni qo'lda ko'chirib yozishi shart emas; kerak bo'lsa tahrirlaydi.
+    setVerifyRow({ ...r, contractNo: contractOf(r) });
     setSplits([]);
   };
   const closeVerify = () => { setVerifyRow(null); setSplits([]); };
@@ -356,22 +365,29 @@ export default function RecvTons({ lang }) {
   const sourceList = uniqueNames(recvRows.map(r => r.source));
   const brandList  = [...new Set(recvRows.map(r => r.brand).filter(Boolean))];
   // Shartnoma (tiket) raqamlari — filtr ro'yxati uchun
-  const contractList = [...new Set(recvRows.map(r => String(r.contractNo || '').trim()).filter(Boolean))].sort();
+  const contractList = [...new Set(recvRows.map(contractOf).filter(Boolean))].sort();
 
   let filtered = recvRows;
   if (filterSource) filtered = filtered.filter(r => sameName(r.source, filterSource));
   if (filterBrand)  filtered = filtered.filter(r => r.brand  === filterBrand);
-  if (filterContract) filtered = filtered.filter(r => String(r.contractNo||'').trim() === filterContract);
+  // Tiket bo'yicha izlash: to'liq raqamni yozish shart emas — bo'lagi ham
+  // yetadi ("10163"). Katta-kichik harf va "-", bo'sh joy farqi hisobga olinmaydi.
+  if (filterContract) {
+    const q = ticketKey(filterContract);
+    filtered = filtered.filter(r => ticketKey(contractOf(r)).includes(q));
+  }
   filtered = filterByRange(filtered, range); // sanadan–sanagacha
 
   const totalTons = filtered.reduce((s,r) => s + Number(r.tons||0), 0);
   const totalSum  = filtered.reduce((s,r) => s + Number(r.tons||0)*Number(r.pricePerTon||0), 0);
   useEffect(() => { setPage(1); setSelected(new Set()); }, [filterSource, filterBrand, filterContract, range.from, range.to]);
-  const reversedFiltered = [...filtered].reverse();
-  const paged = reversedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Ro'yxat SANA bo'yicha (yangi → eski) tartiblanadi, kiritilish tartibida
+  // emas: eski sanali fayl keyin yuklansa ham o'z joyiga tushadi.
+  const sortedFiltered = sortByDateDesc(filtered);
+  const paged = sortedFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   // Mijoz kartochkasidagi "manba" oynasidan kelingan bo'lsa (?focus=id) —
   // kerakli sahifaga o'tiladi va qator sariq bilan ajratiladi.
-  const { rowRef: focusRef, isFocused } = useFocusRow(reversedFiltered, PAGE_SIZE, setPage);
+  const { rowRef: focusRef, isFocused } = useFocusRow(sortedFiltered, PAGE_SIZE, setPage);
 
   const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const allPageSelected = paged.length > 0 && paged.every(r => selected.has(r.id));
@@ -454,7 +470,11 @@ export default function RecvTons({ lang }) {
     // tasdiqlanmagan (pending) yuklar ham qo'shilib, aktdagi "JAMI"
     // "Zavod qarzlari" bo'limidagi summadan farq qilardi. Akt zavodga
     // beriladigan hujjat, ikki xil raqam chiqishi mumkin emas.
-    const srcRows   = recvRows.filter(r => sameName(r.source, modalSource) && !r.pending);
+    // Aktda yetkazmalar sana bo'yicha (eski → yangi) turadi: zavod bilan
+    // solishtirishda qatorlar kiritilish tartibida sakrab ketmasin.
+    const srcRows   = sortByDateDesc(
+      recvRows.filter(r => sameName(r.source, modalSource) && !r.pending)
+    ).reverse();
     const srcPending = recvRows.filter(r => sameName(r.source, modalSource) && r.pending);
     const pendTons  = srcPending.reduce((s,r) => s+Number(r.tons||0), 0);
     const pendSum   = srcPending.reduce((s,r) => s+Number(r.tons||0)*Number(r.pricePerTon||0), 0);
@@ -798,12 +818,24 @@ export default function RecvTons({ lang }) {
                 {brandList.map(b=><option key={b} value={b}>{b}</option>)}
               </select>
             </td>
-            <td style={{ paddingLeft:10, paddingRight:5, fontWeight:'bold', fontSize:12 }}>Shartnoma:</td>
+            <td style={{ paddingLeft:10, paddingRight:5, fontWeight:'bold', fontSize:12 }}>Tiket:</td>
             <td style={{ paddingRight:4 }}>
-              <select value={filterContract} onChange={e=>setFilterContract(e.target.value)} style={{ ...inp }}>
-                <option value="">{L.hammasi[lang]}</option>
-                {contractList.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
+              {/* Tiketlar soni yuzlab — ro'yxatdan qidirgandan ko'ra yozib izlash
+                  tez. datalist bilan mavjud raqamlar taklif ham qilinadi. */}
+              <input
+                list="recv-ticket-list"
+                value={filterContract}
+                onChange={e=>setFilterContract(e.target.value)}
+                placeholder="tiket № izlash"
+                style={{ ...inp, width:130 }}
+              />
+              <datalist id="recv-ticket-list">
+                {contractList.map(c=><option key={c} value={c} />)}
+              </datalist>
+              {filterContract && (
+                <button type="button" onClick={()=>setFilterContract('')}
+                  style={{ marginLeft:4, border:'1px solid #bbb', background:'#fff', cursor:'pointer', borderRadius:3 }}>✕</button>
+              )}
             </td>
             <td style={{ paddingLeft:10, color:'#666', fontSize:11 }}>
               ({filtered.length} ta yozuv)
@@ -816,7 +848,7 @@ export default function RecvTons({ lang }) {
                 columns={[
                   { header: 'Sana', value: r => r.date },
                   { header: 'Manbaa (zavod)', value: r => r.source },
-                  { header: 'Shartnoma / Tiket', value: r => r.contractNo || '' },
+                  { header: 'Shartnoma / Tiket', value: r => contractOf(r) },
                   { header: 'Marka', value: r => r.brand || '' },
                   { header: 'Mashina №', value: r => r.vehicleNo || '' },
                   { header: 'Tonna', value: r => Number(r.tons || 0) },
@@ -827,7 +859,7 @@ export default function RecvTons({ lang }) {
                   { header: 'Vaqt (zavod)', value: r => r.factoryTime || '' },
                   { header: 'Xodim', value: r => r.worker || '' },
                 ]}
-                rows={[...filtered].reverse()}
+                rows={sortedFiltered}
               />
             </td>
           </tr>
@@ -918,8 +950,11 @@ export default function RecvTons({ lang }) {
                         {r.source}
                       </button>
                     </td>
-                    <td style={{ fontSize:11, fontWeight:'bold', color: r.contractNo ? '#00695c' : '#ccc' }}>
-                      {r.contractNo || '—'}
+                    {/* Tiket qatorda yozilmagan bo'lsa "Karta nomi" dan olinadi —
+                        u ochroq rangda ko'rsatiladi (hali tasdiqlanmagan manba). */}
+                    <td style={{ fontSize:11, fontWeight:'bold', color: r.contractNo ? '#00695c' : (contractOf(r) ? '#7aa8a2' : '#ccc') }}
+                        title={!r.contractNo && contractOf(r) ? 'Karta nomidan olindi' : undefined}>
+                      {contractOf(r) || '—'}
                     </td>
                     <td style={{ color:'#006699', fontWeight:'bold', fontSize:12 }}>{r.brand||'—'}</td>
                     <td style={{ fontSize:11, color: r.cementType ? '#4a148c' : '#bbb', fontWeight: r.cementType ? 'bold' : 'normal' }}>{r.cementType||'—'}</td>
@@ -1248,7 +1283,8 @@ const vInp = { width:'100%', boxSizing:'border-box', padding:'7px 9px', fontSize
 
 // ── RecvRow tahrirlash modali ─────────────────────────────────────────────────
 export function RecvEditModal({ row, warehouses, myWh, onSave, onClose, linkedSale, cementTypesList }) {
-  const [f, setF]   = useState({ ...row });
+  // Tiket bo'sh bo'lsa "Karta nomi" dan avtomatik to'ldiriladi (tahrirlash mumkin)
+  const [f, setF]   = useState({ ...row, contractNo: String(row?.contractNo || '').trim() || ticketFromCard(row?.cardName) });
   const [sf, setSf] = useState(linkedSale ? { ...linkedSale } : null);
   const sv = v => e => setF(p => ({ ...p, [v]: e.target.value }));
   const ss = v => e => setSf(p => ({ ...p, [v]: e.target.value }));

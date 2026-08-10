@@ -36,6 +36,25 @@ export const inRange = (rowDate, range) => {
 export const filterByRange = (rows, range, getDate = (r) => r.date) =>
   isEmptyRange(range) ? rows : rows.filter((r) => inRange(getDate(r), range));
 
+// Yozuvlarni SANA bo'yicha tartiblash: yangi sana yuqorida, eski pastda.
+// Ilgari ro'yxatlar faqat kiritilish tartibida (teskari) chiqarilardi: 06.08
+// dagi fayl yuklanib, keyin 07.08 dagisi yuklansa, 06.08 yuqorida qolib
+// ketardi. Bir xil sanada zavod vaqti (factoryTime), u ham bo'lmasa
+// kiritilish tartibi hisobga olinadi. Sanasi o'qilmagan yozuv YO'QOLMASIN
+// uchun eng tepada qoladi.
+export const sortByDateDesc = (rows, getDate = (r) => r.date) =>
+  [...rows].sort((a, b) => {
+    const ta = parseRu(getDate(a));
+    const tb = parseRu(getDate(b));
+    const va = Number.isNaN(ta) ? Infinity : ta;
+    const vb = Number.isNaN(tb) ? Infinity : tb;
+    if (va !== vb) return vb - va;
+    const fa = String(a.factoryTime || '');
+    const fb = String(b.factoryTime || '');
+    if (fa && fb && fa !== fb) return fa < fb ? 1 : -1;
+    return Number(b.createdAt || b.id || 0) - Number(a.createdAt || a.id || 0);
+  });
+
 // Bugungi sana ISO formatida ("yyyy-oo-kk")
 export const todayISO = () => {
   const d = new Date();

@@ -23,6 +23,17 @@ export const ticketKey = (s) => String(s == null ? '' : s)
   .replace(/[А-Я]/g, (c) => CYR2LAT[c] || c)
   .replace(/[\s\-_.,/\\]+/g, '');
 
+// Zavod faylida tiket raqami alohida ustunda bo'lmasligi mumkin — u ko'pincha
+// "Karta nomi" ichida keladi: "A26010163 (7)", "B26010120 (1101)".
+// Shu yerdan tiketni ajratib olamiz: harf(lar) + kamida 6 ta raqam.
+// Qavs ichidagi son — karta raqami, tiketga aloqasi yo'q, tashlab ketiladi.
+export const ticketFromCard = (card) => {
+  const s = String(card == null ? '' : card).trim();
+  if (!s) return '';
+  const m = s.match(/[A-Za-zА-Яа-я]{1,2}[\s\-_]*\d{6,}/);
+  return m ? m[0].replace(/[\s\-_]+/g, '').toUpperCase() : '';
+};
+
 // Tonna taqqoslashda yaxlitlash qoldig'i (masalan 49.6 va 49.600)
 const EPS = 0.01;
 
@@ -60,8 +71,10 @@ export function reconcile(birjaRows = [], recvRows = [], closed = []) {
   for (const r of recvRows) {
     // Tiket raqami yozilmagan yuk solishtiruvga kirmaydi — aks holda u
     // "(raqamsiz)" guruhida yig'ilib, boshqa tiketlarning farqini yashirardi.
-    if (!ticketKey(r.contractNo)) continue;
-    const g = get(r.contractNo);
+    // Alohida ustunda bo'lmasa, "Karta nomi" ichidagi raqam ishlatiladi.
+    const tno = String(r.contractNo || '').trim() || ticketFromCard(r.cardName);
+    if (!ticketKey(tno)) continue;
+    const g = get(tno);
     g.zavodTons += num(r.tons);
     // Tasdiqlanmagan (pending) yuk alohida ko'rsatiladi: u hali rasman
     // kelgan hisoblanmaydi, lekin farqni tushuntirishi mumkin.

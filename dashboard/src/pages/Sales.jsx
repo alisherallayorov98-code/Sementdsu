@@ -12,6 +12,7 @@ import Paginator from '../components/Paginator';
 import { api } from '../api';
 import { findCust, nameKey } from '../lib/customerRef';
 import { parseNum } from '../lib/parseNum';
+import { takenAt } from '../lib/saleTime';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 const fmtTons = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) : v.toFixed(2); };
@@ -306,9 +307,13 @@ export default function Sales({ lang }) {
                   <td style={{ ...tdS, color: '#888', textAlign: 'center', width: 30 }}>{i + 1}</td>
                   <td style={{ ...tdS, width: 100, color: '#555' }}>
                     <div>{r.date}</div>
+                    {/* Mijoz olgan vaqt: taqsimlashda — zavoddan chiqqan vaqt,
+                        qo'lda sotuvda — yozuv kiritilgan vaqt. */}
                     {r.factoryTime
-                      ? <div style={{ fontSize: 10, fontWeight: 'bold', color: '#e65100' }} title="Zavod vaqti">{r.factoryTime}</div>
-                      : null}
+                      ? <div style={{ fontSize: 10, fontWeight: 'bold', color: '#e65100' }} title="Zavoddan chiqqan vaqt">{r.factoryTime}</div>
+                      : (takenAt(r)?.time
+                          ? <div style={{ fontSize: 10, color: '#888' }} title="Kiritilgan vaqt">🕒 {takenAt(r).time}</div>
+                          : null)}
                   </td>
                   <td style={{ ...tdS, width: 220 }}>
                     <div onClick={() => setCard(r.customer)} title="Mijoz ma'lumotlarini ochish"
