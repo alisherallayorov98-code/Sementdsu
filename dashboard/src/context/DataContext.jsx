@@ -1025,6 +1025,24 @@ export function DataProvider({ children }) {
   };
 
   // ── 13. Sotish ────────────────────────────────────────────────────────────
+  // Sotuvdan tug'ilgan kassa/qarz yozuvining izohi. Qarzlar ro'yxatida (va
+  // mijoz kartochkasida) faqat shu matn ko'rinadi, shuning uchun yuk haqidagi
+  // ASOSIY belgilar shu yerda bo'lishi kerak:
+  //   · soat — bir kunda bir mijozga ikki-uch mashina ketadi, sana ularni
+  //     ajratmaydi (zavod vaqti bo'lsa o'sha, bo'lmasa kiritilgan vaqt);
+  //   · tiket (shartnoma №) — qarz qaysi tiketdagi yukdan chiqqani.
+  // Ilgari faqat "mijoz (tonna) | mashina" yozilardi va qarzga qarab yukni
+  // topib bo'lmasdi.
+  const clockOf = (ft) => { const m = String(ft || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
+  const saleTag = (sale, ts) => {
+    const ftClk = clockOf(sale.factoryTime);
+    const clk   = ftClk || new Date(Number(ts) || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const tiket = String(sale.contractNo || '').trim();
+    return `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)`
+      + ` | 🕒 ${clk}${ftClk ? '' : ' (kiritildi)'}`
+      + (tiket ? ` | 🎫 ${tiket}` : '')
+      + (sale.vehicleNo ? ` | 🚛 ${sale.vehicleNo}` : '');
+  };
   const [salesRows, setSalesRows] = useState(() => load('sales_rows', []));
   useEffect(() => save('sales_rows', salesRows), [salesRows]);
   const addSaleRow = (entry) => {
