@@ -20,8 +20,8 @@ const fmtT = (n) => { const v = Number(n || 0); return v % 1 === 0 ? String(v) :
 // Mantiqi lib/saleTime.js da (testlanadi).
 // Tiket (shartnoma) katakchasi. Bitta mijozga bir kunda bir necha tiketdan
 // yuk borishi mumkin — qaysi biridan ekani har qatorda ko'rinib turishi kerak.
-const TicketCell = ({ row, sales = [], print }) => {
-  const tk = ticketOf(row, sales);
+const TicketCell = ({ row, sales = [], recvRows = [], print }) => {
+  const tk = ticketOf(row, sales, recvRows);
   return (
     <td style={{ ...(print ? aTd : {}), fontSize: print ? 10 : 11, fontFamily: 'monospace',
                  fontWeight: 'bold', color: tk ? '#00695c' : '#bbb' }}>
@@ -47,7 +47,8 @@ const DateCell = ({ row, sales = [] }) => {
 
 export default function CustomerCard({ name, onClose }) {
   const data = useData();
-  const { customers, appSettings, setMonitor, tgChatIdFor, tgLocationFor, updateCustomer } = data;
+  // recvRows — sotuv qatorida tiket bo'lmasa, u chiqqan zavod yukidan olinadi
+  const { customers, appSettings, setMonitor, tgChatIdFor, tgLocationFor, updateCustomer, recvRows } = data;
   const cust = findCust(customers, name);
   // Bazadagi mijoz topilsa uni beramiz — qidiruv customerId bo'yicha ketadi.
   const s = customerSummary(cust || name, data);
@@ -180,7 +181,7 @@ export default function CustomerCard({ name, onClose }) {
           <AktSverkaModal
             name={name} s={s} aktRef={aktRef}
             onClose={() => setShowAkt(false)}
-            onExcel={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, advs: s.advs, summary: s })}
+            onExcel={() => exportAktSverka(name, { sales: s.sales, debts: s.debts, advs: s.advs, summary: s, recvRows })}
           />
         )}
 
@@ -245,7 +246,7 @@ export default function CustomerCard({ name, onClose }) {
                   {cap('sales', [...s.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))).map(r => (
                     <tr key={r.id}>
                       <DateCell row={r} />
-                      <TicketCell row={r} />
+                      <TicketCell row={r} recvRows={recvRows} />
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtT(r.tons)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.pricePerTon)}</td>
                       <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
@@ -270,7 +271,7 @@ export default function CustomerCard({ name, onClose }) {
                     return (
                       <tr key={r.id}>
                         <DateCell row={r} sales={s.sales} />
-                        <TicketCell row={r} sales={s.sales} />
+                        <TicketCell row={r} sales={s.sales} recvRows={recvRows} />
                         <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmt(r.amount)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#2e7d32' }}>{fmt(r.paid)}</td>
                         <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: qoldiq > 0 ? '#c62828' : '#888' }}>{fmt(qoldiq)}</td>
@@ -494,7 +495,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                     {r.date || '—'}
                     {takenAt(r)?.time && <div style={{ color: '#555' }}>{takenAt(r).time}</div>}
                   </td>
-                  <TicketCell row={r} print />
+                  <TicketCell row={r} recvRows={recvRows} print />
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmtT(r.tons)}</td>
                   <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.pricePerTon)}</td>
                   <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold' }}>{fmt(Number(r.tons || 0) * Number(r.pricePerTon || 0))}</td>
@@ -546,7 +547,7 @@ function AktSverkaModal({ name, s, aktRef, onClose, onExcel }) {
                           {r.date || '—'}
                           {takenAt(r, s.sales)?.time && <div style={{ fontSize: 9, fontWeight: 'normal', color: '#555' }}>{takenAt(r, s.sales).time}</div>}
                         </td>
-                        <TicketCell row={r} sales={s.sales} print />
+                        <TicketCell row={r} sales={s.sales} recvRows={recvRows} print />
                         <td style={{ ...aTd, textAlign: 'right' }}>{fmt(r.amount)}</td>
                         <td style={{ ...aTd, textAlign: 'right', color: '#006600' }}>{fmt(r.paid)}</td>
                         <td style={{ ...aTd, textAlign: 'right', fontWeight: 'bold', color: left > 0 ? '#c00' : '#006600' }}>{fmt(left)}</td>
