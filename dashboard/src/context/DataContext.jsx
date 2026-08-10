@@ -1072,7 +1072,7 @@ export function DataProvider({ children }) {
     // (auto:true, sourceId) va faqat shu savdo o'chirilganda o'chiriladi.
     const sum = Number(sale.tons || 0) * Number(sale.pricePerTon || 0);
     if (sum > 0) {
-      const tag  = `🔗 Sotuv: ${sale.customer} (${fmtTons(sale.tons)} tn)${sale.vehicleNo ? ` | 🚛 ${sale.vehicleNo}` : ''}`;
+      const tag  = saleTag(sale, ts);
       // DIQQAT: link'ga customerId QO'YILMAYDI. Kassa yozuvlarida mijoz maydoni
       // ataylab bo'sh — customerSummary shu bo'shliqqa qarab "bog'lanmagan pul"ni
       // ajratadi. customerId qo'shilsa, sotuvdan tushgan naqd u yerga ikkinchi
@@ -1081,7 +1081,7 @@ export function DataProvider({ children }) {
       // talab qiladi), soat/daqiqa esa YO'QOLARDI — qarz qatorida yukning aniq
       // vaqti ko'rinmay, bir kunda ikki mashina kelganda qaysi biri ekani
       // noaniq bo'lardi.
-      const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date, factoryTime: sale.factoryTime || '' };
+      const link = { auto: true, sourceType: 'sale', sourceId: ts, createdAt: ts, worker: currentWorker, date: sale.date, factoryTime: sale.factoryTime || '', contractNo: sale.contractNo || '' };
       const channel = sale.paymentChannel || 'naqd';
       if (channel === 'naqd')        setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (channel === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
@@ -1185,8 +1185,8 @@ export function DataProvider({ children }) {
     next.advanceUsed = 0;
 
     if (sum > 0) {
-      const tag  = `🔗 Sotuv: ${next.customer} (${fmtTons(next.tons)} tn)${next.vehicleNo ? ` | 🚛 ${next.vehicleNo}` : ''}`;
-      const link = { auto: true, sourceType: 'sale', sourceId: id, createdAt: next.createdAt || id, worker: currentWorker, date: next.date, factoryTime: next.factoryTime || '' };
+      const tag  = saleTag(next, next.createdAt || id);
+      const link = { auto: true, sourceType: 'sale', sourceId: id, createdAt: next.createdAt || id, worker: currentWorker, date: next.date, factoryTime: next.factoryTime || '', contractNo: next.contractNo || '' };
       if      (ch === 'naqd')   setCashRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (ch === 'bank')   setBankRows(p  => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);
       else if (ch === 'click')  setClickRows(p => [...p, { ...link, id: uid(), amount: sum, desc: tag }]);

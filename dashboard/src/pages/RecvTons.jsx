@@ -342,6 +342,9 @@ export default function RecvTons({ lang }) {
           note: `Zavod: ${verifyRow.source}`,
           recvId: verifyRow.id,
           cementType: verifyRow.cementType || '',
+          // Tiket (shartnoma) raqami sotuvga ko'chadi — qarz qatorida "bu qarz
+          // qaysi tiketdagi yukdan chiqqan" ko'rinishi uchun.
+          contractNo: verifyRow.contractNo || '',
         });
         if (!ok) failed.push(`${sp.customer} — ${fmtT(spTons)} tn (sotuv)`);
       } else {
